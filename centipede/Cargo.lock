@@ -348,13 +348,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bevy-template"
-version = "0.1.0"
-dependencies = [
- "bevy",
-]
-
-[[package]]
 name = "bevy_a11y"
 version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1828,6 +1821,13 @@ dependencies = [
  "jobserver",
  "libc",
  "shlex",
+]
+
+[[package]]
+name = "centipede"
+version = "0.1.0"
+dependencies = [
+ "bevy",
 ]
 
 [[package]]
