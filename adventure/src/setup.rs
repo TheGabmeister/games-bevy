@@ -8,9 +8,6 @@ pub fn spawn_world(
     mut materials: ResMut<Assets<ColorMaterial>>,
     world: Res<WorldMap>,
 ) {
-    // Camera
-    commands.spawn(Camera2d);
-
     // Background color (will be updated by rooms system)
     commands.insert_resource(ClearColor(world.room(1).color));
 

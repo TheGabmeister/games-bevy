@@ -30,6 +30,7 @@ fn main() {
             ..default()
         }))
         .init_state::<AppState>()
+        .add_systems(Startup, spawn_camera)
         .insert_resource(WorldMap::new())
         .insert_resource(CurrentRoom(1))
         .insert_resource(PlayerInventory { item: None })
@@ -102,6 +103,10 @@ fn init_game_resources(
     commands.insert_resource(DeadDragonMaterial(dead_mat));
 }
 
+fn spawn_camera(mut commands: Commands) {
+    commands.spawn(Camera2d);
+}
+
 /// Despawn all game world entities when returning to title.
 fn despawn_game_world(
     mut commands: Commands,
@@ -113,12 +118,8 @@ fn despawn_game_world(
         With<components::Gate>,
         With<components::RoomWallMarker>,
     )>>,
-    cameras: Query<Entity, With<Camera2d>>,
 ) {
     for e in entities.iter() {
-        commands.entity(e).despawn();
-    }
-    for e in cameras.iter() {
         commands.entity(e).despawn();
     }
 }
