@@ -259,17 +259,16 @@ fn compute_head_move(
 
 fn check_wave_clear(
     mut commands: Commands,
-    chains: Res<CentipedeChains>,
+    mut chains_res: ResMut<CentipedeChains>,
     mut wave: ResMut<Wave>,
     mut timer: ResMut<CentipedeTimer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    mut chains_res: ResMut<CentipedeChains>,
     mut next_id: ResMut<NextChainId>,
     mushroom_q: Query<(Entity, &GridPos), With<crate::components::Mushroom>>,
     mut mushroom_grid: ResMut<MushroomGrid>,
 ) {
-    if !chains.0.is_empty() {
+    if !chains_res.0.is_empty() {
         return;
     }
 
