@@ -70,7 +70,7 @@ pub fn item_drop(
     player_q: Query<&Transform, With<Player>>,
     mut inventory: ResMut<PlayerInventory>,
     current_room: Res<CurrentRoom>,
-    mut item_q: Query<(&mut Transform, &mut InRoom), (With<Item>, With<Carried>)>,
+    mut item_q: Query<(&mut Transform, &mut InRoom), (With<Item>, With<Carried>, Without<Player>)>,
 ) {
     if !keys.just_pressed(KeyCode::Space) && !keys.just_pressed(KeyCode::KeyE) {
         return;
@@ -91,7 +91,7 @@ pub fn item_drop(
 pub fn carry_item_follow(
     player_q: Query<&Transform, With<Player>>,
     inventory: Res<PlayerInventory>,
-    mut item_q: Query<&mut Transform, (With<Item>, With<Carried>)>,
+    mut item_q: Query<&mut Transform, (With<Item>, With<Carried>, Without<Player>)>,
 ) {
     let Some(item_entity) = inventory.item else { return; };
     let Ok(p_transform) = player_q.single() else { return; };
