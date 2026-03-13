@@ -484,24 +484,27 @@ fn build_ufo_visuals(
 
 fn update_hud(
     session: Res<SessionState>,
-    mut score_text: Query<&mut Text, With<HudScore>>,
-    mut lives_text: Query<&mut Text, With<HudLives>>,
-    mut wave_text: Query<&mut Text, With<HudWave>>,
+    mut hud_text: Query<
+        (
+            &mut Text,
+            Option<&HudScore>,
+            Option<&HudLives>,
+            Option<&HudWave>,
+        ),
+    >,
 ) {
     if !session.is_changed() {
         return;
     }
 
-    if let Ok(mut score) = score_text.single_mut() {
-        **score = format!("SCORE {:04}", session.score);
-    }
-
-    if let Ok(mut lives) = lives_text.single_mut() {
-        **lives = format!("LIVES {}", session.lives);
-    }
-
-    if let Ok(mut wave) = wave_text.single_mut() {
-        **wave = format!("WAVE {:02}", session.wave);
+    for (mut text, score, lives, wave) in &mut hud_text {
+        if score.is_some() {
+            **text = format!("SCORE {:04}", session.score);
+        } else if lives.is_some() {
+            **text = format!("LIVES {}", session.lives);
+        } else if wave.is_some() {
+            **text = format!("WAVE {:02}", session.wave);
+        }
     }
 }
 
