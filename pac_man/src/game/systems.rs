@@ -99,10 +99,10 @@ pub fn handle_player_input(
 pub fn plan_ghost_turns(
     layout: Res<LevelLayout>,
     session: Res<GameSession>,
-    player: Query<(&Transform, &GridMover), With<Player>>,
+    player: Query<(&Transform, &GridMover), (With<Player>, Without<Ghost>)>,
     mut ghosts: ParamSet<(
-        Query<(&Ghost, &Transform)>,
-        Query<(&mut Ghost, &Transform, &mut GridMover)>,
+        Query<(&Ghost, &Transform), Without<Player>>,
+        Query<(&mut Ghost, &Transform, &mut GridMover), Without<Player>>,
     )>,
 ) {
     if session.phase != RoundPhase::Playing {
@@ -402,19 +402,21 @@ pub fn animate_power_pellets(time: Res<Time>, mut pellets: Query<(&Pellet, &mut 
 
 pub fn update_hud(
     session: Res<GameSession>,
-    mut score_text: Query<&mut Text, With<ScoreText>>,
-    mut lives_text: Query<&mut Text, With<LivesText>>,
-    mut message_text: Query<&mut Text, With<MessageText>>,
+    mut hud_text: ParamSet<(
+        Query<&mut Text, With<ScoreText>>,
+        Query<&mut Text, With<LivesText>>,
+        Query<&mut Text, With<MessageText>>,
+    )>,
 ) {
-    if let Ok(mut text) = score_text.single_mut() {
+    if let Ok(mut text) = hud_text.p0().single_mut() {
         text.0 = format!("SCORE {:05}", session.score);
     }
 
-    if let Ok(mut text) = lives_text.single_mut() {
+    if let Ok(mut text) = hud_text.p1().single_mut() {
         text.0 = format!("LIVES {}", session.lives);
     }
 
-    if let Ok(mut text) = message_text.single_mut() {
+    if let Ok(mut text) = hud_text.p2().single_mut() {
         text.0 = match session.phase {
             RoundPhase::Ready => "READY!".into(),
             RoundPhase::Playing => String::new(),
