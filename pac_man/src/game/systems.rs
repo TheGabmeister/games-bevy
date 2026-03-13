@@ -653,9 +653,6 @@ fn step_mover(transform: &mut Transform, mover: &mut GridMover, layout: &LevelLa
     let centered = is_centered(transform.translation.truncate(), tile, layout);
 
     if centered {
-        transform.translation.x = center.x;
-        transform.translation.y = center.y;
-
         if let Some(desired) = mover.desired {
             if layout.can_move(tile, desired) {
                 mover.current = Some(desired);
@@ -665,6 +662,19 @@ fn step_mover(transform: &mut Transform, mover: &mut GridMover, layout: &LevelLa
         if let Some(current) = mover.current {
             if !layout.can_move(tile, current) {
                 mover.current = None;
+            }
+        }
+
+        match mover.current {
+            Some(current) if current.is_horizontal() => {
+                transform.translation.y = center.y;
+            }
+            Some(_) => {
+                transform.translation.x = center.x;
+            }
+            None => {
+                transform.translation.x = center.x;
+                transform.translation.y = center.y;
             }
         }
     }
