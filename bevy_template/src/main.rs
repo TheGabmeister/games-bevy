@@ -1,3 +1,4 @@
+mod audio;
 mod components;
 mod constants;
 mod player;
@@ -22,7 +23,7 @@ fn main() {
             }),
             ..default()
         }))
-        .add_plugins((player::PlayerPlugin, ui::UiPlugin))
+        .add_plugins((player::PlayerPlugin, ui::UiPlugin, audio::GameAudioPlugin))
         .init_state::<AppState>()
         .init_resource::<GameData>()
         .add_systems(Startup, setup)
