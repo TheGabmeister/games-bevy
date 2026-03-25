@@ -5,9 +5,43 @@ use crate::constants::*;
 use crate::resources::GameData;
 use crate::states::AppState;
 
+pub struct UiPlugin;
+
+impl Plugin for UiPlugin {
+    fn build(&self, app: &mut App) {
+        app
+            // Start Screen
+            .add_systems(OnEnter(AppState::StartScreen), spawn_start_screen)
+            .add_systems(OnExit(AppState::StartScreen), cleanup_start_screen)
+            .add_systems(
+                Update,
+                start_game_input.run_if(in_state(AppState::StartScreen)),
+            )
+            // Playing
+            .add_systems(OnEnter(AppState::Playing), spawn_game_hud)
+            .add_systems(OnExit(AppState::Playing), cleanup_game_hud)
+            .add_systems(
+                Update,
+                (
+                    increment_score,
+                    update_score_display.after(increment_score),
+                    game_over_input,
+                )
+                    .run_if(in_state(AppState::Playing)),
+            )
+            // Game Over
+            .add_systems(OnEnter(AppState::GameOver), spawn_game_over)
+            .add_systems(OnExit(AppState::GameOver), cleanup_game_over)
+            .add_systems(
+                Update,
+                restart_input.run_if(in_state(AppState::GameOver)),
+            );
+    }
+}
+
 // --- Start Screen ---
 
-pub fn spawn_start_screen(mut commands: Commands) {
+fn spawn_start_screen(mut commands: Commands) {
     commands
         .spawn((
             StartScreenUI,
@@ -41,7 +75,7 @@ pub fn spawn_start_screen(mut commands: Commands) {
         });
 }
 
-pub fn cleanup_start_screen(
+fn cleanup_start_screen(
     mut commands: Commands,
     query: Query<Entity, With<StartScreenUI>>,
 ) {
@@ -50,7 +84,7 @@ pub fn cleanup_start_screen(
     }
 }
 
-pub fn start_game_input(
+fn start_game_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut next_state: ResMut<NextState<AppState>>,
 ) {
@@ -61,7 +95,7 @@ pub fn start_game_input(
 
 // --- Game HUD ---
 
-pub fn spawn_game_hud(mut commands: Commands) {
+fn spawn_game_hud(mut commands: Commands) {
     commands
         .spawn((
             GameHudUI,
@@ -84,20 +118,20 @@ pub fn spawn_game_hud(mut commands: Commands) {
         });
 }
 
-pub fn cleanup_game_hud(mut commands: Commands, query: Query<Entity, With<GameHudUI>>) {
+fn cleanup_game_hud(mut commands: Commands, query: Query<Entity, With<GameHudUI>>) {
     for entity in &query {
         commands.entity(entity).despawn();
     }
 }
 
-pub fn increment_score(time: Res<Time>, mut game_data: ResMut<GameData>) {
+fn increment_score(time: Res<Time>, mut game_data: ResMut<GameData>) {
     // +1 score per second (accumulates via delta)
     let prev = game_data.score;
     let new = prev as f32 + time.delta_secs();
     game_data.score = new as u32;
 }
 
-pub fn update_score_display(
+fn update_score_display(
     game_data: Res<GameData>,
     mut query: Query<&mut Text, With<ScoreText>>,
 ) {
@@ -107,7 +141,7 @@ pub fn update_score_display(
     **text = format!("Score: {}", game_data.score);
 }
 
-pub fn game_over_input(
+fn game_over_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut next_state: ResMut<NextState<AppState>>,
 ) {
@@ -118,7 +152,7 @@ pub fn game_over_input(
 
 // --- Game Over Screen ---
 
-pub fn spawn_game_over(mut commands: Commands, game_data: Res<GameData>) {
+fn spawn_game_over(mut commands: Commands, game_data: Res<GameData>) {
     commands
         .spawn((
             GameOverUI,
@@ -160,13 +194,13 @@ pub fn spawn_game_over(mut commands: Commands, game_data: Res<GameData>) {
         });
 }
 
-pub fn cleanup_game_over(mut commands: Commands, query: Query<Entity, With<GameOverUI>>) {
+fn cleanup_game_over(mut commands: Commands, query: Query<Entity, With<GameOverUI>>) {
     for entity in &query {
         commands.entity(entity).despawn();
     }
 }
 
-pub fn restart_input(
+fn restart_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut next_state: ResMut<NextState<AppState>>,
     mut game_data: ResMut<GameData>,

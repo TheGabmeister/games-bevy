@@ -2,8 +2,23 @@ use bevy::prelude::*;
 
 use crate::components::{Player, Velocity};
 use crate::constants::{PLAYER_SIZE, PLAYER_SPEED, WINDOW_HEIGHT, WINDOW_WIDTH};
+use crate::states::AppState;
 
-pub fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
+pub struct PlayerPlugin;
+
+impl Plugin for PlayerPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(Startup, spawn_player)
+            .add_systems(OnEnter(AppState::Playing), reset_player)
+            .add_systems(
+                Update,
+                (player_input, player_movement.after(player_input))
+                    .run_if(in_state(AppState::Playing)),
+            );
+    }
+}
+
+fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
         Player,
         Velocity::default(),
@@ -11,7 +26,7 @@ pub fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
     ));
 }
 
-pub fn player_input(
+fn player_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut query: Query<&mut Velocity, With<Player>>,
 ) {
@@ -37,7 +52,7 @@ pub fn player_input(
     velocity.0 = direction.normalize_or_zero() * PLAYER_SPEED;
 }
 
-pub fn player_movement(
+fn player_movement(
     time: Res<Time>,
     mut query: Query<(&Velocity, &mut Transform), With<Player>>,
 ) {
@@ -55,7 +70,7 @@ pub fn player_movement(
     transform.translation.y = transform.translation.y.clamp(-half_h, half_h);
 }
 
-pub fn reset_player(mut query: Query<(&mut Transform, &mut Velocity), With<Player>>) {
+fn reset_player(mut query: Query<(&mut Transform, &mut Velocity), With<Player>>) {
     let Ok((mut transform, mut velocity)) = query.single_mut() else {
         return;
     };
