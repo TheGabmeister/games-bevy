@@ -3,6 +3,7 @@
     "deny": [
       "Read(../**)",
       "Edit(../**)",
+      "Write(../**)",
       "Glob(../**)",
       "Grep(../**)",
       "Bash(cd ../**)"
@@ -11,7 +12,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Read",
+        "matcher": "Read|Edit|Write|Glob|Grep|Bash",
         "hooks": [
           {
             "type": "command",
