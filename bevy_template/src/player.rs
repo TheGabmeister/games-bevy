@@ -1,19 +1,13 @@
 use bevy::prelude::*;
 
 use crate::components::{Player, Velocity};
-use crate::constants::{PLAYER_COLOR, PLAYER_SIZE, PLAYER_SPEED, WINDOW_HEIGHT, WINDOW_WIDTH};
+use crate::constants::{PLAYER_SIZE, PLAYER_SPEED, WINDOW_HEIGHT, WINDOW_WIDTH};
 
-pub fn spawn_player(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-) {
+pub fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
         Player,
         Velocity::default(),
-        Mesh2d(meshes.add(Rectangle::new(PLAYER_SIZE, PLAYER_SIZE))),
-        MeshMaterial2d(materials.add(ColorMaterial::from_color(PLAYER_COLOR))),
-        Transform::from_translation(Vec3::ZERO),
+        Sprite::from_image(asset_server.load("player_ship.png")),
     ));
 }
 
