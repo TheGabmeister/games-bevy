@@ -8,8 +8,8 @@ pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_player)
-            .add_systems(OnEnter(AppState::Playing), reset_player)
+        app.add_systems(OnEnter(AppState::Playing), spawn_player)
+            .add_systems(OnExit(AppState::Playing), cleanup_player)
             .add_systems(
                 Update,
                 (player_input, player_movement.after(player_input))
@@ -71,11 +71,8 @@ fn player_movement(
     transform.translation.y = transform.translation.y.clamp(-half_h, half_h);
 }
 
-fn reset_player(mut query: Query<(&mut Transform, &mut Velocity), With<Player>>) {
-    let Ok((mut transform, mut velocity)) = query.single_mut() else {
-        return;
-    };
-
-    transform.translation = Vec3::new(0.0, -WINDOW_HEIGHT / 2.0 + 60.0, 0.0);
-    velocity.0 = Vec2::ZERO;
+fn cleanup_player(mut commands: Commands, query: Query<Entity, With<Player>>) {
+    for entity in &query {
+        commands.entity(entity).despawn();
+    }
 }

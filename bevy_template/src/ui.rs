@@ -123,6 +123,10 @@ fn update_score_display(
     game_data: Res<GameData>,
     mut query: Query<&mut Text, With<ScoreText>>,
 ) {
+    if !game_data.is_changed() {
+        return;
+    }
+
     let Ok(mut text) = query.single_mut() else {
         return;
     };
