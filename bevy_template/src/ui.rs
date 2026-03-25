@@ -22,12 +22,7 @@ impl Plugin for UiPlugin {
             .add_systems(OnExit(AppState::Playing), cleanup_game_hud)
             .add_systems(
                 Update,
-                (
-                    increment_score,
-                    update_score_display.after(increment_score),
-                    game_over_input,
-                )
-                    .run_if(in_state(AppState::Playing)),
+                update_score_display.run_if(in_state(AppState::Playing)),
             )
             // Game Over
             .add_systems(OnEnter(AppState::GameOver), spawn_game_over)
@@ -124,13 +119,6 @@ fn cleanup_game_hud(mut commands: Commands, query: Query<Entity, With<GameHudUI>
     }
 }
 
-fn increment_score(time: Res<Time>, mut game_data: ResMut<GameData>) {
-    // +1 score per second (accumulates via delta)
-    let prev = game_data.score;
-    let new = prev as f32 + time.delta_secs();
-    game_data.score = new as u32;
-}
-
 fn update_score_display(
     game_data: Res<GameData>,
     mut query: Query<&mut Text, With<ScoreText>>,
@@ -139,15 +127,6 @@ fn update_score_display(
         return;
     };
     **text = format!("Score: {}", game_data.score);
-}
-
-fn game_over_input(
-    keyboard: Res<ButtonInput<KeyCode>>,
-    mut next_state: ResMut<NextState<AppState>>,
-) {
-    if keyboard.just_pressed(KeyCode::Escape) {
-        next_state.set(AppState::GameOver);
-    }
 }
 
 // --- Game Over Screen ---

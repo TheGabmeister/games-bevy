@@ -23,6 +23,7 @@ fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
         Player,
         Velocity::default(),
         Sprite::from_image(asset_server.load("player_ship.png")),
+        Transform::from_translation(Vec3::new(0.0, -WINDOW_HEIGHT / 2.0 + 60.0, 0.0)),
     ));
 }
 
@@ -75,6 +76,6 @@ fn reset_player(mut query: Query<(&mut Transform, &mut Velocity), With<Player>>)
         return;
     };
 
-    transform.translation = Vec3::ZERO;
+    transform.translation = Vec3::new(0.0, -WINDOW_HEIGHT / 2.0 + 60.0, 0.0);
     velocity.0 = Vec2::ZERO;
 }

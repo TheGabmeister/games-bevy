@@ -1,6 +1,8 @@
 mod audio;
+mod combat;
 mod components;
 mod constants;
+mod enemy;
 mod player;
 mod resources;
 mod states;
@@ -23,7 +25,13 @@ fn main() {
             }),
             ..default()
         }))
-        .add_plugins((player::PlayerPlugin, ui::UiPlugin, audio::GameAudioPlugin))
+        .add_plugins((
+            player::PlayerPlugin,
+            ui::UiPlugin,
+            audio::GameAudioPlugin,
+            enemy::EnemyPlugin,
+            combat::CombatPlugin,
+        ))
         .init_state::<AppState>()
         .init_resource::<GameData>()
         .add_systems(Startup, setup)

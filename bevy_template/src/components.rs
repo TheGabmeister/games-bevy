@@ -8,6 +8,15 @@ pub struct Player;
 #[derive(Component, Default)]
 pub struct Velocity(pub Vec2);
 
+#[derive(Component)]
+pub struct Enemy;
+
+#[derive(Component)]
+pub struct Laser;
+
+#[derive(Component)]
+pub struct Music;
+
 // UI markers
 #[derive(Component)]
 pub struct StartScreenUI;

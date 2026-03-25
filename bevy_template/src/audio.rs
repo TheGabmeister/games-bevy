@@ -1,17 +1,25 @@
 use bevy::prelude::*;
 
+use crate::components::Music;
 use crate::states::AppState;
 
 pub struct GameAudioPlugin;
 
 impl Plugin for GameAudioPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(AppState::Playing), play_music);
+        app.add_systems(OnEnter(AppState::Playing), (stop_music, play_music).chain());
+    }
+}
+
+fn stop_music(mut commands: Commands, query: Query<Entity, With<Music>>) {
+    for entity in &query {
+        commands.entity(entity).despawn();
     }
 }
 
 fn play_music(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn(AudioPlayer::new(
-        asset_server.load("music_spaceshooter.ogg"),
+    commands.spawn((
+        Music,
+        AudioPlayer::new(asset_server.load("music_spaceshooter.ogg")),
     ));
 }
