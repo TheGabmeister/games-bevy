@@ -3,7 +3,10 @@ use std::f32::consts::{FRAC_PI_2, PI};
 use bevy::prelude::*;
 
 #[derive(Component)]
-pub struct GameplayEntity;
+pub struct LevelEntity;
+
+#[derive(Component)]
+pub struct RoundEntity;
 
 #[derive(Component)]
 pub struct Player;
@@ -45,8 +48,12 @@ pub struct Ghost {
     pub personality: GhostPersonality,
     pub home_tile: IVec2,
     pub scatter_target: IVec2,
-    pub normal_material: Handle<ColorMaterial>,
     pub returning_home: bool,
+}
+
+#[derive(Component, Clone)]
+pub struct GhostAppearance {
+    pub normal_material: Handle<ColorMaterial>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

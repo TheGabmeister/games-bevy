@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+pub const FIXED_TIMESTEP_HZ: f64 = 60.0;
 pub const TILE_SIZE: f32 = 28.0;
 pub const PLAYER_SPEED: f32 = 108.0;
 pub const GHOST_SPEED: f32 = 92.0;

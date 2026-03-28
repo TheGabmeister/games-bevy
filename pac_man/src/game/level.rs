@@ -137,3 +137,47 @@ impl LevelLayout {
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_layout() -> LevelLayout {
+        LevelLayout::from_ascii(&[
+            "#####",
+            "#P..#",
+            " ... ",
+            "#..G#",
+            "#####",
+        ])
+    }
+
+    #[test]
+    fn parses_dimensions_and_spawns() {
+        let layout = sample_layout();
+
+        assert_eq!(layout.width, 5);
+        assert_eq!(layout.height, 5);
+        assert_eq!(layout.player_spawn, IVec2::new(1, 1));
+        assert_eq!(layout.ghost_spawns, vec![IVec2::new(3, 3)]);
+        assert_eq!(layout.pellets_total(), 7);
+    }
+
+    #[test]
+    fn tunnel_rows_allow_horizontal_wrapping() {
+        let layout = sample_layout();
+
+        assert!(layout.row_has_tunnel(2));
+        assert!(layout.can_move(IVec2::new(0, 2), Direction::Left));
+        assert!(layout.can_move(IVec2::new(4, 2), Direction::Right));
+    }
+
+    #[test]
+    fn world_and_tile_coordinates_round_trip() {
+        let layout = sample_layout();
+        let tile = IVec2::new(3, 1);
+
+        let world = layout.tile_to_world(tile);
+        assert_eq!(layout.world_to_tile(world), tile);
+    }
+}

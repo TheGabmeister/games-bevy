@@ -7,8 +7,9 @@ use crate::game::constants::{
     SCATTER_DURATION, TILE_SIZE, WALL_COLOR,
 };
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum RoundPhase {
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, States)]
+pub enum RoundState {
+    #[default]
     Ready,
     Playing,
     Won,
@@ -20,8 +21,7 @@ pub struct GameSession {
     pub score: u32,
     pub lives: u8,
     pub pellets_remaining: usize,
-    pub phase: RoundPhase,
-    pub phase_timer: Timer,
+    pub ready_timer: Timer,
     pub frightened_seconds: f32,
     pub scatter_mode: bool,
     pub mode_seconds: f32,
@@ -30,31 +30,26 @@ pub struct GameSession {
 
 impl GameSession {
     pub fn new(pellets_remaining: usize) -> Self {
-        let mut session = Self {
+        Self {
             score: 0,
             lives: PLAYER_LIVES,
             pellets_remaining,
-            phase: RoundPhase::Ready,
-            phase_timer: Timer::from_seconds(READY_DURATION, TimerMode::Once),
+            ready_timer: Timer::from_seconds(READY_DURATION, TimerMode::Once),
             frightened_seconds: 0.0,
             scatter_mode: true,
             mode_seconds: SCATTER_DURATION,
             ghost_combo: 0,
-        };
-        session.begin_ready_phase();
-        session
+        }
     }
 
     pub fn reset_for_new_game(&mut self, pellets_remaining: usize) {
         self.score = 0;
         self.lives = PLAYER_LIVES;
         self.pellets_remaining = pellets_remaining;
-        self.begin_ready_phase();
     }
 
-    pub fn begin_ready_phase(&mut self) {
-        self.phase = RoundPhase::Ready;
-        self.phase_timer = Timer::from_seconds(READY_DURATION, TimerMode::Once);
+    pub fn prepare_ready_phase(&mut self) {
+        self.ready_timer = Timer::from_seconds(READY_DURATION, TimerMode::Once);
         self.frightened_seconds = 0.0;
         self.scatter_mode = true;
         self.mode_seconds = SCATTER_DURATION;
@@ -79,6 +74,11 @@ impl GameSession {
 
     pub fn set_frightened(&mut self) {
         self.frightened_seconds = FRIGHTENED_DURATION;
+        self.ghost_combo = 0;
+    }
+
+    pub fn clear_round_effects(&mut self) {
+        self.frightened_seconds = 0.0;
         self.ghost_combo = 0;
     }
 }
