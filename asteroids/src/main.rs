@@ -10,7 +10,7 @@ mod state;
 mod ui;
 
 use components::*;
-use resources::{GameAssets, GameData};
+use resources::{GameAssets, GameData, ShootCooldown};
 use spawn::{spawn_ship, spawn_wave};
 use state::AppState;
 
@@ -143,17 +143,25 @@ fn main() {
             primary_window: Some(Window {
                 title: "Asteroids".into(),
                 resolution: (WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32).into(),
+                resizable: false,
                 ..default()
             }),
             ..default()
         }))
         .init_state::<AppState>()
         .insert_resource(GameData::default())
+        .init_resource::<ShootCooldown>()
         // Establish execution order across all plugins:
         //   Input → Movement → Collision → Cleanup
         .configure_sets(
             Update,
-            (GameSet::Input, GameSet::Movement, GameSet::Collision, GameSet::Cleanup).chain(),
+            (
+                GameSet::Input,
+                GameSet::Movement,
+                GameSet::Collision,
+                GameSet::Cleanup,
+            )
+                .chain(),
         )
         .add_systems(Startup, setup)
         // Generic movement is shared across all entity types, so it's

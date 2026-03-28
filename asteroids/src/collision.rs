@@ -1,10 +1,10 @@
 use bevy::prelude::*;
 
-use crate::{GameSet, BULLET_RADIUS, SHIP_RADIUS};
 use crate::components::*;
 use crate::resources::{GameAssets, GameData};
 use crate::spawn::{asteroid_radius, asteroid_score, spawn_fragments, spawn_ship};
 use crate::state::AppState;
+use crate::{BULLET_RADIUS, GameSet, SHIP_RADIUS};
 
 pub struct CollisionPlugin;
 
@@ -12,7 +12,11 @@ impl Plugin for CollisionPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            (bullet_asteroid_collision_system, ship_asteroid_collision_system)
+            (
+                bullet_asteroid_collision_system,
+                ship_asteroid_collision_system,
+            )
+                .chain()
                 .in_set(GameSet::Collision)
                 .run_if(in_state(AppState::Playing)),
         );

@@ -27,6 +27,8 @@ pub fn spawn_world(
     spawn_item(&mut commands, &mut meshes, &mut materials, ItemKind::Sword,   11, 100.0, 0.0);
     spawn_item(&mut commands, &mut meshes, &mut materials, ItemKind::Bridge,  12,   0.0, 0.0);
     spawn_item(&mut commands, &mut meshes, &mut materials, ItemKind::Chalice, 10,   0.0, 0.0);
+    spawn_item(&mut commands, &mut meshes, &mut materials, ItemKind::Magnet,   3, 100.0, -50.0);
+    spawn_item(&mut commands, &mut meshes, &mut materials, ItemKind::Dot,      8, 180.0,  52.0);
 
     // ---- Dragons ----
     spawn_dragon(&mut commands, &mut meshes, &mut materials, DragonKind::Yorgle,  5,  80.0,  80.0);
@@ -87,6 +89,8 @@ fn item_visual(meshes: &mut ResMut<Assets<Mesh>>, kind: ItemKind) -> (Handle<Mes
         ItemKind::Sword   => (meshes.add(Rectangle::new(4.0, 28.0)), Color::srgb(0.9, 0.9, 0.9)),
         ItemKind::Bridge  => (meshes.add(Rectangle::new(48.0, 8.0)), Color::srgb(0.5, 0.35, 0.1)),
         ItemKind::Chalice => (meshes.add(Rectangle::new(12.0, 18.0)), Color::srgb(1.0, 0.9, 0.2)),
+        ItemKind::Magnet  => (meshes.add(Rectangle::new(10.0, 14.0)), Color::srgb(0.6, 0.6, 0.7)),
+        ItemKind::Dot     => (meshes.add(Rectangle::new(3.0, 3.0)),   Color::srgb(0.18, 0.18, 0.18)),
     }
 }
 

@@ -83,13 +83,14 @@ pub fn update_dragon_heads(
     }
 }
 
-/// Player touching a living dragon without sword → GameOver.
+/// Player touching a living dragon without sword → swallow animation then GameOver.
 pub fn dragon_collision(
+    mut commands: Commands,
     current_room: Res<CurrentRoom>,
     player_q: Query<&Transform, With<Player>>,
     inventory: Res<PlayerInventory>,
     item_q: Query<&ItemKind, With<Item>>,
-    dragon_q: Query<(&Transform, &InRoom), (With<Dragon>, With<DragonAlive>)>,
+    dragon_q: Query<(Entity, &Transform, &InRoom), (With<Dragon>, With<DragonAlive>)>,
     mut next_state: ResMut<NextState<crate::AppState>>,
 ) {
     let player_has_sword = inventory.item
@@ -102,12 +103,76 @@ pub fn dragon_collision(
     let Ok(p_transform) = player_q.single() else { return; };
     let p_pos = p_transform.translation.truncate();
 
-    for (d_transform, in_room) in dragon_q.iter() {
+    for (dragon_entity, d_transform, in_room) in dragon_q.iter() {
         if in_room.0 != current_room.0 { continue; }
         let d_pos = d_transform.translation.truncate();
         if p_pos.distance(d_pos) < 20.0 {
-            next_state.set(crate::AppState::GameOver);
+            commands.insert_resource(SwallowInfo {
+                dragon: dragon_entity,
+                timer: Timer::from_seconds(0.8, TimerMode::Once),
+            });
+            next_state.set(crate::AppState::Swallowed);
             return;
+        }
+    }
+}
+
+/// Animate the dragon swallowing the player, then transition to GameOver.
+pub fn swallow_animation(
+    time: Res<Time>,
+    mut swallow: ResMut<SwallowInfo>,
+    mut dragon_q: Query<&mut Transform, With<Dragon>>,
+    mut player_q: Query<&mut Visibility, With<Player>>,
+    mut next_state: ResMut<NextState<crate::AppState>>,
+) {
+    swallow.timer.tick(time.delta());
+
+    // Hide player (inside dragon's mouth)
+    if let Ok(mut vis) = player_q.single_mut() {
+        *vis = Visibility::Hidden;
+    }
+
+    // Scale up dragon to show swallowing
+    if let Ok(mut transform) = dragon_q.get_mut(swallow.dragon) {
+        let progress = swallow.timer.fraction();
+        let scale = 1.0 + progress * 0.5;
+        transform.scale = Vec3::splat(scale);
+    }
+
+    if swallow.timer.just_finished() {
+        next_state.set(crate::AppState::GameOver);
+    }
+}
+
+/// Bat can revive dead dragons by touching them.
+pub fn bat_revive_dragons(
+    mut commands: Commands,
+    bat_q: Query<(&Transform, &InRoom), With<Bat>>,
+    dead_dragons: Query<(Entity, &Transform, &InRoom, &DragonData, &Children), (With<Dragon>, Without<DragonAlive>)>,
+    mut body_q: Query<&mut MeshMaterial2d<ColorMaterial>, With<DragonBody>>,
+    mut head_q: Query<&mut MeshMaterial2d<ColorMaterial>, (With<DragonHead>, Without<DragonBody>)>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    let Ok((bat_transform, bat_room)) = bat_q.single() else { return; };
+    let bat_pos = bat_transform.translation.truncate();
+
+    for (entity, d_transform, d_room, data, children) in dead_dragons.iter() {
+        if d_room.0 != bat_room.0 { continue; }
+        let d_pos = d_transform.translation.truncate();
+        if bat_pos.distance(d_pos) < 30.0 {
+            // Revive dragon
+            commands.entity(entity).insert(DragonAlive);
+
+            // Restore original color
+            let mat = materials.add(data.kind.color());
+            for &child in children {
+                if let Ok(mut body_mat) = body_q.get_mut(child) {
+                    *body_mat = MeshMaterial2d(mat.clone());
+                }
+                if let Ok(mut head_mat) = head_q.get_mut(child) {
+                    *head_mat = MeshMaterial2d(mat.clone());
+                }
+            }
         }
     }
 }

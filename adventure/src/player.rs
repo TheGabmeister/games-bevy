@@ -6,6 +6,7 @@ pub fn player_movement(
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
     room_walls: Res<RoomWalls>,
+    bypass: Res<WallBypass>,
     mut player_q: Query<&mut Transform, With<Player>>,
 ) {
     let Ok(mut transform) = player_q.single_mut() else { return; };
@@ -23,20 +24,106 @@ pub fn player_movement(
 
     // Try X axis
     let new_x = pos.x + delta.x;
-    if !collides_walls(new_x, pos.y, PLAYER_HW, PLAYER_HH, &room_walls.0) {
+    if !collides_walls(new_x, pos.y, PLAYER_HW, PLAYER_HH, &room_walls.0, &bypass) {
         transform.translation.x = new_x;
     }
 
     // Try Y axis
     let cur_x = transform.translation.x;
     let new_y = pos.y + delta.y;
-    if !collides_walls(cur_x, new_y, PLAYER_HW, PLAYER_HH, &room_walls.0) {
+    if !collides_walls(cur_x, new_y, PLAYER_HW, PLAYER_HH, &room_walls.0, &bypass) {
         transform.translation.y = new_y;
     }
 }
 
-fn collides_walls(px: f32, py: f32, phw: f32, phh: f32, walls: &[WallRect]) -> bool {
-    walls.iter().any(|w| w.overlaps(px, py, phw, phh))
+fn collides_walls(px: f32, py: f32, phw: f32, phh: f32, walls: &[WallRect], bypass: &WallBypass) -> bool {
+    walls.iter().any(|w| {
+        if !w.overlaps(px, py, phw, phh) {
+            return false;
+        }
+        // Bridge bypass: if bridge overlaps this wall and player is within bridge area, allow passage
+        if let Some(ref b) = bypass.bridge {
+            if w.overlaps(b.x, b.y, b.hw, b.hh) && b.overlaps(px, py, phw, phh) {
+                return false;
+            }
+        }
+        // Easter egg: bypass north wall when carrying Dot in Room 6
+        if bypass.easter_egg_north {
+            let north_wall_y = ROOM_H / 2.0 - WALL_T / 2.0;
+            if (w.y - north_wall_y).abs() < 1.0 && px.abs() < PASSAGE_W / 2.0 {
+                return false;
+            }
+        }
+        true
+    })
+}
+
+/// Compute wall bypass info each frame (bridge position + easter egg).
+pub fn compute_wall_bypass(
+    current_room: Res<CurrentRoom>,
+    inventory: Res<PlayerInventory>,
+    ground_items: Query<(&Transform, &InRoom, &ItemKind), (With<Item>, Without<Carried>, Without<Player>)>,
+    carried_q: Query<&ItemKind, With<Carried>>,
+    mut bypass: ResMut<WallBypass>,
+) {
+    // Bridge: find bridge on ground in current room — use generous bypass area (48x32)
+    bypass.bridge = ground_items.iter()
+        .find(|(_, room, kind)| room.0 == current_room.0 && **kind == ItemKind::Bridge)
+        .map(|(t, _, _)| WallRect::new(t.translation.x, t.translation.y, 48.0, 32.0));
+
+    // Easter egg: carrying Dot in Room 6
+    let carrying_dot = inventory.item
+        .and_then(|e| carried_q.get(e).ok())
+        .map(|k| *k == ItemKind::Dot)
+        .unwrap_or(false);
+    bypass.easter_egg_north = current_room.0 == 6 && carrying_dot;
+}
+
+/// Magnet attracts nearby items toward it (whether carried or on the ground).
+pub fn magnet_pull(
+    time: Res<Time>,
+    inventory: Res<PlayerInventory>,
+    current_room: Res<CurrentRoom>,
+    player_q: Query<&Transform, With<Player>>,
+    carried_q: Query<&ItemKind, With<Carried>>,
+    mut items_q: Query<(Entity, &mut Transform, &InRoom, &ItemKind), (With<Item>, Without<Carried>, Without<Player>)>,
+) {
+    // Determine magnet position and room
+    let carrying_magnet = inventory.item
+        .and_then(|e| carried_q.get(e).ok())
+        .map(|k| *k == ItemKind::Magnet)
+        .unwrap_or(false);
+
+    let (mag_pos, mag_room) = if carrying_magnet {
+        let Ok(p_transform) = player_q.single() else { return; };
+        (p_transform.translation.truncate(), current_room.0)
+    } else {
+        // Find magnet on ground
+        let found = items_q.iter()
+            .find(|(_, _, _, kind)| **kind == ItemKind::Magnet)
+            .map(|(_, t, room, _)| (t.translation.truncate(), room.0));
+        match found {
+            Some(info) => info,
+            None => return,
+        }
+    };
+
+    // Pull items in same room toward magnet
+    for (entity, mut transform, in_room, kind) in items_q.iter_mut() {
+        if *kind == ItemKind::Magnet { continue; }
+        if in_room.0 != mag_room { continue; }
+        if inventory.item == Some(entity) { continue; }
+
+        let item_pos = transform.translation.truncate();
+        let to_magnet = mag_pos - item_pos;
+        let dist = to_magnet.length();
+        if dist > 3.0 && dist < 200.0 {
+            let pull_strength = 40.0 * (1.0 - dist / 200.0);
+            let pull = to_magnet.normalize() * pull_strength * time.delta_secs();
+            transform.translation.x += pull.x;
+            transform.translation.y += pull.y;
+        }
+    }
 }
 
 /// Auto-pickup: player walks over item → pick it up if inventory empty.

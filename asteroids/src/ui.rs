@@ -1,10 +1,10 @@
 use bevy::prelude::*;
 
-use crate::{GameSet, STARTING_LIVES};
 use crate::components::*;
 use crate::resources::{GameAssets, GameData};
 use crate::spawn::{spawn_ship, spawn_wave};
 use crate::state::AppState;
+use crate::{GameSet, STARTING_LIVES};
 
 pub struct UiPlugin;
 

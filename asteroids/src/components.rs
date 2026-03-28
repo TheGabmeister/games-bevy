@@ -9,7 +9,7 @@ pub struct Ship;
 pub struct Velocity(pub Vec2);
 
 /// Size of an asteroid, used for splitting and scoring.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AsteroidSize {
     Large,
     Medium,
@@ -28,11 +28,11 @@ pub struct Bullet;
 
 /// Seconds until a bullet is despawned.
 #[derive(Component)]
-pub struct Lifetime(pub f32);
+pub struct Lifetime(pub Timer);
 
 /// Post-respawn invincibility; removed when it reaches zero.
 #[derive(Component)]
-pub struct Invincible(pub f32);
+pub struct Invincible(pub Timer);
 
 // ── UI marker components ──────────────────────────────────────────────────────
 

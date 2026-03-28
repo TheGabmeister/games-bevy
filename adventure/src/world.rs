@@ -186,6 +186,14 @@ impl WorldMap {
                     [0.0, 0.0, 20.0, 120.0],
                 ],
             },
+            // 13: SECRET ROOM (easter egg — accessed by carrying Dot through north wall of Room 6)
+            RoomDef {
+                name: "CREATED BY WARREN ROBINETT",
+                color: Color::srgb(0.8, 0.7, 0.2),
+                exits: [None, Some(6), None, None],
+                gates: [None, None, None, None],
+                interior_walls: vec![],
+            },
         ];
 
         Self { rooms }

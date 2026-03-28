@@ -9,12 +9,14 @@ mod enemies;
 mod ui;
 
 use world::{WorldMap, CurrentRoom, PlayerInventory, RoomWalls, DeadDragonMaterial};
+use components::WallBypass;
 
 #[derive(States, Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub enum AppState {
     #[default]
     Title,
     Playing,
+    Swallowed,
     GameOver,
     Win,
 }
@@ -35,6 +37,7 @@ fn main() {
         .insert_resource(CurrentRoom(1))
         .insert_resource(PlayerInventory { item: None })
         .insert_resource(RoomWalls::default())
+        .insert_resource(WallBypass::default())
         .insert_resource(ClearColor(Color::srgb(0.35, 0.35, 0.35)))
         // Title state
         .add_systems(OnEnter(AppState::Title), (despawn_game_world, ui::spawn_title).chain())
@@ -49,11 +52,13 @@ fn main() {
         ).chain())
         .add_systems(OnExit(AppState::Playing), ui::despawn_ui)
         .add_systems(Update, (
+            player::compute_wall_bypass.before(player::player_movement),
             player::player_movement,
             player::item_pickup,
             player::item_drop,
             player::carry_item_follow,
             player::gate_interaction,
+            player::magnet_pull,
             rooms::room_transition,
             rooms::spawn_room_walls,
             rooms::update_background_color,
@@ -63,9 +68,12 @@ fn main() {
             enemies::dragon_collision,
             enemies::sword_combat,
             enemies::bat_ai,
+            enemies::bat_revive_dragons,
             player::check_win,
             ui::update_ui,
         ).run_if(in_state(AppState::Playing)))
+        // Swallowed state (dragon eating animation)
+        .add_systems(Update, enemies::swallow_animation.run_if(in_state(AppState::Swallowed)))
         // GameOver state
         .add_systems(OnEnter(AppState::GameOver), ui::spawn_game_over)
         .add_systems(OnExit(AppState::GameOver), ui::despawn_game_over)

@@ -1,14 +1,13 @@
 use bevy::prelude::*;
 use std::f32::consts::{PI, TAU};
 
-use crate::{
-    ASTEROID_LARGE_RADIUS, ASTEROID_MEDIUM_RADIUS, ASTEROID_SMALL_RADIUS,
-    ASTEROID_LARGE_SPEED, ASTEROID_MEDIUM_SPEED, ASTEROID_SMALL_SPEED,
-    INITIAL_ASTEROIDS, INVINCIBILITY_DURATION,
-    SCORE_LARGE, SCORE_MEDIUM, SCORE_SMALL,
-};
 use crate::components::*;
 use crate::resources::GameAssets;
+use crate::{
+    ASTEROID_LARGE_RADIUS, ASTEROID_LARGE_SPEED, ASTEROID_MEDIUM_RADIUS, ASTEROID_MEDIUM_SPEED,
+    ASTEROID_SMALL_RADIUS, ASTEROID_SMALL_SPEED, BULLET_LIFETIME, INITIAL_ASTEROIDS,
+    INVINCIBILITY_DURATION, SCORE_LARGE, SCORE_MEDIUM, SCORE_SMALL,
+};
 
 // ── AsteroidSize helpers ──────────────────────────────────────────────────────
 
@@ -42,11 +41,28 @@ pub fn spawn_ship(commands: &mut Commands, assets: &GameAssets) {
     commands.spawn((
         Ship,
         Velocity(Vec2::ZERO),
-        Invincible(INVINCIBILITY_DURATION),
+        Invincible(Timer::from_seconds(INVINCIBILITY_DURATION, TimerMode::Once)),
         Mesh2d(assets.ship_mesh.clone()),
         MeshMaterial2d(assets.ship_material.clone()),
         // z = 1 so the ship renders on top of asteroids
         Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+    ));
+}
+
+pub fn spawn_bullet(
+    commands: &mut Commands,
+    assets: &GameAssets,
+    position: Vec3,
+    direction: Vec2,
+    speed: f32,
+) {
+    commands.spawn((
+        Bullet,
+        Velocity(direction * speed),
+        Lifetime(Timer::from_seconds(BULLET_LIFETIME, TimerMode::Once)),
+        Mesh2d(assets.bullet_mesh.clone()),
+        MeshMaterial2d(assets.bullet_material.clone()),
+        Transform::from_translation(position),
     ));
 }
 

@@ -28,10 +28,7 @@ impl Plugin for AsteroidPlugin {
 // ── Systems ───────────────────────────────────────────────────────────────────
 
 /// Slowly spins asteroids for visual interest (cosmetic only).
-fn asteroid_rotation_system(
-    time: Res<Time>,
-    mut query: Query<(&mut Transform, &Asteroid)>,
-) {
+fn asteroid_rotation_system(time: Res<Time>, mut query: Query<(&mut Transform, &Asteroid)>) {
     let dt = time.delta_secs();
     for (mut transform, asteroid) in &mut query {
         transform.rotate_z(asteroid_spin(asteroid.size) * dt);
@@ -45,7 +42,7 @@ fn wave_clear_system(
     assets: Res<GameAssets>,
     asteroids: Query<(), With<Asteroid>>,
 ) {
-    if asteroids.iter().count() == 0 {
+    if asteroids.is_empty() {
         game_data.wave += 1;
         spawn_wave(&mut commands, &assets, game_data.wave);
     }

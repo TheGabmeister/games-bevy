@@ -1,13 +1,13 @@
 use bevy::prelude::*;
 
-use crate::{
-    GameSet,
-    SHIP_ROTATION_SPEED, SHIP_THRUST, SHIP_DRAG, SHIP_MAX_SPEED, SHIP_RADIUS,
-    BULLET_SPEED, BULLET_LIFETIME, SHOOT_COOLDOWN,
-};
 use crate::components::*;
-use crate::resources::{GameAssets, GameData};
+use crate::resources::{GameAssets, ShootCooldown};
+use crate::spawn::spawn_bullet;
 use crate::state::AppState;
+use crate::{
+    BULLET_SPEED, GameSet, SHIP_DRAG, SHIP_MAX_SPEED, SHIP_RADIUS, SHIP_ROTATION_SPEED,
+    SHIP_THRUST, SHOOT_COOLDOWN,
+};
 
 pub struct ShipPlugin;
 
@@ -15,7 +15,13 @@ impl Plugin for ShipPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            (ship_rotation_system, ship_thrust_system, ship_shoot_system, invincibility_system)
+            (
+                ship_rotation_system,
+                ship_thrust_system,
+                ship_shoot_system,
+                invincibility_system,
+            )
+                .chain()
                 .in_set(GameSet::Input)
                 .run_if(in_state(AppState::Playing)),
         )
@@ -73,28 +79,27 @@ fn ship_shoot_system(
     time: Res<Time>,
     input: Res<ButtonInput<KeyCode>>,
     mut commands: Commands,
-    mut game_data: ResMut<GameData>,
+    mut shoot_cooldown: ResMut<ShootCooldown>,
     assets: Res<GameAssets>,
     query: Query<&Transform, With<Ship>>,
 ) {
-    game_data.shoot_timer -= time.delta_secs();
+    shoot_cooldown.0.tick(time.delta());
 
     let Ok(transform) = query.single() else {
         return;
     };
-    if input.just_pressed(KeyCode::Space) && game_data.shoot_timer <= 0.0 {
-        game_data.shoot_timer = SHOOT_COOLDOWN;
+    if input.just_pressed(KeyCode::Space) && shoot_cooldown.0.is_finished() {
+        shoot_cooldown.0 = Timer::from_seconds(SHOOT_COOLDOWN, TimerMode::Once);
         let dir = transform.up().truncate();
         // Spawn just ahead of the ship nose so it doesn't immediately self-collide
         let spawn_pos = transform.translation + dir.extend(0.0) * (SHIP_RADIUS + 8.0);
-        commands.spawn((
-            Bullet,
-            Velocity(dir * BULLET_SPEED),
-            Lifetime(BULLET_LIFETIME),
-            Mesh2d(assets.bullet_mesh.clone()),
-            MeshMaterial2d(assets.bullet_material.clone()),
-            Transform::from_translation(Vec3::new(spawn_pos.x, spawn_pos.y, 0.5)),
-        ));
+        spawn_bullet(
+            &mut commands,
+            &assets,
+            Vec3::new(spawn_pos.x, spawn_pos.y, 0.5),
+            dir,
+            BULLET_SPEED,
+        );
     }
 }
 
@@ -105,8 +110,8 @@ fn invincibility_system(
     mut query: Query<(Entity, &mut Invincible)>,
 ) {
     for (entity, mut inv) in &mut query {
-        inv.0 -= time.delta_secs();
-        if inv.0 <= 0.0 {
+        inv.0.tick(time.delta());
+        if inv.0.is_finished() {
             commands.entity(entity).remove::<Invincible>();
         }
     }
@@ -118,10 +123,9 @@ fn bullet_lifetime_system(
     mut commands: Commands,
     mut query: Query<(Entity, &mut Lifetime), With<Bullet>>,
 ) {
-    let dt = time.delta_secs();
     for (entity, mut lifetime) in &mut query {
-        lifetime.0 -= dt;
-        if lifetime.0 <= 0.0 {
+        lifetime.0.tick(time.delta());
+        if lifetime.0.is_finished() {
             commands.entity(entity).despawn();
         }
     }

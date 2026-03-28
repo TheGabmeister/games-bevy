@@ -17,6 +17,8 @@ pub enum ItemKind {
     Sword,
     Bridge,
     Chalice,
+    Magnet,
+    Dot,
 }
 
 impl ItemKind {
@@ -28,6 +30,8 @@ impl ItemKind {
             ItemKind::Sword => "Sword",
             ItemKind::Bridge => "Bridge",
             ItemKind::Chalice => "Chalice",
+            ItemKind::Magnet => "Magnet",
+            ItemKind::Dot => "Dot",
         }
     }
 
@@ -155,4 +159,18 @@ pub struct BatData {
     pub held_item: Option<Entity>,
     pub wander_timer: Timer,
     pub grab_timer: Timer,
+}
+
+/// Tracks the dragon swallow animation before game over
+#[derive(Resource)]
+pub struct SwallowInfo {
+    pub dragon: Entity,
+    pub timer: Timer,
+}
+
+/// Wall bypass info computed each frame (bridge + easter egg)
+#[derive(Resource, Default)]
+pub struct WallBypass {
+    pub bridge: Option<crate::world::WallRect>,
+    pub easter_egg_north: bool,
 }

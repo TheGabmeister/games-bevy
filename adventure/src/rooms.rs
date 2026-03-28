@@ -74,6 +74,8 @@ pub fn room_transition(
     world: Res<WorldMap>,
     mut current_room: ResMut<CurrentRoom>,
     gates: Query<(&GateData, &InRoom), (With<Gate>, Without<Player>)>,
+    inventory: Res<PlayerInventory>,
+    item_q: Query<&ItemKind, With<Item>>,
 ) {
     let Ok((mut transform, mut player_room)) = player_q.single_mut() else { return; };
 
@@ -116,6 +118,19 @@ pub fn room_transition(
         player_room.0 = dest_room;
         transform.translation.x = new_x;
         transform.translation.y = new_y;
-        break;
+        return;
+    }
+
+    // Easter egg: carrying Dot through north wall of Room 6 → secret Room 13
+    if current_room.0 == 6 && pos.y > threshold_h && pos.x.abs() < half_p {
+        let has_dot = inventory.item
+            .and_then(|e| item_q.get(e).ok())
+            .map(|k| *k == ItemKind::Dot)
+            .unwrap_or(false);
+        if has_dot {
+            current_room.0 = 13;
+            player_room.0 = 13;
+            transform.translation.y = -(threshold_h - 4.0);
+        }
     }
 }
