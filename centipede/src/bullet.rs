@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crate::{
     components::Bullet,
     constants::{BULLET_SPEED, WINDOW_HEIGHT},
-    states::AppState,
+    scheduling::GameplaySet,
 };
 
 pub struct BulletPlugin;
@@ -12,7 +12,10 @@ impl Plugin for BulletPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            (bullet_movement, despawn_offscreen_bullets).run_if(in_state(AppState::Playing)),
+            (
+                bullet_movement.in_set(GameplaySet::Movement),
+                despawn_offscreen_bullets.in_set(GameplaySet::Cleanup),
+            ),
         );
     }
 }

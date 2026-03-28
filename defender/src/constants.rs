@@ -4,7 +4,6 @@ use bevy::prelude::*;
 pub const SCREEN_WIDTH: u32 = 1280;
 pub const SCREEN_HEIGHT: u32 = 720;
 pub const HALF_SCREEN_W: f32 = SCREEN_WIDTH as f32 / 2.0;
-pub const HALF_SCREEN_H: f32 = SCREEN_HEIGHT as f32 / 2.0;
 
 // World
 pub const WORLD_WIDTH: f32 = 8000.0;

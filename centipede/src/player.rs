@@ -1,9 +1,10 @@
 use bevy::prelude::*;
 
 use crate::{
-    components::{Bullet, GameplayEntity, Player},
+    components::{Bullet, Player},
     constants::*,
     resources::RespawnTimer,
+    scheduling::GameplaySet,
     states::AppState,
 };
 
@@ -14,10 +15,33 @@ impl Plugin for PlayerPlugin {
         app.add_systems(OnEnter(AppState::Playing), spawn_player)
             .add_systems(
                 Update,
-                (player_movement, player_shoot, handle_respawn)
-                    .run_if(in_state(AppState::Playing)),
+                (
+                    player_movement.in_set(GameplaySet::Input),
+                    player_shoot.in_set(GameplaySet::Input),
+                    handle_respawn.in_set(GameplaySet::Cleanup),
+                ),
             );
     }
+}
+
+fn spawn_player_entity(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<ColorMaterial>,
+) {
+    let triangle = meshes.add(Triangle2d::new(
+        Vec2::new(0.0, 12.0),
+        Vec2::new(-10.0, -10.0),
+        Vec2::new(10.0, -10.0),
+    ));
+
+    commands.spawn((
+        Mesh2d(triangle),
+        MeshMaterial2d(materials.add(Color::srgb(0.2, 0.8, 1.0))),
+        Transform::from_xyz(0.0, grid_to_world_y(GRID_ROWS - 2), 1.0),
+        Player,
+        DespawnOnExit(AppState::Playing),
+    ));
 }
 
 pub fn spawn_player(
@@ -25,19 +49,7 @@ pub fn spawn_player(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    // Triangle pointing upward
-    let triangle = meshes.add(Triangle2d::new(
-        Vec2::new(0.0, 12.0),
-        Vec2::new(-10.0, -10.0),
-        Vec2::new(10.0, -10.0),
-    ));
-    commands.spawn((
-        Mesh2d(triangle),
-        MeshMaterial2d(materials.add(Color::srgb(0.2, 0.8, 1.0))),
-        Transform::from_xyz(0.0, grid_to_world_y(GRID_ROWS - 2), 1.0),
-        Player,
-        GameplayEntity,
-    ));
+    spawn_player_entity(&mut commands, &mut meshes, &mut materials);
 }
 
 fn player_movement(
@@ -110,14 +122,13 @@ fn player_shoot(
         MeshMaterial2d(materials.add(Color::srgb(1.0, 1.0, 0.3))),
         Transform::from_xyz(transform.translation.x, transform.translation.y + 20.0, 1.0),
         Bullet,
-        GameplayEntity,
+        DespawnOnExit(AppState::Playing),
     ));
 }
 
 fn handle_respawn(
     mut commands: Commands,
     mut respawn: ResMut<RespawnTimer>,
-    mut player_q: Query<(Entity, &mut Visibility), With<Player>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     time: Res<Time>,
@@ -128,23 +139,6 @@ fn handle_respawn(
     timer.tick(time.delta());
     if timer.just_finished() {
         respawn.0 = None;
-        // If player entity still exists, make it visible; otherwise respawn
-        if let Ok((_, mut vis)) = player_q.single_mut() {
-            *vis = Visibility::Visible;
-        } else {
-            // Spawn a fresh player
-            let triangle = meshes.add(Triangle2d::new(
-                Vec2::new(0.0, 12.0),
-                Vec2::new(-10.0, -10.0),
-                Vec2::new(10.0, -10.0),
-            ));
-            commands.spawn((
-                Mesh2d(triangle),
-                MeshMaterial2d(materials.add(Color::srgb(0.2, 0.8, 1.0))),
-                Transform::from_xyz(0.0, grid_to_world_y(GRID_ROWS - 2), 1.0),
-                Player,
-                GameplayEntity,
-            ));
-        }
+        spawn_player_entity(&mut commands, &mut meshes, &mut materials);
     }
 }

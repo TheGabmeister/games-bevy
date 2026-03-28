@@ -1,6 +1,50 @@
 use bevy::prelude::*;
+
 use crate::components::*;
 use crate::world::*;
+use crate::{AppState, PlayingEnterSet};
+
+pub struct SetupPlugin;
+
+impl Plugin for SetupPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(Startup, spawn_camera)
+            .add_systems(OnEnter(AppState::Title), despawn_game_world)
+            .add_systems(
+                OnEnter(AppState::Playing),
+                init_game_resources.in_set(PlayingEnterSet::Reset),
+            )
+            .add_systems(
+                OnEnter(AppState::Playing),
+                spawn_world.in_set(PlayingEnterSet::SpawnWorld),
+            );
+    }
+}
+
+pub fn spawn_camera(mut commands: Commands) {
+    commands.spawn(Camera2d);
+}
+
+pub fn init_game_resources(
+    mut current_room: ResMut<CurrentRoom>,
+    mut inventory: ResMut<PlayerInventory>,
+    mut room_walls: ResMut<RoomWalls>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut commands: Commands,
+) {
+    current_room.0 = CurrentRoom::default().0;
+    inventory.item = None;
+    room_walls.0.clear();
+    commands.insert_resource(DeadDragonMaterial(
+        materials.add(Color::srgb(0.4, 0.4, 0.4)),
+    ));
+}
+
+pub fn despawn_game_world(mut commands: Commands, entities: Query<Entity, With<GameEntity>>) {
+    for entity in entities.iter() {
+        commands.entity(entity).despawn();
+    }
+}
 
 pub fn spawn_world(
     mut commands: Commands,
@@ -8,34 +52,116 @@ pub fn spawn_world(
     mut materials: ResMut<Assets<ColorMaterial>>,
     world: Res<WorldMap>,
 ) {
-    // Background color (will be updated by rooms system)
-    commands.insert_resource(ClearColor(world.room(1).color));
-
-    // ---- Player ----
     commands.spawn((
         Mesh2d(meshes.add(Rectangle::new(12.0, 12.0))),
         MeshMaterial2d(materials.add(Color::srgb(1.0, 1.0, 0.0))),
         Transform::from_xyz(0.0, 0.0, 3.0),
+        GameEntity,
         Player,
         InRoom(1),
     ));
 
-    // ---- Items ----
-    spawn_item(&mut commands, &mut meshes, &mut materials, ItemKind::GoldKey,  5, 50.0,  50.0);
-    spawn_item(&mut commands, &mut meshes, &mut materials, ItemKind::RedKey,  11, -100.0, 0.0);
-    spawn_item(&mut commands, &mut meshes, &mut materials, ItemKind::BlueKey,  8,   0.0, 0.0);
-    spawn_item(&mut commands, &mut meshes, &mut materials, ItemKind::Sword,   11, 100.0, 0.0);
-    spawn_item(&mut commands, &mut meshes, &mut materials, ItemKind::Bridge,  12,   0.0, 0.0);
-    spawn_item(&mut commands, &mut meshes, &mut materials, ItemKind::Chalice, 10,   0.0, 0.0);
-    spawn_item(&mut commands, &mut meshes, &mut materials, ItemKind::Magnet,   3, 100.0, -50.0);
-    spawn_item(&mut commands, &mut meshes, &mut materials, ItemKind::Dot,      8, 180.0,  52.0);
+    spawn_item(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        ItemKind::GoldKey,
+        5,
+        50.0,
+        50.0,
+    );
+    spawn_item(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        ItemKind::RedKey,
+        11,
+        -100.0,
+        0.0,
+    );
+    spawn_item(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        ItemKind::BlueKey,
+        8,
+        0.0,
+        0.0,
+    );
+    spawn_item(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        ItemKind::Sword,
+        11,
+        100.0,
+        0.0,
+    );
+    spawn_item(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        ItemKind::Bridge,
+        12,
+        0.0,
+        0.0,
+    );
+    spawn_item(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        ItemKind::Chalice,
+        10,
+        0.0,
+        0.0,
+    );
+    spawn_item(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        ItemKind::Magnet,
+        3,
+        100.0,
+        -50.0,
+    );
+    spawn_item(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        ItemKind::Dot,
+        8,
+        180.0,
+        52.0,
+    );
 
-    // ---- Dragons ----
-    spawn_dragon(&mut commands, &mut meshes, &mut materials, DragonKind::Yorgle,  5,  80.0,  80.0);
-    spawn_dragon(&mut commands, &mut meshes, &mut materials, DragonKind::Grundle, 7, -80.0, -80.0);
-    spawn_dragon(&mut commands, &mut meshes, &mut materials, DragonKind::Rhindle, 10,  0.0,  60.0);
+    spawn_dragon(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        DragonKind::Yorgle,
+        5,
+        80.0,
+        80.0,
+    );
+    spawn_dragon(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        DragonKind::Grundle,
+        7,
+        -80.0,
+        -80.0,
+    );
+    spawn_dragon(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        DragonKind::Rhindle,
+        10,
+        0.0,
+        60.0,
+    );
 
-    // ---- Bat ----
     let bat_mesh = meshes.add(RegularPolygon::new(10.0, 4));
     let bat_mat = materials.add(Color::srgb(0.2, 0.2, 0.2));
     commands.spawn((
@@ -43,6 +169,7 @@ pub fn spawn_world(
         MeshMaterial2d(bat_mat),
         Transform::from_xyz(-100.0, 100.0, 4.0)
             .with_rotation(Quat::from_rotation_z(std::f32::consts::PI / 4.0)),
+        GameEntity,
         Bat,
         InRoom(11),
         BatData {
@@ -52,13 +179,20 @@ pub fn spawn_world(
         },
     ));
 
-    // ---- Gates ----
-    // Room 0 south exit: gold gate
-    spawn_gate(&mut commands, &mut meshes, &mut materials, 0, ExitDir::South, KeyColor::Gold);
-    // Room 4 east exit: red gate
-    spawn_gate(&mut commands, &mut meshes, &mut materials, 4, ExitDir::East, KeyColor::Red);
-    // Room 9 south exit: blue gate
-    spawn_gate(&mut commands, &mut meshes, &mut materials, 9, ExitDir::South, KeyColor::Blue);
+    for (room_id, room) in world.rooms.iter().enumerate() {
+        for direction in ExitDir::ALL {
+            if let Some(key_color) = room.gates[direction.index()] {
+                spawn_gate(
+                    &mut commands,
+                    &mut meshes,
+                    &mut materials,
+                    room_id as u8,
+                    direction,
+                    key_color,
+                );
+            }
+        }
+    }
 }
 
 fn spawn_item(
@@ -75,6 +209,7 @@ fn spawn_item(
         Mesh2d(mesh),
         MeshMaterial2d(materials.add(color)),
         Transform::from_xyz(x, y, 2.0),
+        GameEntity,
         Item,
         kind,
         InRoom(room),
@@ -83,14 +218,38 @@ fn spawn_item(
 
 fn item_visual(meshes: &mut ResMut<Assets<Mesh>>, kind: ItemKind) -> (Handle<Mesh>, Color) {
     match kind {
-        ItemKind::GoldKey => (meshes.add(Rectangle::new(8.0, 16.0)), Color::srgb(1.0, 0.85, 0.0)),
-        ItemKind::RedKey  => (meshes.add(Rectangle::new(8.0, 16.0)), Color::srgb(0.9, 0.1, 0.1)),
-        ItemKind::BlueKey => (meshes.add(Rectangle::new(8.0, 16.0)), Color::srgb(0.2, 0.4, 1.0)),
-        ItemKind::Sword   => (meshes.add(Rectangle::new(4.0, 28.0)), Color::srgb(0.9, 0.9, 0.9)),
-        ItemKind::Bridge  => (meshes.add(Rectangle::new(48.0, 8.0)), Color::srgb(0.5, 0.35, 0.1)),
-        ItemKind::Chalice => (meshes.add(Rectangle::new(12.0, 18.0)), Color::srgb(1.0, 0.9, 0.2)),
-        ItemKind::Magnet  => (meshes.add(Rectangle::new(10.0, 14.0)), Color::srgb(0.6, 0.6, 0.7)),
-        ItemKind::Dot     => (meshes.add(Rectangle::new(3.0, 3.0)),   Color::srgb(0.18, 0.18, 0.18)),
+        ItemKind::GoldKey => (
+            meshes.add(Rectangle::new(8.0, 16.0)),
+            Color::srgb(1.0, 0.85, 0.0),
+        ),
+        ItemKind::RedKey => (
+            meshes.add(Rectangle::new(8.0, 16.0)),
+            Color::srgb(0.9, 0.1, 0.1),
+        ),
+        ItemKind::BlueKey => (
+            meshes.add(Rectangle::new(8.0, 16.0)),
+            Color::srgb(0.2, 0.4, 1.0),
+        ),
+        ItemKind::Sword => (
+            meshes.add(Rectangle::new(4.0, 28.0)),
+            Color::srgb(0.9, 0.9, 0.9),
+        ),
+        ItemKind::Bridge => (
+            meshes.add(Rectangle::new(48.0, 8.0)),
+            Color::srgb(0.5, 0.35, 0.1),
+        ),
+        ItemKind::Chalice => (
+            meshes.add(Rectangle::new(12.0, 18.0)),
+            Color::srgb(1.0, 0.9, 0.2),
+        ),
+        ItemKind::Magnet => (
+            meshes.add(Rectangle::new(10.0, 14.0)),
+            Color::srgb(0.6, 0.6, 0.7),
+        ),
+        ItemKind::Dot => (
+            meshes.add(Rectangle::new(3.0, 3.0)),
+            Color::srgb(0.18, 0.18, 0.18),
+        ),
     }
 }
 
@@ -113,36 +272,36 @@ fn spawn_dragon(
     let body_mat = materials.add(color);
     let head_mat = materials.add(color);
 
-    commands.spawn((
-        Transform::from_xyz(x, y, 3.0),
-        Visibility::Inherited,
-        GlobalTransform::default(),
-        InheritedVisibility::default(),
-        ViewVisibility::default(),
-        Dragon,
-        DragonData { kind, alive: true },
-        DragonAlive,
-        InRoom(room),
-    )).with_children(|parent| {
-        parent.spawn((
-            Mesh2d(body_mesh),
-            MeshMaterial2d(body_mat),
-            Transform::default(),
-            DragonBody,
-        ));
-        parent.spawn((
-            Mesh2d(head_mesh),
-            MeshMaterial2d(head_mat),
-            Transform::from_xyz(0.0, 14.0, 0.1),
-            DragonHead,
-        ));
-    });
+    commands
+        .spawn((
+            Transform::from_xyz(x, y, 3.0),
+            Visibility::Inherited,
+            GameEntity,
+            Dragon,
+            DragonData { kind },
+            DragonAlive,
+            InRoom(room),
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Mesh2d(body_mesh),
+                MeshMaterial2d(body_mat),
+                Transform::default(),
+                DragonBody,
+            ));
+            parent.spawn((
+                Mesh2d(head_mesh),
+                MeshMaterial2d(head_mat),
+                Transform::from_xyz(0.0, 14.0, 0.1),
+                DragonHead,
+            ));
+        });
 }
 
 fn gate_color(kc: KeyColor) -> Color {
     match kc {
         KeyColor::Gold => Color::srgb(0.9, 0.75, 0.0),
-        KeyColor::Red  => Color::srgb(0.85, 0.1, 0.1),
+        KeyColor::Red => Color::srgb(0.85, 0.1, 0.1),
         KeyColor::Blue => Color::srgb(0.1, 0.3, 0.9),
     }
 }
@@ -160,19 +319,23 @@ fn spawn_gate(
     let half_t = WALL_T / 2.0;
 
     let (gx, gy, gw, gh) = match exit_dir {
-        ExitDir::North => (0.0,  half_h - half_t, PASSAGE_W, WALL_T),
+        ExitDir::North => (0.0, half_h - half_t, PASSAGE_W, WALL_T),
         ExitDir::South => (0.0, -(half_h - half_t), PASSAGE_W, WALL_T),
-        ExitDir::East  => ( half_w - half_t, 0.0, WALL_T, PASSAGE_W),
-        ExitDir::West  => (-(half_w - half_t), 0.0, WALL_T, PASSAGE_W),
+        ExitDir::East => (half_w - half_t, 0.0, WALL_T, PASSAGE_W),
+        ExitDir::West => (-(half_w - half_t), 0.0, WALL_T, PASSAGE_W),
     };
 
-    let color = gate_color(key_color);
     commands.spawn((
         Mesh2d(meshes.add(Rectangle::new(gw, gh))),
-        MeshMaterial2d(materials.add(color)),
+        MeshMaterial2d(materials.add(gate_color(key_color))),
         Transform::from_xyz(gx, gy, 1.5),
+        GameEntity,
         Gate,
-        GateData { key_color, exit_dir, open: false },
+        GateData {
+            key_color,
+            exit_dir,
+            open: false,
+        },
         InRoom(room),
     ));
 }

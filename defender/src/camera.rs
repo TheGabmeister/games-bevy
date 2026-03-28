@@ -3,6 +3,24 @@ use bevy::prelude::*;
 use crate::components::*;
 use crate::constants::*;
 use crate::resources::*;
+use crate::scheduling::GameplaySet;
+
+pub struct CameraPlugin;
+
+impl Plugin for CameraPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(Startup, setup_camera)
+            .add_systems(
+                Update,
+                (camera_follow, world_wrap_positions).in_set(GameplaySet::Camera),
+            )
+            .add_systems(Update, sync_transforms.in_set(GameplaySet::Sync));
+    }
+}
+
+fn setup_camera(mut commands: Commands) {
+    commands.spawn(Camera2d);
+}
 
 pub fn camera_follow(
     player_q: Query<&WorldPosition, With<Player>>,

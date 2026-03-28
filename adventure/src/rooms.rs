@@ -1,36 +1,58 @@
 use bevy::prelude::*;
+
 use crate::components::*;
 use crate::world::*;
+use crate::{AppState, PlayingEnterSet, PlayingSet};
 
-/// Despawn old room walls and spawn new ones when CurrentRoom changes.
+pub struct RoomsPlugin;
+
+impl Plugin for RoomsPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(
+            OnEnter(AppState::Playing),
+            (spawn_room_walls, update_background_color, update_visibility)
+                .chain()
+                .in_set(PlayingEnterSet::RoomState),
+        )
+        .add_systems(Update, room_transition.in_set(PlayingSet::Room))
+        .add_systems(
+            Update,
+            (spawn_room_walls, update_background_color, update_visibility)
+                .chain()
+                .in_set(PlayingSet::Presentation)
+                .run_if(current_room_changed),
+        );
+    }
+}
+
+type GatePresenceQuery<'w, 's> =
+    Query<'w, 's, (&'static GateData, &'static InRoom), (With<Gate>, Without<Player>)>;
+
+pub fn current_room_changed(current_room: Res<CurrentRoom>) -> bool {
+    current_room.is_changed()
+}
+
 pub fn spawn_room_walls(
     mut commands: Commands,
     current_room: Res<CurrentRoom>,
     world: Res<WorldMap>,
     mut room_walls: ResMut<RoomWalls>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
     old_walls: Query<Entity, With<RoomWallMarker>>,
 ) {
-    if !current_room.is_changed() {
-        return;
+    for entity in old_walls.iter() {
+        commands.entity(entity).despawn();
     }
 
-    // Despawn old wall meshes
-    for e in old_walls.iter() {
-        commands.entity(e).despawn();
-    }
+    let walls = build_room_walls(world.room(current_room.0));
 
-    let room = world.room(current_room.0);
-    let walls = build_room_walls(room);
-
-    let wall_color = Color::srgb(0.5, 0.5, 0.5);
-
-    for w in &walls {
+    for wall in &walls {
         commands.spawn((
-            Mesh2d(meshes.add(Rectangle::new(w.hw * 2.0, w.hh * 2.0))),
-            MeshMaterial2d(materials.add(wall_color)),
-            Transform::from_xyz(w.x, w.y, 1.0),
+            Sprite::from_color(
+                Color::srgb(0.5, 0.5, 0.5),
+                Vec2::new(wall.hw * 2.0, wall.hh * 2.0),
+            ),
+            Transform::from_xyz(wall.x, wall.y, 1.0),
+            GameEntity,
             RoomWallMarker,
         ));
     }
@@ -38,29 +60,20 @@ pub fn spawn_room_walls(
     room_walls.0 = walls;
 }
 
-/// Update background ClearColor when room changes.
 pub fn update_background_color(
     current_room: Res<CurrentRoom>,
     world: Res<WorldMap>,
     mut clear_color: ResMut<ClearColor>,
 ) {
-    if !current_room.is_changed() {
-        return;
-    }
     clear_color.0 = world.room(current_room.0).color;
 }
 
-/// Show entities in current room, hide others.
-/// Skips Carried items (they follow the player regardless of room).
 pub fn update_visibility(
     current_room: Res<CurrentRoom>,
     mut q: Query<(&InRoom, &mut Visibility), Without<Carried>>,
 ) {
-    if !current_room.is_changed() {
-        return;
-    }
-    for (in_room, mut vis) in q.iter_mut() {
-        *vis = if in_room.0 == current_room.0 {
+    for (in_room, mut visibility) in q.iter_mut() {
+        *visibility = if in_room.0 == current_room.0 {
             Visibility::Inherited
         } else {
             Visibility::Hidden
@@ -68,16 +81,16 @@ pub fn update_visibility(
     }
 }
 
-/// Detect player reaching a passage edge and transition to adjacent room.
 pub fn room_transition(
     mut player_q: Query<(&mut Transform, &mut InRoom), With<Player>>,
     world: Res<WorldMap>,
     mut current_room: ResMut<CurrentRoom>,
-    gates: Query<(&GateData, &InRoom), (With<Gate>, Without<Player>)>,
-    inventory: Res<PlayerInventory>,
-    item_q: Query<&ItemKind, With<Item>>,
+    gates: GatePresenceQuery<'_, '_>,
+    inventory_items: InventoryItems<'_, '_>,
 ) {
-    let Ok((mut transform, mut player_room)) = player_q.single_mut() else { return; };
+    let Ok((mut transform, mut player_room)) = player_q.single_mut() else {
+        return;
+    };
 
     let pos = transform.translation.truncate();
     let room_def = world.room(current_room.0);
@@ -88,32 +101,51 @@ pub fn room_transition(
     let threshold_w = half_w - PASSAGE_THRESHOLD;
     let half_p = PASSAGE_W / 2.0 - PLAYER_HW;
 
-    // Check each direction
     let directions = [
-        // (condition, exit_index, new_x, new_y)
-        (pos.y > threshold_h && pos.x.abs() < half_p,  0usize, pos.x, -(threshold_h - 4.0)),
-        (pos.y < -threshold_h && pos.x.abs() < half_p, 1usize, pos.x,  threshold_h - 4.0),
-        (pos.x > threshold_w && pos.y.abs() < half_p,  2usize, -(threshold_w - 4.0), pos.y),
-        (pos.x < -threshold_w && pos.y.abs() < half_p, 3usize,  threshold_w - 4.0, pos.y),
+        (
+            pos.y > threshold_h && pos.x.abs() < half_p,
+            0usize,
+            pos.x,
+            -(threshold_h - 4.0),
+        ),
+        (
+            pos.y < -threshold_h && pos.x.abs() < half_p,
+            1usize,
+            pos.x,
+            threshold_h - 4.0,
+        ),
+        (
+            pos.x > threshold_w && pos.y.abs() < half_p,
+            2usize,
+            -(threshold_w - 4.0),
+            pos.y,
+        ),
+        (
+            pos.x < -threshold_w && pos.y.abs() < half_p,
+            3usize,
+            threshold_w - 4.0,
+            pos.y,
+        ),
     ];
 
     for (triggered, exit_idx, new_x, new_y) in directions {
         if !triggered {
             continue;
         }
-        let Some(dest_room) = room_def.exits[exit_idx] else { continue; };
 
-        // Check if a gate blocks this exit
-        let gate_blocked = gates.iter().any(|(gate_data, gate_in_room)| {
-            gate_in_room.0 == current_room.0
-                && gate_data.exit_dir as usize == exit_idx
+        let Some(dest_room) = room_def.exits[exit_idx] else {
+            continue;
+        };
+
+        let gate_blocked = gates.iter().any(|(gate_data, gate_room)| {
+            gate_room.0 == current_room.0
+                && gate_data.exit_dir.index() == exit_idx
                 && !gate_data.open
         });
         if gate_blocked {
             continue;
         }
 
-        // Transition
         current_room.0 = dest_room;
         player_room.0 = dest_room;
         transform.translation.x = new_x;
@@ -121,16 +153,13 @@ pub fn room_transition(
         return;
     }
 
-    // Easter egg: carrying Dot through north wall of Room 6 → secret Room 13
-    if current_room.0 == 6 && pos.y > threshold_h && pos.x.abs() < half_p {
-        let has_dot = inventory.item
-            .and_then(|e| item_q.get(e).ok())
-            .map(|k| *k == ItemKind::Dot)
-            .unwrap_or(false);
-        if has_dot {
-            current_room.0 = 13;
-            player_room.0 = 13;
-            transform.translation.y = -(threshold_h - 4.0);
-        }
+    if current_room.0 == 6
+        && pos.y > threshold_h
+        && pos.x.abs() < half_p
+        && inventory_items.is_carrying(ItemKind::Dot)
+    {
+        current_room.0 = 13;
+        player_room.0 = 13;
+        transform.translation.y = -(threshold_h - 4.0);
     }
 }

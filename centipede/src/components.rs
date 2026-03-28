@@ -86,7 +86,3 @@ pub struct MenuScreen;
 
 #[derive(Component)]
 pub struct GameOverScreen;
-
-/// Tag on all gameplay entities so we can despawn them on state exit
-#[derive(Component)]
-pub struct GameplayEntity;

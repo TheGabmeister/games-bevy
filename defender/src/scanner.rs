@@ -1,30 +1,40 @@
 use bevy::prelude::*;
+use std::collections::{HashMap, HashSet};
 
 use crate::components::*;
 use crate::constants::*;
+use crate::scheduling::GameplaySet;
+
+pub struct ScannerPlugin;
+
+impl Plugin for ScannerPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(Startup, setup_scanner)
+            .add_systems(Update, scanner_update.in_set(GameplaySet::Post));
+    }
+}
 
 pub fn setup_scanner(mut commands: Commands) {
     // Scanner bar background
-    commands
-        .spawn((
-            ScannerBar,
-            Node {
-                position_type: PositionType::Absolute,
-                top: Val::Px(5.0),
-                left: Val::Px((SCREEN_WIDTH as f32 - SCANNER_WIDTH) / 2.0),
-                width: Val::Px(SCANNER_WIDTH),
-                height: Val::Px(SCANNER_HEIGHT),
-                overflow: Overflow::clip(),
-                ..default()
-            },
-            BackgroundColor(COLOR_SCANNER_BG),
-        ));
+    commands.spawn((
+        ScannerBar,
+        Node {
+            position_type: PositionType::Absolute,
+            top: Val::Px(5.0),
+            left: Val::Px((SCREEN_WIDTH as f32 - SCANNER_WIDTH) / 2.0),
+            width: Val::Px(SCANNER_WIDTH),
+            height: Val::Px(SCANNER_HEIGHT),
+            overflow: Overflow::clip(),
+            ..default()
+        },
+        BackgroundColor(COLOR_SCANNER_BG),
+    ));
 }
 
 pub fn scanner_update(
     mut commands: Commands,
     scanner_bar: Query<Entity, With<ScannerBar>>,
-    existing_dots: Query<(Entity, &ScannerDot)>,
+    mut existing_dots: Query<(Entity, &ScannerDot, &mut Node, &mut BackgroundColor)>,
     // All trackable entities
     players: Query<(Entity, &WorldPosition), With<Player>>,
     humans: Query<(Entity, &WorldPosition), With<Human>>,
@@ -39,12 +49,32 @@ pub fn scanner_update(
         return;
     };
 
-    // Remove old dots
-    for (dot_entity, _) in &existing_dots {
-        commands.entity(dot_entity).despawn();
+    let mut trackables = HashMap::new();
+    for (entity, wp) in &players {
+        trackables.insert(entity, (wp.0, Color::WHITE));
+    }
+    for (entity, wp) in &humans {
+        trackables.insert(entity, (wp.0, COLOR_HUMAN));
+    }
+    for (entity, wp) in &landers {
+        trackables.insert(entity, (wp.0, COLOR_LANDER));
+    }
+    for (entity, wp) in &mutants {
+        trackables.insert(entity, (wp.0, COLOR_MUTANT));
+    }
+    for (entity, wp) in &bombers {
+        trackables.insert(entity, (wp.0, COLOR_BOMBER));
+    }
+    for (entity, wp) in &pods {
+        trackables.insert(entity, (wp.0, COLOR_POD));
+    }
+    for (entity, wp) in &swarmers {
+        trackables.insert(entity, (wp.0, COLOR_SWARMER));
+    }
+    for (entity, wp) in &baiters {
+        trackables.insert(entity, (wp.0, COLOR_BAITER));
     }
 
-    // Helper to spawn a dot
     let spawn_dot = |commands: &mut Commands, world_x: f32, color: Color, tracked: Entity| {
         let left = (world_x / WORLD_WIDTH) * SCANNER_WIDTH;
         let dot = commands
@@ -64,33 +94,20 @@ pub fn scanner_update(
         commands.entity(bar_entity).add_child(dot);
     };
 
-    // Player dots (white)
-    for (entity, wp) in &players {
-        spawn_dot(&mut commands, wp.0, Color::WHITE, entity);
+    let mut seen = HashSet::new();
+    for (dot_entity, tracked, mut node, mut bg) in &mut existing_dots {
+        if let Some((world_x, color)) = trackables.get(&tracked.0) {
+            node.left = Val::Px((world_x / WORLD_WIDTH) * SCANNER_WIDTH);
+            *bg = BackgroundColor(*color);
+            seen.insert(tracked.0);
+        } else {
+            commands.entity(dot_entity).despawn();
+        }
     }
 
-    // Human dots (green)
-    for (entity, wp) in &humans {
-        spawn_dot(&mut commands, wp.0, COLOR_HUMAN, entity);
-    }
-
-    // Enemy dots
-    for (entity, wp) in &landers {
-        spawn_dot(&mut commands, wp.0, COLOR_LANDER, entity);
-    }
-    for (entity, wp) in &mutants {
-        spawn_dot(&mut commands, wp.0, COLOR_MUTANT, entity);
-    }
-    for (entity, wp) in &bombers {
-        spawn_dot(&mut commands, wp.0, COLOR_BOMBER, entity);
-    }
-    for (entity, wp) in &pods {
-        spawn_dot(&mut commands, wp.0, COLOR_POD, entity);
-    }
-    for (entity, wp) in &swarmers {
-        spawn_dot(&mut commands, wp.0, COLOR_SWARMER, entity);
-    }
-    for (entity, wp) in &baiters {
-        spawn_dot(&mut commands, wp.0, COLOR_BAITER, entity);
+    for (entity, (world_x, color)) in trackables {
+        if !seen.contains(&entity) {
+            spawn_dot(&mut commands, world_x, color, entity);
+        }
     }
 }

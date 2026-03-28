@@ -3,7 +3,34 @@ use bevy::prelude::*;
 use crate::components::*;
 use crate::constants::*;
 use crate::resources::*;
+use crate::scheduling::GameplaySet;
 use crate::states::AppState;
+
+pub struct UiPlugin;
+
+impl Plugin for UiPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(Startup, setup_ui)
+            .add_systems(
+                OnEnter(AppState::StartScreen),
+                (reset_game, start_screen_setup).chain(),
+            )
+            .add_systems(OnExit(AppState::StartScreen), start_screen_cleanup)
+            .add_systems(
+                Update,
+                start_screen_input.run_if(in_state(AppState::StartScreen)),
+            )
+            .add_systems(Update, ui_update.in_set(GameplaySet::Post))
+            .add_systems(OnEnter(AppState::PlayerDeath), player_death_setup)
+            .add_systems(
+                Update,
+                player_death_timer.run_if(in_state(AppState::PlayerDeath)),
+            )
+            .add_systems(OnEnter(AppState::GameOver), game_over_setup)
+            .add_systems(OnExit(AppState::GameOver), game_over_cleanup)
+            .add_systems(Update, game_over_input.run_if(in_state(AppState::GameOver)));
+    }
+}
 
 pub fn setup_ui(mut commands: Commands) {
     // Score text
@@ -64,6 +91,10 @@ pub fn ui_update(
     mut lives_q: Query<&mut Text, (With<LivesText>, Without<ScoreText>, Without<SmartBombText>)>,
     mut bombs_q: Query<&mut Text, (With<SmartBombText>, Without<ScoreText>, Without<LivesText>)>,
 ) {
+    if !game_state.is_changed() {
+        return;
+    }
+
     if let Ok(mut text) = score_q.single_mut() {
         *text = Text::new(format!("SCORE: {}", game_state.score));
     }
@@ -109,10 +140,7 @@ pub fn game_over_setup(mut commands: Commands) {
     ));
 }
 
-pub fn game_over_cleanup(
-    mut commands: Commands,
-    screens: Query<Entity, With<GameOverScreen>>,
-) {
+pub fn game_over_cleanup(mut commands: Commands, screens: Query<Entity, With<GameOverScreen>>) {
     for entity in &screens {
         commands.entity(entity).despawn();
     }
@@ -162,7 +190,9 @@ pub fn start_screen_setup(mut commands: Commands) {
 
     commands.spawn((
         StartScreen,
-        Text::new("ARROWS/WASD: Move   SHIFT: Reverse   SPACE: Fire\nE: Smart Bomb   H: Hyperspace"),
+        Text::new(
+            "ARROWS/WASD: Move   SHIFT: Reverse   SPACE: Fire\nE: Smart Bomb   H: Hyperspace",
+        ),
         TextFont {
             font_size: 20.0,
             ..default()
@@ -177,10 +207,7 @@ pub fn start_screen_setup(mut commands: Commands) {
     ));
 }
 
-pub fn start_screen_cleanup(
-    mut commands: Commands,
-    screens: Query<Entity, With<StartScreen>>,
-) {
+pub fn start_screen_cleanup(mut commands: Commands, screens: Query<Entity, With<StartScreen>>) {
     for entity in &screens {
         commands.entity(entity).despawn();
     }
@@ -197,14 +224,14 @@ pub fn start_screen_input(
 
 pub fn player_death_setup(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
+    assets: Res<GameplayAssets>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     player_q: Query<(&WorldPosition, &Transform), With<Player>>,
 ) {
     if let Ok((wp, tf)) = player_q.single() {
         crate::spawning::spawn_explosion(
             &mut commands,
-            &mut meshes,
+            &assets,
             &mut materials,
             wp.0,
             tf.translation.y,
@@ -241,15 +268,14 @@ pub fn player_death_timer(
 
 pub fn respawn_player(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    assets: Res<GameplayAssets>,
     player_q: Query<Entity, With<Player>>,
     mut cam_pos: ResMut<CameraWorldPos>,
 ) {
     // Only spawn if no player exists
-    if player_q.iter().count() == 0 {
+    if player_q.iter().next().is_none() {
         let spawn_x = WORLD_WIDTH / 2.0;
-        crate::spawning::spawn_player(&mut commands, &mut meshes, &mut materials, spawn_x);
+        crate::spawning::spawn_player(&mut commands, &assets, spawn_x);
         cam_pos.0 = spawn_x;
     }
 }
@@ -258,22 +284,38 @@ pub fn reset_game(
     mut commands: Commands,
     mut game_state: ResMut<GameState>,
     mut wave_state: ResMut<WaveState>,
+    mut rng: ResMut<GameRng>,
     // Despawn everything
     enemies: Query<Entity, With<Enemy>>,
     humans: Query<Entity, With<Human>>,
     projectiles: Query<Entity, With<PlayerProjectile>>,
     enemy_projectiles: Query<Entity, (With<EnemyProjectile>, Without<PlayerProjectile>)>,
-    mines: Query<Entity, (With<Mine>, Without<PlayerProjectile>, Without<EnemyProjectile>)>,
+    mines: Query<
+        Entity,
+        (
+            With<Mine>,
+            Without<PlayerProjectile>,
+            Without<EnemyProjectile>,
+        ),
+    >,
     player: Query<Entity, With<Player>>,
     explosions: Query<Entity, With<Explosion>>,
+    scanner_dots: Query<Entity, With<ScannerDot>>,
 ) {
-    for e in enemies.iter().chain(humans.iter()).chain(projectiles.iter())
-        .chain(enemy_projectiles.iter()).chain(mines.iter())
-        .chain(player.iter()).chain(explosions.iter())
+    for e in enemies
+        .iter()
+        .chain(humans.iter())
+        .chain(projectiles.iter())
+        .chain(enemy_projectiles.iter())
+        .chain(mines.iter())
+        .chain(player.iter())
+        .chain(explosions.iter())
+        .chain(scanner_dots.iter())
     {
         commands.entity(e).despawn();
     }
 
     *game_state = GameState::default();
     *wave_state = WaveState::default();
+    rng.reset();
 }

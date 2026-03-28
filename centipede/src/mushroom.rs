@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use rand::Rng;
 
 use crate::{
-    components::{GameplayEntity, GridPos, Mushroom, Poisoned},
+    components::{GridPos, Mushroom, Poisoned},
     constants::*,
     resources::MushroomGrid,
     states::AppState,
@@ -48,15 +48,7 @@ pub fn spawn_mushrooms(
         if grid.0.contains_key(&key) {
             continue;
         }
-        let entity = spawn_mushroom_at(
-            &mut commands,
-            &mut materials,
-            &mesh,
-            col,
-            row,
-            0,
-            false,
-        );
+        let entity = spawn_mushroom_at(&mut commands, &mut materials, &mesh, col, row, 0, false);
         grid.0.insert(key, entity);
         placed += 1;
     }
@@ -78,11 +70,10 @@ pub fn spawn_mushroom_at(
         Transform::from_xyz(grid_to_world_x(col), grid_to_world_y(row), 0.0),
         GridPos { col, row },
         Mushroom { hits },
-        GameplayEntity,
+        DespawnOnExit(AppState::Playing),
     ));
     if poisoned {
         ec.insert(Poisoned);
     }
     ec.id()
 }
-

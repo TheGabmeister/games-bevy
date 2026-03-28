@@ -6,7 +6,6 @@ use std::collections::HashMap;
 #[derive(Resource, Default)]
 pub struct Score {
     pub value: u32,
-    pub extra_life_threshold: u32,
 }
 
 #[derive(Resource)]
@@ -96,6 +95,5 @@ impl Default for ScorpionSpawnTimer {
 #[derive(Resource, Default)]
 pub struct RespawnTimer(pub Option<Timer>);
 
-/// Tracks whether we just granted an extra life (to avoid repeated grants)
 #[derive(Resource, Default)]
-pub struct ExtraLifeGranted(pub bool);
+pub struct NextExtraLifeScore(pub u32);

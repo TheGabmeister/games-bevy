@@ -1,6 +1,4 @@
-use bevy::prelude::*;
-
-// ---- Enums ----
+use bevy::{ecs::system::SystemParam, prelude::*};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeyColor {
@@ -78,7 +76,13 @@ pub enum ExitDir {
     West = 3,
 }
 
-// ---- Marker components ----
+impl ExitDir {
+    pub const ALL: [Self; 4] = [Self::North, Self::South, Self::East, Self::West];
+
+    pub const fn index(self) -> usize {
+        self as usize
+    }
+}
 
 #[derive(Component)]
 pub struct Player;
@@ -107,37 +111,30 @@ pub struct Gate;
 #[derive(Component)]
 pub struct RoomWallMarker;
 
-/// Marks item as currently carried by player
+#[derive(Component)]
+pub struct GameEntity;
+
 #[derive(Component)]
 pub struct Carried;
 
-/// UI text showing current room name
 #[derive(Component)]
 pub struct RoomNameText;
 
-/// UI text showing carried item
 #[derive(Component)]
 pub struct InventoryText;
 
-/// Marker for title screen entities
 #[derive(Component)]
 pub struct TitleScreen;
 
-/// Marker for game over screen entities
 #[derive(Component)]
 pub struct GameOverScreen;
 
-/// Marker for win screen entities
 #[derive(Component)]
 pub struct WinScreen;
 
-/// Marker for in-game UI entities
 #[derive(Component)]
 pub struct GameUi;
 
-// ---- Data components ----
-
-/// Which room this entity belongs to (255 = carried/held by bat)
 #[derive(Component)]
 pub struct InRoom(pub u8);
 
@@ -151,7 +148,6 @@ pub struct GateData {
 #[derive(Component)]
 pub struct DragonData {
     pub kind: DragonKind,
-    pub alive: bool,
 }
 
 #[derive(Component)]
@@ -161,16 +157,40 @@ pub struct BatData {
     pub grab_timer: Timer,
 }
 
-/// Tracks the dragon swallow animation before game over
 #[derive(Resource)]
 pub struct SwallowInfo {
     pub dragon: Entity,
     pub timer: Timer,
 }
 
-/// Wall bypass info computed each frame (bridge + easter egg)
 #[derive(Resource, Default)]
 pub struct WallBypass {
     pub bridge: Option<crate::world::WallRect>,
     pub easter_egg_north: bool,
+}
+
+#[derive(SystemParam)]
+pub struct InventoryItems<'w, 's> {
+    pub inventory: Res<'w, crate::world::PlayerInventory>,
+    pub item_kinds: Query<'w, 's, &'static ItemKind, With<Item>>,
+}
+
+impl<'w, 's> InventoryItems<'w, 's> {
+    pub fn carried_entity(&self) -> Option<Entity> {
+        self.inventory.item
+    }
+
+    pub fn carried_kind(&self) -> Option<ItemKind> {
+        self.carried_entity()
+            .and_then(|entity| self.item_kinds.get(entity).ok())
+            .copied()
+    }
+
+    pub fn carried_key_color(&self) -> Option<KeyColor> {
+        self.carried_kind().and_then(|kind| kind.key_color())
+    }
+
+    pub fn is_carrying(&self, kind: ItemKind) -> bool {
+        self.carried_kind() == Some(kind)
+    }
 }

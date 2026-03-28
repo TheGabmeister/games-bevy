@@ -63,7 +63,6 @@ pub struct FireCooldown(pub Timer);
 #[derive(Component)]
 pub enum LanderState {
     Descending,
-    Grabbing(Entity),
     Ascending(Entity),
 }
 

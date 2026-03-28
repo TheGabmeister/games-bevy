@@ -19,9 +19,9 @@ fn main() {
             ..default()
         }))
         .insert_resource(ClearColor(Color::BLACK))
-        .insert_resource(MatchConfig::default())
-        .insert_resource(Score::default())
-        .insert_resource(Winner::default())
+        .init_resource::<MatchConfig>()
+        .init_resource::<Score>()
+        .init_resource::<Winner>()
         .init_state::<Phase>()
         .add_plugins((audio::PongAudioPlugin, systems::PongSystemsPlugin))
         .run();

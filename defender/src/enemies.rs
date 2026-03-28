@@ -4,24 +4,49 @@ use crate::camera::*;
 use crate::components::*;
 use crate::constants::*;
 use crate::resources::*;
+use crate::scheduling::GameplaySet;
 use crate::spawning::*;
+
+pub struct EnemyPlugin;
+
+impl Plugin for EnemyPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(
+            Update,
+            (lander_ai, mutant_ai, bomber_ai, swarmer_ai, baiter_ai).in_set(GameplaySet::Input),
+        )
+        .add_systems(Update, enemy_movement.in_set(GameplaySet::Movement));
+    }
+}
 
 pub fn lander_ai(
     time: Res<Time>,
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    assets: Res<GameplayAssets>,
     player_q: Query<(&WorldPosition, &Transform), (With<Player>, Without<Lander>, Without<Human>)>,
-    mut landers: Query<(
-        Entity,
-        &WorldPosition,
-        &Transform,
-        &mut Velocity,
-        &mut LanderState,
-        &mut LanderTarget,
-        &mut EnemyShootTimer,
-    ), (With<Lander>, Without<Human>, Without<Player>)>,
-    humans: Query<(Entity, &WorldPosition), (With<Human>, Without<GrabbedBy>, Without<HumanFalling>, Without<CaughtByPlayer>, Without<Lander>, Without<Player>)>,
+    mut landers: Query<
+        (
+            Entity,
+            &WorldPosition,
+            &Transform,
+            &mut Velocity,
+            &mut LanderState,
+            &mut LanderTarget,
+            &mut EnemyShootTimer,
+        ),
+        (With<Lander>, Without<Human>, Without<Player>),
+    >,
+    humans: Query<
+        (Entity, &WorldPosition),
+        (
+            With<Human>,
+            Without<GrabbedBy>,
+            Without<HumanFalling>,
+            Without<CaughtByPlayer>,
+            Without<Lander>,
+            Without<Player>,
+        ),
+    >,
     mut human_transforms: Query<&mut Transform, (With<Human>, Without<Lander>, Without<Player>)>,
     terrain: Res<TerrainData>,
 ) {
@@ -38,14 +63,7 @@ pub fn lander_ai(
             let dist = (dx * dx + dy * dy).sqrt();
             if dist < 600.0 && dist > 0.0 {
                 let dir = Vec2::new(dx, dy).normalize() * ENEMY_PROJECTILE_SPEED;
-                spawn_enemy_projectile(
-                    &mut commands,
-                    &mut meshes,
-                    &mut materials,
-                    wp.0,
-                    tf.translation.y,
-                    dir,
-                );
+                spawn_enemy_projectile(&mut commands, &assets, wp.0, tf.translation.y, dir);
             }
         }
 
@@ -64,10 +82,8 @@ pub fn lander_ai(
                     let mut best: Option<(Entity, f32)> = None;
                     for (h_entity, h_wp) in &humans {
                         let dist = world_distance(wp.0, tf.translation.y, h_wp.0, terrain_y);
-                        if dist < LANDER_GRAB_RANGE {
-                            if best.is_none() || dist < best.unwrap().1 {
-                                best = Some((h_entity, dist));
-                            }
+                        if dist < LANDER_GRAB_RANGE && (best.is_none() || dist < best.unwrap().1) {
+                            best = Some((h_entity, dist));
                         }
                     }
 
@@ -115,11 +131,8 @@ pub fn lander_ai(
                     let y = tf.translation.y;
                     commands.entity(entity).despawn();
                     commands.entity(human_entity).despawn();
-                    spawn_mutant(&mut commands, &mut meshes, &mut materials, wx, y);
+                    spawn_mutant(&mut commands, &assets, wx, y);
                 }
-            }
-            LanderState::Grabbing(_) => {
-                // Transition state (shouldn't stay here long)
             }
         }
     }
@@ -128,15 +141,17 @@ pub fn lander_ai(
 pub fn mutant_ai(
     time: Res<Time>,
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    assets: Res<GameplayAssets>,
     player_q: Query<(&WorldPosition, &Transform), (With<Player>, Without<Mutant>)>,
-    mut mutants: Query<(
-        &WorldPosition,
-        &Transform,
-        &mut Velocity,
-        &mut EnemyShootTimer,
-    ), (With<Mutant>, Without<Player>)>,
+    mut mutants: Query<
+        (
+            &WorldPosition,
+            &Transform,
+            &mut Velocity,
+            &mut EnemyShootTimer,
+        ),
+        (With<Mutant>, Without<Player>),
+    >,
 ) {
     let Ok((player_wp, player_tf)) = player_q.single() else {
         return;
@@ -162,14 +177,7 @@ pub fn mutant_ai(
             let dist = (dx * dx + dy * dy).sqrt();
             if dist > 0.0 {
                 let dir = Vec2::new(dx, dy).normalize() * ENEMY_PROJECTILE_SPEED;
-                spawn_enemy_projectile(
-                    &mut commands,
-                    &mut meshes,
-                    &mut materials,
-                    wp.0,
-                    tf.translation.y,
-                    dir,
-                );
+                spawn_enemy_projectile(&mut commands, &assets, wp.0, tf.translation.y, dir);
             }
         }
     }
@@ -178,18 +186,13 @@ pub fn mutant_ai(
 pub fn bomber_ai(
     time: Res<Time>,
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-    mut bombers: Query<(
-        &WorldPosition,
-        &Transform,
-        &mut BomberDropTimer,
-    ), With<Bomber>>,
+    assets: Res<GameplayAssets>,
+    mut bombers: Query<(&WorldPosition, &Transform, &mut BomberDropTimer), With<Bomber>>,
 ) {
     for (wp, tf, mut timer) in &mut bombers {
         timer.0.tick(time.delta());
         if timer.0.just_finished() {
-            spawn_mine(&mut commands, &mut meshes, &mut materials, wp.0, tf.translation.y);
+            spawn_mine(&mut commands, &assets, wp.0, tf.translation.y);
         }
     }
 }
@@ -197,7 +200,10 @@ pub fn bomber_ai(
 pub fn swarmer_ai(
     time: Res<Time>,
     player_q: Query<(&WorldPosition, &Transform), (With<Player>, Without<Swarmer>)>,
-    mut swarmers: Query<(&WorldPosition, &Transform, &mut Velocity), (With<Swarmer>, Without<Player>)>,
+    mut swarmers: Query<
+        (&WorldPosition, &Transform, &mut Velocity),
+        (With<Swarmer>, Without<Player>),
+    >,
 ) {
     let Ok((player_wp, player_tf)) = player_q.single() else {
         return;
@@ -221,15 +227,17 @@ pub fn swarmer_ai(
 pub fn baiter_ai(
     time: Res<Time>,
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    assets: Res<GameplayAssets>,
     player_q: Query<(&WorldPosition, &Transform), (With<Player>, Without<Baiter>)>,
-    mut baiters: Query<(
-        &WorldPosition,
-        &Transform,
-        &mut Velocity,
-        &mut EnemyShootTimer,
-    ), (With<Baiter>, Without<Player>)>,
+    mut baiters: Query<
+        (
+            &WorldPosition,
+            &Transform,
+            &mut Velocity,
+            &mut EnemyShootTimer,
+        ),
+        (With<Baiter>, Without<Player>),
+    >,
 ) {
     let Ok((player_wp, player_tf)) = player_q.single() else {
         return;
@@ -252,14 +260,7 @@ pub fn baiter_ai(
             let dist = (dx * dx + dy * dy).sqrt();
             if dist > 0.0 {
                 let dir = Vec2::new(dx, dy).normalize() * ENEMY_PROJECTILE_SPEED;
-                spawn_enemy_projectile(
-                    &mut commands,
-                    &mut meshes,
-                    &mut materials,
-                    wp.0,
-                    tf.translation.y,
-                    dir,
-                );
+                spawn_enemy_projectile(&mut commands, &assets, wp.0, tf.translation.y, dir);
             }
         }
     }

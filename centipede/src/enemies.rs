@@ -2,10 +2,11 @@ use bevy::prelude::*;
 use rand::Rng;
 
 use crate::{
-    components::{Flea, GameplayEntity, GridPos, Mushroom, Poisoned, Scorpion, Spider},
+    components::{Flea, GridPos, Mushroom, Poisoned, Scorpion, Spider},
     constants::*,
     mushroom::{mushroom_color, spawn_mushroom_at},
     resources::{FleaSpawnTimer, MushroomGrid, ScorpionSpawnTimer, SpiderSpawnTimer},
+    scheduling::GameplaySet,
     states::AppState,
 };
 
@@ -16,17 +17,16 @@ impl Plugin for EnemiesPlugin {
         app.add_systems(
             Update,
             (
-                flea_spawn_check,
-                flea_movement,
-                spider_spawn,
-                spider_movement,
-                spider_mushroom_destroy,
-                scorpion_spawn,
-                scorpion_movement,
-                scorpion_poison_mushrooms,
-                despawn_offscreen_enemies,
-            )
-                .run_if(in_state(AppState::Playing)),
+                flea_spawn_check.in_set(GameplaySet::Movement),
+                flea_movement.in_set(GameplaySet::Movement),
+                spider_spawn.in_set(GameplaySet::Movement),
+                spider_movement.in_set(GameplaySet::Movement),
+                spider_mushroom_destroy.in_set(GameplaySet::Collision),
+                scorpion_spawn.in_set(GameplaySet::Movement),
+                scorpion_movement.in_set(GameplaySet::Movement),
+                scorpion_poison_mushrooms.in_set(GameplaySet::Collision),
+                despawn_offscreen_enemies.in_set(GameplaySet::Cleanup),
+            ),
         );
     }
 }
@@ -68,14 +68,11 @@ fn flea_spawn_check(
         MeshMaterial2d(materials.add(Color::srgb(0.9, 0.9, 0.1))),
         Transform::from_xyz(grid_to_world_x(col), grid_to_world_y(0) + CELL_SIZE, 2.0),
         Flea { hits: 0 },
-        GameplayEntity,
+        DespawnOnExit(AppState::Playing),
     ));
 }
 
-fn flea_movement(
-    mut query: Query<&mut Transform, With<Flea>>,
-    time: Res<Time>,
-) {
+fn flea_movement(mut query: Query<&mut Transform, With<Flea>>, time: Res<Time>) {
     for mut transform in &mut query {
         transform.translation.y -= FLEA_SPEED * time.delta_secs();
     }
@@ -93,7 +90,7 @@ pub fn flea_drop_mushroom(
 ) {
     let col = world_to_grid_col(flea_x);
     let row = world_to_grid_row(flea_y);
-    if row < 0 || row >= GRID_ROWS {
+    if !(0..GRID_ROWS).contains(&row) {
         return;
     }
     let key = (col, row);
@@ -144,14 +141,13 @@ fn spider_spawn(
     commands.spawn((
         Mesh2d(mesh),
         MeshMaterial2d(materials.add(Color::srgb(1.0, 0.5, 0.8))),
-        Transform::from_xyz(x, y, 2.0).with_rotation(Quat::from_rotation_z(
-            std::f32::consts::FRAC_PI_4,
-        )),
+        Transform::from_xyz(x, y, 2.0)
+            .with_rotation(Quat::from_rotation_z(std::f32::consts::FRAC_PI_4)),
         Spider {
             dir: initial_dir,
             change_timer: 0.5,
         },
-        GameplayEntity,
+        DespawnOnExit(AppState::Playing),
     ));
 }
 
@@ -241,7 +237,7 @@ fn scorpion_spawn(
         MeshMaterial2d(materials.add(Color::srgb(0.8, 0.2, 0.8))),
         Transform::from_xyz(x, y, 2.0),
         Scorpion { dx },
-        GameplayEntity,
+        DespawnOnExit(AppState::Playing),
     ));
 }
 
@@ -254,7 +250,12 @@ fn scorpion_movement(mut query: Query<(&mut Transform, &Scorpion)>, time: Res<Ti
 fn scorpion_poison_mushrooms(
     scorpion_q: Query<&Transform, With<Scorpion>>,
     mut mushroom_q: Query<
-        (Entity, &GridPos, &mut Mushroom, &MeshMaterial2d<ColorMaterial>),
+        (
+            Entity,
+            &GridPos,
+            &mut Mushroom,
+            &MeshMaterial2d<ColorMaterial>,
+        ),
         Without<Poisoned>,
     >,
     mut materials: ResMut<Assets<ColorMaterial>>,

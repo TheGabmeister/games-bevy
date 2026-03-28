@@ -4,6 +4,7 @@ use crate::camera::wrap_x;
 use crate::components::*;
 use crate::constants::*;
 use crate::resources::*;
+use crate::scheduling::GameplaySet;
 use crate::spawning::*;
 use crate::states::AppState;
 
@@ -13,19 +14,38 @@ pub struct SmartBombTriggered(pub bool);
 #[derive(Resource, Default)]
 pub struct HyperspaceTriggered(pub bool);
 
+pub struct PlayerPlugin;
+
+impl Plugin for PlayerPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(Update, player_input.in_set(GameplaySet::Input))
+            .add_systems(Update, player_movement.in_set(GameplaySet::Movement))
+            .add_systems(
+                Update,
+                (explosion_system, smart_bomb_system, hyperspace_system).in_set(GameplaySet::Post),
+            )
+            .add_systems(
+                Update,
+                explosion_system.run_if(in_state(AppState::PlayerDeath)),
+            );
+    }
+}
+
 pub fn player_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
-    mut player_q: Query<(
-        &mut Velocity,
-        &mut FacingDirection,
-        &mut FireCooldown,
-        &WorldPosition,
-        &Transform,
-    ), With<Player>>,
+    mut player_q: Query<
+        (
+            &mut Velocity,
+            &mut FacingDirection,
+            &mut FireCooldown,
+            &WorldPosition,
+            &Transform,
+        ),
+        With<Player>,
+    >,
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    assets: Res<GameplayAssets>,
     mut game_state: ResMut<GameState>,
     mut smart_bomb: ResMut<SmartBombTriggered>,
     mut hyperspace: ResMut<HyperspaceTriggered>,
@@ -71,8 +91,7 @@ pub fn player_input(
         cooldown.0.reset();
         spawn_player_projectile(
             &mut commands,
-            &mut meshes,
-            &mut materials,
+            &assets,
             wrap_x(wp.0 + dir * 25.0),
             tf.translation.y,
             dir,
@@ -80,11 +99,11 @@ pub fn player_input(
     }
 
     // Smart bomb
-    if keyboard.just_pressed(KeyCode::KeyE) || keyboard.just_pressed(KeyCode::ControlLeft) {
-        if game_state.smart_bombs > 0 {
-            game_state.smart_bombs -= 1;
-            smart_bomb.0 = true;
-        }
+    if (keyboard.just_pressed(KeyCode::KeyE) || keyboard.just_pressed(KeyCode::ControlLeft))
+        && game_state.smart_bombs > 0
+    {
+        game_state.smart_bombs -= 1;
+        smart_bomb.0 = true;
     }
 
     // Hyperspace
@@ -96,7 +115,15 @@ pub fn player_input(
 pub fn player_movement(
     time: Res<Time>,
     terrain: Res<TerrainData>,
-    mut query: Query<(&Velocity, &mut WorldPosition, &mut Transform, &FacingDirection), With<Player>>,
+    mut query: Query<
+        (
+            &Velocity,
+            &mut WorldPosition,
+            &mut Transform,
+            &FacingDirection,
+        ),
+        With<Player>,
+    >,
 ) {
     let Ok((vel, mut wp, mut tf, facing)) = query.single_mut() else {
         return;
@@ -121,7 +148,7 @@ pub fn smart_bomb_system(
     enemies: Query<(Entity, &WorldPosition, &Transform), With<Enemy>>,
     cam_pos: Res<CameraWorldPos>,
     mut game_state: ResMut<GameState>,
-    mut meshes: ResMut<Assets<Mesh>>,
+    assets: Res<GameplayAssets>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     if !smart_bomb.0 {
@@ -136,7 +163,14 @@ pub fn smart_bomb_system(
             let wx = wp.0;
             let y = tf.translation.y;
             commands.entity(entity).despawn();
-            spawn_explosion(&mut commands, &mut meshes, &mut materials, wx, y, Color::srgb(1.0, 0.8, 0.2));
+            spawn_explosion(
+                &mut commands,
+                &assets,
+                &mut materials,
+                wx,
+                y,
+                Color::srgb(1.0, 0.8, 0.2),
+            );
         }
     }
 }
@@ -145,6 +179,7 @@ pub fn hyperspace_system(
     mut hyperspace: ResMut<HyperspaceTriggered>,
     mut player_q: Query<(&mut WorldPosition, &mut Transform), With<Player>>,
     mut next_state: ResMut<NextState<AppState>>,
+    mut rng: ResMut<GameRng>,
 ) {
     if !hyperspace.0 {
         return;
@@ -155,22 +190,12 @@ pub fn hyperspace_system(
         return;
     };
 
-    wp.0 = rand_world_x();
+    wp.0 = rng.world_x();
     tf.translation.y = 0.0;
 
-    if simple_rand_pub() < HYPERSPACE_DEATH_CHANCE {
+    if rng.f32() < HYPERSPACE_DEATH_CHANCE {
         next_state.set(AppState::PlayerDeath);
     }
-}
-
-fn simple_rand_pub() -> f32 {
-    use std::time::SystemTime;
-    let nanos = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap()
-        .subsec_nanos();
-    let mixed = nanos.wrapping_mul(2654435761);
-    (mixed as f32) / (u32::MAX as f32)
 }
 
 pub fn explosion_system(

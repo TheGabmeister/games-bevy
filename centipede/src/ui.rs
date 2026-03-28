@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use crate::{
     components::{GameOverScreen, LivesText, MenuScreen, ScoreText, WaveText},
     resources::{Lives, Score, Wave},
+    scheduling::GameplaySet,
     states::AppState,
 };
 
@@ -19,7 +20,12 @@ impl Plugin for UiPlugin {
                 Update,
                 (update_hud, menu_input, game_over_input).run_if(not(in_state(AppState::Playing))),
             )
-            .add_systems(Update, update_hud.run_if(in_state(AppState::Playing)));
+            .add_systems(
+                Update,
+                update_hud
+                    .in_set(GameplaySet::Cleanup)
+                    .run_if(in_state(AppState::Playing)),
+            );
     }
 }
 
@@ -168,9 +174,13 @@ fn update_hud(
     lives: Res<Lives>,
     wave: Res<Wave>,
     mut score_q: Query<&mut Text, With<ScoreText>>,
-    mut lives_q: Query<&mut Text, (With<LivesText>, Without<ScoreText>)>,
-    mut wave_q: Query<&mut Text, (With<WaveText>, Without<ScoreText>, Without<LivesText>)>,
+    mut lives_q: Query<&mut Text, With<LivesText>>,
+    mut wave_q: Query<&mut Text, With<WaveText>>,
 ) {
+    if !(score.is_changed() || lives.is_changed() || wave.is_changed()) {
+        return;
+    }
+
     for mut text in &mut score_q {
         *text = Text::new(format!("Score: {}", score.value));
     }

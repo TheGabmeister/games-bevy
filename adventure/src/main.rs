@@ -1,15 +1,15 @@
 use bevy::prelude::*;
 
 mod components;
-mod world;
-mod setup;
-mod rooms;
-mod player;
 mod enemies;
+mod player;
+mod rooms;
+mod setup;
 mod ui;
+mod world;
 
-use world::{WorldMap, CurrentRoom, PlayerInventory, RoomWalls, DeadDragonMaterial};
 use components::WallBypass;
+use world::{CurrentRoom, PlayerInventory, RoomWalls, WorldMap};
 
 #[derive(States, Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub enum AppState {
@@ -19,6 +19,25 @@ pub enum AppState {
     Swallowed,
     GameOver,
     Win,
+}
+
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum PlayingEnterSet {
+    Reset,
+    SpawnWorld,
+    RoomState,
+    Ui,
+}
+
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum PlayingSet {
+    Prepare,
+    Movement,
+    Interaction,
+    Room,
+    Enemies,
+    WinCheck,
+    Presentation,
 }
 
 fn main() {
@@ -32,102 +51,42 @@ fn main() {
             ..default()
         }))
         .init_state::<AppState>()
-        .add_systems(Startup, spawn_camera)
-        .insert_resource(WorldMap::new())
-        .insert_resource(CurrentRoom(1))
-        .insert_resource(PlayerInventory { item: None })
-        .insert_resource(RoomWalls::default())
-        .insert_resource(WallBypass::default())
+        .init_resource::<WorldMap>()
+        .init_resource::<CurrentRoom>()
+        .init_resource::<PlayerInventory>()
+        .init_resource::<RoomWalls>()
+        .init_resource::<WallBypass>()
         .insert_resource(ClearColor(Color::srgb(0.35, 0.35, 0.35)))
-        // Title state
-        .add_systems(OnEnter(AppState::Title), (despawn_game_world, ui::spawn_title).chain())
-        .add_systems(OnExit(AppState::Title), ui::despawn_title)
-        .add_systems(Update, title_to_playing.run_if(in_state(AppState::Title)))
-        // Playing state
-        .add_systems(OnEnter(AppState::Playing), (
-            init_game_resources,
-            setup::spawn_world,
-            rooms::spawn_room_walls,
-            ui::spawn_ui,
-        ).chain())
-        .add_systems(OnExit(AppState::Playing), ui::despawn_ui)
-        .add_systems(Update, (
-            player::compute_wall_bypass.before(player::player_movement),
-            player::player_movement,
-            player::item_pickup,
-            player::item_drop,
-            player::carry_item_follow,
-            player::gate_interaction,
-            player::magnet_pull,
-            rooms::room_transition,
-            rooms::spawn_room_walls,
-            rooms::update_background_color,
-            rooms::update_visibility,
-            enemies::dragon_ai,
-            enemies::update_dragon_heads,
-            enemies::dragon_collision,
-            enemies::sword_combat,
-            enemies::bat_ai,
-            enemies::bat_revive_dragons,
-            player::check_win,
-            ui::update_ui,
-        ).run_if(in_state(AppState::Playing)))
-        // Swallowed state (dragon eating animation)
-        .add_systems(Update, enemies::swallow_animation.run_if(in_state(AppState::Swallowed)))
-        // GameOver state
-        .add_systems(OnEnter(AppState::GameOver), ui::spawn_game_over)
-        .add_systems(OnExit(AppState::GameOver), ui::despawn_game_over)
-        .add_systems(Update, ui::restart_game.run_if(in_state(AppState::GameOver)))
-        // Win state
-        .add_systems(OnEnter(AppState::Win), ui::spawn_win_screen)
-        .add_systems(OnExit(AppState::Win), ui::despawn_win_screen)
-        .add_systems(Update, ui::restart_game.run_if(in_state(AppState::Win)))
+        .configure_sets(
+            OnEnter(AppState::Playing),
+            (
+                PlayingEnterSet::Reset,
+                PlayingEnterSet::SpawnWorld,
+                PlayingEnterSet::RoomState,
+                PlayingEnterSet::Ui,
+            )
+                .chain(),
+        )
+        .configure_sets(
+            Update,
+            (
+                PlayingSet::Prepare,
+                PlayingSet::Movement,
+                PlayingSet::Interaction,
+                PlayingSet::Room,
+                PlayingSet::Enemies,
+                PlayingSet::WinCheck,
+                PlayingSet::Presentation,
+            )
+                .chain()
+                .run_if(in_state(AppState::Playing)),
+        )
+        .add_plugins((
+            setup::SetupPlugin,
+            rooms::RoomsPlugin,
+            player::PlayerPlugin,
+            enemies::EnemiesPlugin,
+            ui::UiPlugin,
+        ))
         .run();
-}
-
-fn title_to_playing(
-    keys: Res<ButtonInput<KeyCode>>,
-    mut next_state: ResMut<NextState<AppState>>,
-) {
-    if keys.just_pressed(KeyCode::Space) || keys.just_pressed(KeyCode::Enter) {
-        next_state.set(AppState::Playing);
-    }
-}
-
-/// Reset game resources before spawning a new game.
-fn init_game_resources(
-    mut current_room: ResMut<CurrentRoom>,
-    mut inventory: ResMut<PlayerInventory>,
-    mut room_walls: ResMut<RoomWalls>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-    mut commands: Commands,
-) {
-    current_room.0 = 1;
-    inventory.item = None;
-    room_walls.0.clear();
-
-    // Create dead dragon material
-    let dead_mat = materials.add(Color::srgb(0.4, 0.4, 0.4));
-    commands.insert_resource(DeadDragonMaterial(dead_mat));
-}
-
-fn spawn_camera(mut commands: Commands) {
-    commands.spawn(Camera2d);
-}
-
-/// Despawn all game world entities when returning to title.
-fn despawn_game_world(
-    mut commands: Commands,
-    entities: Query<Entity, Or<(
-        With<components::Player>,
-        With<components::Item>,
-        With<components::Dragon>,
-        With<components::Bat>,
-        With<components::Gate>,
-        With<components::RoomWallMarker>,
-    )>>,
-) {
-    for e in entities.iter() {
-        commands.entity(e).despawn();
-    }
 }

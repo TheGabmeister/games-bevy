@@ -16,24 +16,64 @@ const PADDLE_X_OFFSET: f32 = ARENA_HALF_WIDTH - 36.0;
 const BALL_RADIUS: f32 = 10.0;
 const CENTER_LINE_WIDTH: f32 = 6.0;
 
-pub fn spawn_gameplay(
+#[derive(Resource)]
+pub(crate) struct GameplayRenderAssets {
+    paddle_mesh: Handle<Mesh>,
+    ball_mesh: Handle<Mesh>,
+    center_line_mesh: Handle<Mesh>,
+    white_material: Handle<ColorMaterial>,
+    gray_material: Handle<ColorMaterial>,
+}
+
+type BallMovementQuery<'w, 's> =
+    Query<'w, 's, (&'static mut Transform, &'static Velocity), With<Ball>>;
+type BallCollisionQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        &'static mut Transform,
+        &'static mut Velocity,
+        &'static Collider,
+    ),
+    (With<Ball>, Without<Paddle>),
+>;
+type BallStateQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        &'static mut Transform,
+        &'static mut Velocity,
+        &'static Collider,
+    ),
+    With<Ball>,
+>;
+type PaddleCollisionQuery<'w, 's> =
+    Query<'w, 's, (&'static Transform, &'static Collider, &'static Paddle), Without<Ball>>;
+
+pub fn setup_gameplay_assets(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    commands.insert_resource(GameplayRenderAssets {
+        paddle_mesh: meshes.add(Rectangle::new(PADDLE_WIDTH, PADDLE_HEIGHT)),
+        ball_mesh: meshes.add(Circle::new(BALL_RADIUS)),
+        center_line_mesh: meshes.add(Rectangle::new(CENTER_LINE_WIDTH, ARENA_HALF_HEIGHT * 2.0)),
+        white_material: materials.add(Color::WHITE),
+        gray_material: materials.add(Color::srgb(0.35, 0.35, 0.35)),
+    });
+}
+
+pub fn spawn_gameplay(
+    mut commands: Commands,
+    render_assets: Res<GameplayRenderAssets>,
     config: Res<MatchConfig>,
     score: Res<Score>,
 ) {
-    let paddle_mesh = meshes.add(Rectangle::new(PADDLE_WIDTH, PADDLE_HEIGHT));
-    let ball_mesh = meshes.add(Circle::new(BALL_RADIUS));
-    let center_line_mesh = meshes.add(Rectangle::new(CENTER_LINE_WIDTH, ARENA_HALF_HEIGHT * 2.0));
-
-    let white = materials.add(Color::WHITE);
-    let gray = materials.add(Color::srgb(0.35, 0.35, 0.35));
-
     commands.spawn((
         GameplayEntity,
-        Mesh2d(center_line_mesh),
-        MeshMaterial2d(gray),
+        Mesh2d(render_assets.center_line_mesh.clone()),
+        MeshMaterial2d(render_assets.gray_material.clone()),
         Transform::from_xyz(0.0, 0.0, 0.0),
     ));
 
@@ -49,8 +89,8 @@ pub fn spawn_gameplay(
         Collider {
             half_size: Vec2::new(PADDLE_WIDTH * 0.5, PADDLE_HEIGHT * 0.5),
         },
-        Mesh2d(paddle_mesh.clone()),
-        MeshMaterial2d(white.clone()),
+        Mesh2d(render_assets.paddle_mesh.clone()),
+        MeshMaterial2d(render_assets.white_material.clone()),
         Transform::from_xyz(-PADDLE_X_OFFSET, 0.0, 1.0),
     ));
 
@@ -66,8 +106,8 @@ pub fn spawn_gameplay(
         Collider {
             half_size: Vec2::new(PADDLE_WIDTH * 0.5, PADDLE_HEIGHT * 0.5),
         },
-        Mesh2d(paddle_mesh),
-        MeshMaterial2d(white.clone()),
+        Mesh2d(render_assets.paddle_mesh.clone()),
+        MeshMaterial2d(render_assets.white_material.clone()),
         Transform::from_xyz(PADDLE_X_OFFSET, 0.0, 1.0),
     ));
 
@@ -79,8 +119,8 @@ pub fn spawn_gameplay(
         Collider {
             half_size: Vec2::splat(BALL_RADIUS),
         },
-        Mesh2d(ball_mesh),
-        MeshMaterial2d(white),
+        Mesh2d(render_assets.ball_mesh.clone()),
+        MeshMaterial2d(render_assets.white_material.clone()),
         Transform::from_translation(ball_position),
     ));
 
@@ -120,7 +160,7 @@ pub fn move_paddles(
     }
 }
 
-pub fn move_ball(time: Res<Time>, mut ball_query: Query<(&mut Transform, &Velocity), With<Ball>>) {
+pub fn move_ball(time: Res<Time>, mut ball_query: BallMovementQuery) {
     let Ok((mut transform, velocity)) = ball_query.single_mut() else {
         return;
     };
@@ -128,9 +168,7 @@ pub fn move_ball(time: Res<Time>, mut ball_query: Query<(&mut Transform, &Veloci
     transform.translation += velocity.0.extend(0.0) * time.delta_secs();
 }
 
-pub fn bounce_from_bounds(
-    mut ball_query: Query<(&mut Transform, &mut Velocity, &Collider), With<Ball>>,
-) {
+pub fn bounce_from_bounds(mut ball_query: BallStateQuery) {
     let Ok((mut transform, mut velocity, collider)) = ball_query.single_mut() else {
         return;
     };
@@ -150,8 +188,8 @@ pub fn bounce_from_bounds(
 pub fn bounce_from_paddles(
     mut commands: Commands,
     config: Res<MatchConfig>,
-    mut ball_query: Query<(&mut Transform, &mut Velocity, &Collider), (With<Ball>, Without<Paddle>)>,
-    paddles: Query<(&Transform, &Collider, &Paddle), Without<Ball>>,
+    mut ball_query: BallCollisionQuery,
+    paddles: PaddleCollisionQuery,
 ) {
     let Ok((mut ball_transform, mut ball_velocity, ball_collider)) = ball_query.single_mut() else {
         return;
@@ -197,7 +235,7 @@ pub fn handle_score_and_win(
     config: Res<MatchConfig>,
     mut score: ResMut<Score>,
     mut winner: ResMut<Winner>,
-    mut ball_query: Query<(&mut Transform, &mut Velocity, &Collider), With<Ball>>,
+    mut ball_query: BallStateQuery,
 ) {
     let Ok((mut ball_transform, mut ball_velocity, ball_collider)) = ball_query.single_mut() else {
         return;
@@ -291,4 +329,43 @@ fn reset_ball_state(config: MatchConfig, serve_toward: PlayerSide) -> (Vec3, Vec
     };
     let direction = Vec2::new(horizontal, 0.22).normalize();
     (Vec3::new(0.0, 0.0, 2.0), direction * config.ball_speed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn award_point_returns_winner_when_threshold_is_met() {
+        let mut score = Score { left: 4, right: 3 };
+
+        let winner = award_point(&mut score, PlayerSide::Left, 5);
+
+        assert_eq!(winner, Some(PlayerSide::Left));
+        assert_eq!(score.left, 5);
+        assert_eq!(score.right, 3);
+    }
+
+    #[test]
+    fn compute_paddle_bounce_reflects_ball_away_from_left_paddle_and_adds_speed() {
+        let start_speed = 360.0;
+        let bounced = compute_paddle_bounce(30.0, 0.0, 55.0, start_speed, PlayerSide::Left, 26.0);
+
+        assert!(bounced.x > 0.0);
+        assert!(bounced.length() > start_speed);
+        assert!(bounced.y > 0.0);
+    }
+
+    #[test]
+    fn reset_ball_state_serves_toward_requested_side() {
+        let config = MatchConfig::default();
+
+        let (_, toward_left) = reset_ball_state(config, PlayerSide::Left);
+        let (_, toward_right) = reset_ball_state(config, PlayerSide::Right);
+
+        assert!(toward_left.x < 0.0);
+        assert!(toward_right.x > 0.0);
+        assert_eq!(toward_left.length(), config.ball_speed);
+        assert_eq!(toward_right.length(), config.ball_speed);
+    }
 }

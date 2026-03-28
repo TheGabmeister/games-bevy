@@ -2,13 +2,14 @@ use bevy::prelude::*;
 
 use crate::{
     components::{
-        Bullet, CentipedeDir, CentipedeHead, CentipedeSegment, Flea, GridPos,
-        Mushroom, Player, Poisoned, Scorpion, Spider,
+        Bullet, CentipedeDir, CentipedeHead, CentipedeSegment, Flea, GridPos, Mushroom, Player,
+        Poisoned, Scorpion, Spider,
     },
     constants::*,
     enemies::flea_drop_mushroom,
     mushroom::{mushroom_color, spawn_mushroom_at},
     resources::{CentipedeChains, Lives, MushroomGrid, NextChainId, RespawnTimer, Score},
+    scheduling::GameplaySet,
     states::AppState,
 };
 
@@ -25,7 +26,8 @@ impl Plugin for CollisionPlugin {
                 player_vs_enemies,
                 centipede_vs_player,
             )
-                .run_if(in_state(AppState::Playing)),
+                .chain()
+                .in_set(GameplaySet::Collision),
         );
     }
 }
@@ -36,8 +38,29 @@ fn overlaps(ax: f32, ay: f32, ar: f32, bx: f32, by: f32, br: f32) -> bool {
     (ax - bx).abs() < ar + br && (ay - by).abs() < ar + br
 }
 
+#[allow(clippy::type_complexity)]
+fn chain_direction(
+    chain: &[Entity],
+    segment_q: &Query<(
+        Entity,
+        &Transform,
+        &GridPos,
+        &CentipedeSegment,
+        Option<&CentipedeHead>,
+        Option<&CentipedeDir>,
+    )>,
+) -> i32 {
+    chain
+        .first()
+        .and_then(|entity| segment_q.get(*entity).ok())
+        .and_then(|(_, _, _, _, _, dir)| dir)
+        .map(|dir| dir.dx)
+        .unwrap_or(1)
+}
+
 // ── bullet vs mushroom ────────────────────────────────────────────────────────
 
+#[allow(clippy::type_complexity)]
 fn bullet_vs_mushroom(
     mut commands: Commands,
     bullet_q: Query<(Entity, &Transform), With<Bullet>>,
@@ -77,10 +100,18 @@ fn bullet_vs_mushroom(
 
 // ── bullet vs centipede ───────────────────────────────────────────────────────
 
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
 fn bullet_vs_centipede(
     mut commands: Commands,
     bullet_q: Query<(Entity, &Transform), With<Bullet>>,
-    segment_q: Query<(Entity, &Transform, &GridPos, &CentipedeSegment, Option<&CentipedeHead>, Option<&CentipedeDir>)>,
+    segment_q: Query<(
+        Entity,
+        &Transform,
+        &GridPos,
+        &CentipedeSegment,
+        Option<&CentipedeHead>,
+        Option<&CentipedeDir>,
+    )>,
     mut chains: ResMut<CentipedeChains>,
     mut next_id: ResMut<NextChainId>,
     mut score: ResMut<Score>,
@@ -93,7 +124,7 @@ fn bullet_vs_centipede(
         let bx = bullet_t.translation.x;
         let by = bullet_t.translation.y;
 
-        for (seg_entity, seg_t, seg_pos, seg_comp, is_head, seg_dir) in &segment_q {
+        for (seg_entity, seg_t, seg_pos, seg_comp, is_head, _) in &segment_q {
             let sx = seg_t.translation.x;
             let sy = seg_t.translation.y;
 
@@ -134,6 +165,7 @@ fn bullet_vs_centipede(
 
             // Split the chain
             if let Some(chain) = chains.0.remove(&chain_id) {
+                let chain_dx = chain_direction(&chain, &segment_q);
                 let leading: Vec<Entity> = chain[..hit_index].to_vec();
                 let trailing: Vec<Entity> = chain[hit_index + 1..].to_vec();
 
@@ -146,14 +178,16 @@ fn bullet_vs_centipede(
                 if !trailing.is_empty() {
                     let new_chain_id = next_id.next();
                     let new_head = trailing[0];
-                    let dx = seg_dir.map(|d| d.dx).unwrap_or(1);
                     commands.entity(new_head).insert(CentipedeHead);
-                    commands.entity(new_head).insert(CentipedeDir { dx });
+                    commands
+                        .entity(new_head)
+                        .insert(CentipedeDir { dx: chain_dx });
                     // Update CentipedeSegment chain_id for all trailing
                     for (new_idx, &e) in trailing.iter().enumerate() {
-                        commands
-                            .entity(e)
-                            .insert(CentipedeSegment { chain_id: new_chain_id, index: new_idx });
+                        commands.entity(e).insert(CentipedeSegment {
+                            chain_id: new_chain_id,
+                            index: new_idx,
+                        });
                     }
                     chains.0.insert(new_chain_id, trailing);
                 }
@@ -166,6 +200,7 @@ fn bullet_vs_centipede(
 
 // ── bullet vs enemies ─────────────────────────────────────────────────────────
 
+#[allow(clippy::too_many_arguments)]
 fn bullet_vs_enemies(
     mut commands: Commands,
     bullet_q: Query<(Entity, &Transform), With<Bullet>>,
@@ -180,13 +215,20 @@ fn bullet_vs_enemies(
 ) {
     let player_x = player_q.single().map(|t| t.translation.x).unwrap_or(0.0);
 
-    for (bullet_entity, bullet_t) in &bullet_q {
+    'bullets: for (bullet_entity, bullet_t) in &bullet_q {
         let bx = bullet_t.translation.x;
         let by = bullet_t.translation.y;
 
         // vs Flea
         for (flea_entity, flea_t, flea) in &flea_q {
-            if overlaps(bx, by, 7.0, flea_t.translation.x, flea_t.translation.y, CELL_SIZE * 0.35) {
+            if overlaps(
+                bx,
+                by,
+                7.0,
+                flea_t.translation.x,
+                flea_t.translation.y,
+                CELL_SIZE * 0.35,
+            ) {
                 commands.entity(bullet_entity).despawn();
                 if flea.hits == 0 {
                     // First hit: drop a mushroom, keep flea alive with hits=1
@@ -204,13 +246,20 @@ fn bullet_vs_enemies(
                     score.value += 200;
                     commands.entity(flea_entity).despawn();
                 }
-                break;
+                continue 'bullets;
             }
         }
 
         // vs Spider
         for (spider_entity, spider_t) in &spider_q {
-            if overlaps(bx, by, 7.0, spider_t.translation.x, spider_t.translation.y, CELL_SIZE * 0.4) {
+            if overlaps(
+                bx,
+                by,
+                7.0,
+                spider_t.translation.x,
+                spider_t.translation.y,
+                CELL_SIZE * 0.4,
+            ) {
                 commands.entity(bullet_entity).despawn();
                 let dist = (bx - player_x).abs();
                 let pts = if dist < CELL_SIZE * 3.0 {
@@ -222,7 +271,7 @@ fn bullet_vs_enemies(
                 };
                 score.value += pts;
                 commands.entity(spider_entity).despawn();
-                break;
+                continue 'bullets;
             }
         }
 
@@ -239,7 +288,7 @@ fn bullet_vs_enemies(
                 commands.entity(bullet_entity).despawn();
                 score.value += 1000;
                 commands.entity(scorpion_entity).despawn();
-                break;
+                continue 'bullets;
             }
         }
     }
@@ -265,12 +314,25 @@ fn player_vs_enemies(
     let px = player_t.translation.x;
     let py = player_t.translation.y;
 
-    let hit = flea_q
-        .iter()
-        .any(|t| overlaps(px, py, 12.0, t.translation.x, t.translation.y, CELL_SIZE * 0.35))
-        || spider_q
-            .iter()
-            .any(|t| overlaps(px, py, 12.0, t.translation.x, t.translation.y, CELL_SIZE * 0.4));
+    let hit = flea_q.iter().any(|t| {
+        overlaps(
+            px,
+            py,
+            12.0,
+            t.translation.x,
+            t.translation.y,
+            CELL_SIZE * 0.35,
+        )
+    }) || spider_q.iter().any(|t| {
+        overlaps(
+            px,
+            py,
+            12.0,
+            t.translation.x,
+            t.translation.y,
+            CELL_SIZE * 0.4,
+        )
+    });
 
     if hit {
         player_death(
@@ -329,14 +391,12 @@ fn player_death(
 ) {
     commands.entity(player_entity).despawn();
 
-    if lives.0 == 0 {
+    if lives.0 <= 1 {
+        lives.0 = 0;
         next_state.set(AppState::GameOver);
         return;
     }
+
     lives.0 -= 1;
-    if lives.0 == 0 {
-        next_state.set(AppState::GameOver);
-    } else {
-        respawn.0 = Some(Timer::from_seconds(RESPAWN_DELAY, TimerMode::Once));
-    }
+    respawn.0 = Some(Timer::from_seconds(RESPAWN_DELAY, TimerMode::Once));
 }

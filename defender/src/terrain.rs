@@ -1,10 +1,18 @@
-use bevy::prelude::*;
 use bevy::asset::RenderAssetUsages;
 use bevy::mesh::{Indices, PrimitiveTopology};
+use bevy::prelude::*;
 
 use crate::components::*;
 use crate::constants::*;
 use crate::resources::*;
+
+pub struct TerrainPlugin;
+
+impl Plugin for TerrainPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(Startup, setup_terrain);
+    }
+}
 
 pub fn setup_terrain(
     mut commands: Commands,

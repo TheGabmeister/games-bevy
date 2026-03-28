@@ -1,6 +1,15 @@
 use bevy::prelude::*;
 
 use crate::components::*;
+use crate::scheduling::GameplaySet;
+
+pub struct ProjectilePlugin;
+
+impl Plugin for ProjectilePlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(Update, projectile_movement.in_set(GameplaySet::Movement));
+    }
+}
 
 pub fn projectile_movement(
     mut commands: Commands,
