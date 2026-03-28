@@ -1,8 +1,8 @@
 use bevy::{color::palettes::css, prelude::*};
 
 use super::gameplay::{
-    DespawnOnStateExit, GameConfig, Invader, InvaderRow, Player, Projectile, ProjectileOwner,
-    ScreenState, SessionState, ShieldCell, Ufo,
+    GameConfig, Invader, InvaderRow, Player, Projectile, ProjectileOwner, ScreenState,
+    SessionState, ShieldCell, Ufo,
 };
 
 pub struct SpaceInvadersPresentationPlugin;
@@ -50,6 +50,7 @@ struct HudWave;
 
 fn spawn_playfield_frame(
     mut commands: Commands,
+    state: Res<State<ScreenState>>,
     config: Res<GameConfig>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
@@ -63,7 +64,7 @@ fn spawn_playfield_frame(
     let invasion_color = neon_magenta();
 
     commands
-        .spawn((Transform::default(), DespawnOnStateExit))
+        .spawn((Transform::default(), DespawnOnExit(*state.get())))
         .with_children(|parent| {
             parent.spawn(rectangle_bundle(
                 &mut meshes,
@@ -122,7 +123,7 @@ fn spawn_title_overlay(mut commands: Commands) {
                 row_gap: px(16),
                 ..default()
             },
-            DespawnOnStateExit,
+            DespawnOnExit(ScreenState::Title),
         ))
         .with_children(|parent| {
             parent.spawn((
@@ -159,7 +160,7 @@ fn spawn_hud(mut commands: Commands) {
                 align_items: AlignItems::Center,
                 ..default()
             },
-            DespawnOnStateExit,
+            DespawnOnExit(ScreenState::Playing),
         ))
         .with_children(|parent| {
             parent.spawn((
@@ -202,7 +203,7 @@ fn spawn_wave_overlay(mut commands: Commands, session: Res<SessionState>) {
                 align_items: AlignItems::Center,
                 ..default()
             },
-            DespawnOnStateExit,
+            DespawnOnExit(ScreenState::WaveTransition),
         ))
         .with_children(|parent| {
             parent.spawn((
@@ -229,7 +230,7 @@ fn spawn_game_over_overlay(mut commands: Commands, session: Res<SessionState>) {
                 row_gap: px(14),
                 ..default()
             },
-            DespawnOnStateExit,
+            DespawnOnExit(ScreenState::GameOver),
         ))
         .with_children(|parent| {
             parent.spawn((
@@ -484,27 +485,22 @@ fn build_ufo_visuals(
 
 fn update_hud(
     session: Res<SessionState>,
-    mut hud_text: Query<
-        (
-            &mut Text,
-            Option<&HudScore>,
-            Option<&HudLives>,
-            Option<&HudWave>,
-        ),
-    >,
+    mut score_text: Query<&mut Text, With<HudScore>>,
+    mut lives_text: Query<&mut Text, With<HudLives>>,
+    mut wave_text: Query<&mut Text, With<HudWave>>,
 ) {
     if !session.is_changed() {
         return;
     }
 
-    for (mut text, score, lives, wave) in &mut hud_text {
-        if score.is_some() {
-            **text = format!("SCORE {:04}", session.score);
-        } else if lives.is_some() {
-            **text = format!("LIVES {}", session.lives);
-        } else if wave.is_some() {
-            **text = format!("WAVE {:02}", session.wave);
-        }
+    if let Ok(mut text) = score_text.single_mut() {
+        **text = format!("SCORE {:04}", session.score);
+    }
+    if let Ok(mut text) = lives_text.single_mut() {
+        **text = format!("LIVES {}", session.lives);
+    }
+    if let Ok(mut text) = wave_text.single_mut() {
+        **text = format!("WAVE {:02}", session.wave);
     }
 }
 

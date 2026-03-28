@@ -1,6 +1,6 @@
 use std::{array::from_fn, collections::HashSet, time::Duration};
 
-use bevy::prelude::*;
+use bevy::{ecs::system::SystemParam, prelude::*};
 
 pub const INVADER_COLUMNS: usize = 11;
 pub const INVADER_ROWS: usize = 5;
@@ -24,15 +24,10 @@ impl Plugin for SpaceInvadersGameplayPlugin {
             .init_resource::<ButtonInput<KeyCode>>()
             .add_message::<ScoreEvent>()
             .add_message::<PlayerHitEvent>()
-            .add_message::<WaveClearedEvent>()
             .add_systems(
                 OnEnter(ScreenState::Playing),
                 (reset_runtime_state, spawn_playfield_entities).chain(),
             )
-            .add_systems(OnExit(ScreenState::Title), cleanup_state_entities)
-            .add_systems(OnExit(ScreenState::Playing), cleanup_state_entities)
-            .add_systems(OnExit(ScreenState::WaveTransition), cleanup_state_entities)
-            .add_systems(OnExit(ScreenState::GameOver), cleanup_state_entities)
             .add_systems(
                 Update,
                 (
@@ -43,26 +38,49 @@ impl Plugin for SpaceInvadersGameplayPlugin {
                     detect_wave_clear.run_if(in_state(ScreenState::Playing)),
                 ),
             )
+            .configure_sets(
+                FixedUpdate,
+                (
+                    GameplayFixedSet::Timers,
+                    GameplayFixedSet::Player,
+                    GameplayFixedSet::Formation,
+                    GameplayFixedSet::Movement,
+                    GameplayFixedSet::Collision,
+                    GameplayFixedSet::Resolve,
+                )
+                    .chain(),
+            )
             .add_systems(
                 FixedUpdate,
                 (
-                    tick_cooldowns,
-                    respawn_player_when_ready,
-                    move_player,
-                    player_fire,
-                    advance_formation,
-                    invader_fire,
-                    spawn_ufo_when_ready,
-                    move_dynamic_entities,
-                    handle_projectile_collisions,
-                    cleanup_out_of_bounds_entities,
-                    handle_score_messages,
-                    handle_player_hit_messages,
+                    tick_cooldowns.in_set(GameplayFixedSet::Timers),
+                    (respawn_player_when_ready, move_player, player_fire)
+                        .chain()
+                        .in_set(GameplayFixedSet::Player),
+                    (advance_formation, invader_fire, spawn_ufo_when_ready)
+                        .chain()
+                        .in_set(GameplayFixedSet::Formation),
+                    move_dynamic_entities.in_set(GameplayFixedSet::Movement),
+                    (handle_projectile_collisions, cleanup_out_of_bounds_entities)
+                        .chain()
+                        .in_set(GameplayFixedSet::Collision),
+                    (handle_score_messages, handle_player_hit_messages)
+                        .chain()
+                        .in_set(GameplayFixedSet::Resolve),
                 )
-                    .chain()
                     .run_if(in_state(ScreenState::Playing)),
             );
     }
+}
+
+#[derive(SystemSet, Debug, Clone, Copy, Eq, PartialEq, Hash)]
+enum GameplayFixedSet {
+    Timers,
+    Player,
+    Formation,
+    Movement,
+    Collision,
+    Resolve,
 }
 
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, States)]
@@ -310,9 +328,6 @@ pub struct Collider {
     pub size: Vec2,
 }
 
-#[derive(Component)]
-pub struct DespawnOnStateExit;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InvaderRow {
     Commander,
@@ -348,8 +363,74 @@ pub struct ScoreEvent {
 #[derive(Message)]
 pub struct PlayerHitEvent;
 
-#[derive(Message)]
-pub struct WaveClearedEvent;
+type InvaderSnapshotQuery<'w, 's> =
+    Query<'w, 's, (Entity, &'static Transform, &'static Collider), With<Invader>>;
+type InvaderTransformQuery<'w, 's> = Query<'w, 's, &'static mut Transform, With<Invader>>;
+type InvaderParamSet<'w, 's> =
+    ParamSet<'w, 's, (InvaderSnapshotQuery<'w, 's>, InvaderTransformQuery<'w, 's>)>;
+type DynamicMoverQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        Entity,
+        Option<&'static Projectile>,
+        Option<&'static Ufo>,
+        &'static Transform,
+        &'static Collider,
+    ),
+>;
+
+#[derive(SystemParam)]
+struct InvaderFormationQueries<'w, 's> {
+    set: InvaderParamSet<'w, 's>,
+}
+
+#[derive(SystemParam)]
+struct CollisionMessages<'w> {
+    score_messages: MessageWriter<'w, ScoreEvent>,
+    player_hit_messages: MessageWriter<'w, PlayerHitEvent>,
+}
+
+#[derive(SystemParam)]
+struct CollisionQueries<'w, 's> {
+    projectiles: Query<
+        'w,
+        's,
+        (
+            Entity,
+            &'static Projectile,
+            &'static Transform,
+            &'static Collider,
+        ),
+    >,
+    invaders: Query<
+        'w,
+        's,
+        (
+            Entity,
+            &'static Invader,
+            &'static Transform,
+            &'static Collider,
+        ),
+    >,
+    shields: Query<
+        'w,
+        's,
+        (
+            Entity,
+            &'static ShieldCell,
+            &'static Transform,
+            &'static Collider,
+        ),
+    >,
+    players: Query<'w, 's, (Entity, &'static Transform, &'static Collider), With<Player>>,
+    ufos: Query<'w, 's, (Entity, &'static Transform, &'static Collider), With<Ufo>>,
+}
+
+#[derive(SystemParam)]
+struct DynamicEntities<'w, 's> {
+    movers: DynamicMoverQuery<'w, 's>,
+}
 
 fn handle_title_input(
     keys: Res<ButtonInput<KeyCode>>,
@@ -395,7 +476,11 @@ fn reset_runtime_state(
 ) {
     formation.reset_for_wave(session.wave);
     cooldowns.reset_for_wave(&session, &config);
-    cooldowns.ufo_direction = if session.wave % 2 == 0 { -1.0 } else { 1.0 };
+    cooldowns.ufo_direction = if session.wave.is_multiple_of(2) {
+        -1.0
+    } else {
+        1.0
+    };
     intent.clear();
 }
 
@@ -403,17 +488,6 @@ fn spawn_playfield_entities(mut commands: Commands, config: Res<GameConfig>) {
     spawn_player(&mut commands, &config);
     spawn_invader_formation(&mut commands, &config);
     spawn_shields(&mut commands, &config);
-}
-
-fn cleanup_state_entities(
-    mut commands: Commands,
-    entities: Query<Entity, With<DespawnOnStateExit>>,
-) {
-    for entity in &entities {
-        let mut entity_commands = commands.entity(entity);
-        entity_commands.despawn_children();
-        entity_commands.despawn();
-    }
 }
 
 fn advance_wave_transition(
@@ -518,12 +592,10 @@ fn advance_formation(
     session: Res<SessionState>,
     mut formation: ResMut<FormationState>,
     mut next_state: ResMut<NextState<ScreenState>>,
-    mut invader_sets: ParamSet<(
-        Query<(Entity, &Transform, &Collider), With<Invader>>,
-        Query<&mut Transform, With<Invader>>,
-    )>,
+    mut invaders: InvaderFormationQueries,
 ) {
-    let invader_data: Vec<(Entity, Vec3, Vec2)> = invader_sets
+    let invader_data: Vec<(Entity, Vec3, Vec2)> = invaders
+        .set
         .p0()
         .iter()
         .map(|(entity, transform, collider)| (entity, transform.translation, collider.size))
@@ -556,7 +628,7 @@ fn advance_formation(
     };
 
     for (entity, _, _) in &invader_data {
-        if let Ok(mut transform) = invader_sets.p1().get_mut(*entity) {
+        if let Ok(mut transform) = invaders.set.p1().get_mut(*entity) {
             transform.translation += delta;
         }
     }
@@ -672,7 +744,7 @@ fn spawn_ufo_when_ready(
         },
         Velocity(Vec2::new(direction * config.ufo_speed, 0.0)),
         Transform::from_xyz(x, config.playfield_top() - 46.0, 4.0),
-        DespawnOnStateExit,
+        DespawnOnExit(ScreenState::Playing),
     ));
 
     let scaling = wave_scaling(
@@ -691,13 +763,8 @@ fn move_dynamic_entities(time: Res<Time<Fixed>>, mut movers: Query<(&Velocity, &
 
 fn handle_projectile_collisions(
     mut commands: Commands,
-    mut score_messages: MessageWriter<ScoreEvent>,
-    mut player_hit_messages: MessageWriter<PlayerHitEvent>,
-    projectiles: Query<(Entity, &Projectile, &Transform, &Collider)>,
-    invaders: Query<(Entity, &Invader, &Transform, &Collider)>,
-    shields: Query<(Entity, &ShieldCell, &Transform, &Collider)>,
-    players: Query<(Entity, &Transform, &Collider), With<Player>>,
-    ufos: Query<(Entity, &Transform, &Collider), With<Ufo>>,
+    mut messages: CollisionMessages,
+    queries: CollisionQueries,
 ) {
     let mut despawn_projectiles = HashSet::new();
     let mut despawn_invaders = HashSet::new();
@@ -706,10 +773,12 @@ fn handle_projectile_collisions(
     let mut score_gain = 0;
     let mut player_hit = false;
 
-    let player_data = players.single().ok();
-    let ufo_data = ufos.single().ok();
+    let player_data = queries.players.single().ok();
+    let ufo_data = queries.ufos.single().ok();
 
-    for (projectile_entity, projectile, projectile_transform, projectile_collider) in &projectiles {
+    for (projectile_entity, projectile, projectile_transform, projectile_collider) in
+        &queries.projectiles
+    {
         if despawn_projectiles.contains(&projectile_entity) {
             continue;
         }
@@ -718,7 +787,7 @@ fn handle_projectile_collisions(
             ProjectileOwner::Player => {
                 let mut hit_target = false;
 
-                for (invader_entity, invader, transform, collider) in &invaders {
+                for (invader_entity, invader, transform, collider) in &queries.invaders {
                     if despawn_invaders.contains(&invader_entity) {
                         continue;
                     }
@@ -756,7 +825,7 @@ fn handle_projectile_collisions(
                     continue;
                 }
 
-                for (shield_entity, _, transform, collider) in &shields {
+                for (shield_entity, _, transform, collider) in &queries.shields {
                     if despawn_shields.contains(&shield_entity) {
                         continue;
                     }
@@ -787,7 +856,7 @@ fn handle_projectile_collisions(
                     continue;
                 }
 
-                for (shield_entity, _, transform, collider) in &shields {
+                for (shield_entity, _, transform, collider) in &queries.shields {
                     if despawn_shields.contains(&shield_entity) {
                         continue;
                     }
@@ -824,29 +893,25 @@ fn handle_projectile_collisions(
     }
 
     if score_gain > 0 {
-        score_messages.write(ScoreEvent { points: score_gain });
+        messages
+            .score_messages
+            .write(ScoreEvent { points: score_gain });
     }
 
     if player_hit {
-        player_hit_messages.write(PlayerHitEvent);
+        messages.player_hit_messages.write(PlayerHitEvent);
     }
 }
 
 fn cleanup_out_of_bounds_entities(
     mut commands: Commands,
     config: Res<GameConfig>,
-    movers: Query<(
-        Entity,
-        Option<&Projectile>,
-        Option<&Ufo>,
-        &Transform,
-        &Collider,
-    )>,
+    entities: DynamicEntities,
 ) {
     let horizontal_margin = 60.0;
     let vertical_margin = 30.0;
 
-    for (entity, projectile, ufo, transform, collider) in &movers {
+    for (entity, projectile, ufo, transform, collider) in &entities.movers {
         let x = transform.translation.x;
         let y = transform.translation.y;
         let half = collider.size * 0.5;
@@ -932,7 +997,7 @@ fn spawn_player(commands: &mut Commands, config: &GameConfig) {
             size: config.player_size,
         },
         Transform::from_xyz(config.player_spawn().x, config.player_spawn().y, 5.0),
-        DespawnOnStateExit,
+        DespawnOnExit(ScreenState::Playing),
     ));
 }
 
@@ -957,7 +1022,7 @@ fn spawn_invader_formation(commands: &mut Commands, config: &GameConfig) {
                     size: config.invader_size,
                 },
                 Transform::from_translation(position),
-                DespawnOnStateExit,
+                DespawnOnExit(ScreenState::Playing),
             ));
         }
     }
@@ -968,9 +1033,9 @@ fn spawn_shields(commands: &mut Commands, config: &GameConfig) {
     let columns = SHIELD_PATTERN[0].len();
 
     for (shield_index, center) in config.shield_centers().into_iter().enumerate() {
-        for row in 0..rows {
-            for column in 0..columns {
-                if SHIELD_PATTERN[row].as_bytes()[column] != b'#' {
+        for (row, pattern_row) in SHIELD_PATTERN.iter().enumerate() {
+            for (column, tile) in pattern_row.as_bytes().iter().enumerate() {
+                if *tile != b'#' {
                     continue;
                 }
 
@@ -994,7 +1059,7 @@ fn spawn_shields(commands: &mut Commands, config: &GameConfig) {
                         size: config.shield_cell_size * 0.92,
                     },
                     Transform::from_xyz(position.x, position.y, 2.0),
-                    DespawnOnStateExit,
+                    DespawnOnExit(ScreenState::Playing),
                 ));
             }
         }
@@ -1029,14 +1094,12 @@ fn spawn_projectile(
         Collider { size },
         Velocity(velocity),
         Transform::from_xyz(position.x, position.y, z),
-        DespawnOnStateExit,
+        DespawnOnExit(ScreenState::Playing),
     ));
 }
 
 fn despawn_entity(commands: &mut Commands, entity: Entity) {
-    let mut entity_commands = commands.entity(entity);
-    entity_commands.despawn_children();
-    entity_commands.despawn();
+    commands.entity(entity).despawn();
 }
 
 fn start_pressed(keys: &ButtonInput<KeyCode>) -> bool {
@@ -1290,7 +1353,7 @@ mod tests {
             },
             Transform::from_translation(target_translation),
             Velocity(Vec2::ZERO),
-            DespawnOnStateExit,
+            DespawnOnExit(ScreenState::Playing),
         ));
 
         app.update();
