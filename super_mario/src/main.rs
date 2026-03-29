@@ -8,6 +8,7 @@ use bevy::{
 mod blocks;
 mod components;
 mod constants;
+mod enemies;
 mod level;
 mod messages;
 mod player;
@@ -16,6 +17,7 @@ mod states;
 
 use blocks::BlocksPlugin;
 use constants::*;
+use enemies::EnemyPlugin;
 use level::LevelPlugin;
 use messages::*;
 use player::PlayerPlugin;
@@ -48,7 +50,7 @@ fn main() {
         .add_message::<LevelCompleted>()
         .add_message::<SpawnParticles>()
         .add_message::<CameraShakeRequested>()
-        .add_plugins((LevelPlugin, PlayerPlugin, BlocksPlugin))
+        .add_plugins((LevelPlugin, PlayerPlugin, BlocksPlugin, EnemyPlugin))
         // Startup
         .add_systems(Startup, setup_camera)
         .run();

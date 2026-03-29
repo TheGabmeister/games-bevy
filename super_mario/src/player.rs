@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{
-    components::{Collider, FacingDirection, Grounded, Player, PowerState, Solid, Velocity},
+    components::{Collider, FacingDirection, Grounded, InvulnerabilityTimer, Player, PowerState, Solid, Velocity},
     constants::*,
     messages::BlockHit,
     resources::LevelState,
@@ -29,6 +29,10 @@ struct Aabb {
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Update, spawn_player_if_missing.run_if(in_state(AppState::Playing)))
+            .add_systems(
+                Update,
+                update_invulnerability.run_if(in_state(AppState::Playing)),
+            )
             .add_systems(
                 Update,
                 (
@@ -243,4 +247,26 @@ fn update_player_visual_facing(
 fn aabb_overlap(a: Aabb, b: Aabb) -> bool {
     (a.center.x - b.center.x).abs() < a.half_size.x + b.half_size.x
         && (a.center.y - b.center.y).abs() < a.half_size.y + b.half_size.y
+}
+
+fn update_invulnerability(
+    time: Res<Time>,
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut InvulnerabilityTimer, &mut Visibility), With<Player>>,
+) {
+    for (entity, mut invul, mut visibility) in &mut query {
+        invul.timer.tick(time.delta());
+
+        let flash_cycle = (invul.timer.elapsed_secs() / INVULNERABILITY_FLASH_RATE) as u32;
+        *visibility = if flash_cycle.is_multiple_of(2) {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        };
+
+        if invul.timer.is_finished() {
+            *visibility = Visibility::Inherited;
+            commands.entity(entity).remove::<InvulnerabilityTimer>();
+        }
+    }
 }

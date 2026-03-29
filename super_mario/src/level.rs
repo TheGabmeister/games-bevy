@@ -7,7 +7,7 @@ use crate::{
         Solid,
     },
     constants::*,
-    resources::LevelState,
+    resources::{EnemyKind, EnemySpawnData, LevelState},
     states::AppState,
 };
 
@@ -60,6 +60,7 @@ struct LevelDefinition {
     flagpole: FlagpoleData,
     castle: CastleData,
     player_start: Vec2,
+    enemy_spawns: Vec<EnemySpawnData>,
 }
 
 struct LevelGrid {
@@ -97,7 +98,7 @@ fn enter_playing_on_boot(mut next_state: ResMut<NextState<AppState>>) {
     next_state.set(AppState::Playing);
 }
 
-fn spawn_level(
+pub(crate) fn spawn_level(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
@@ -338,6 +339,7 @@ fn spawn_level(
     level_state.camera_min_x = WINDOW_WIDTH * 0.5;
     level_state.camera_max_x = (level_width_world - WINDOW_WIDTH * 0.5).max(level_state.camera_min_x);
     level_state.camera_y = 0.0;
+    level_state.enemy_spawns = level.enemy_spawns;
 }
 
 fn position_camera_at_level_start(
@@ -468,6 +470,19 @@ fn build_world_1_1() -> LevelDefinition {
 
     let player_start = tile_to_world(4, GROUND_TILE_ROWS + 3);
 
+    let enemy_spawns = vec![
+        EnemySpawnData { tile_x: 10, kind: EnemyKind::Goomba },
+        EnemySpawnData { tile_x: 16, kind: EnemyKind::Goomba },
+        EnemySpawnData { tile_x: 25, kind: EnemyKind::Koopa },
+        EnemySpawnData { tile_x: 31, kind: EnemyKind::Goomba },
+        EnemySpawnData { tile_x: 33, kind: EnemyKind::Goomba },
+        EnemySpawnData { tile_x: 44, kind: EnemyKind::Goomba },
+        EnemySpawnData { tile_x: 46, kind: EnemyKind::Koopa },
+        EnemySpawnData { tile_x: 60, kind: EnemyKind::Goomba },
+        EnemySpawnData { tile_x: 62, kind: EnemyKind::Goomba },
+        EnemySpawnData { tile_x: 70, kind: EnemyKind::Goomba },
+    ];
+
     LevelDefinition {
         width,
         height,
@@ -483,6 +498,7 @@ fn build_world_1_1() -> LevelDefinition {
             height_tiles: 4,
         },
         player_start,
+        enemy_spawns,
     }
 }
 
@@ -500,13 +516,13 @@ fn place_blocks(grid: &mut LevelGrid, blocks: &[(usize, usize, LevelTile)]) {
     }
 }
 
-fn tile_to_world(tile_x: usize, tile_y: usize) -> Vec2 {
+pub(crate) fn tile_to_world(tile_x: usize, tile_y: usize) -> Vec2 {
     Vec2::new(
         tile_x as f32 * TILE_SIZE + TILE_SIZE * 0.5,
         world_bottom_y() + tile_y as f32 * TILE_SIZE + TILE_SIZE * 0.5,
     )
 }
 
-fn world_bottom_y() -> f32 {
+pub(crate) fn world_bottom_y() -> f32 {
     -WINDOW_HEIGHT * 0.5
 }

@@ -58,6 +58,24 @@ pub const GOOMBA_SPEED: f32 = 60.0;
 pub const KOOPA_SPEED: f32 = 50.0;
 pub const SHELL_SPEED: f32 = 300.0;
 
+// Enemy dimensions
+pub const GOOMBA_WIDTH: f32 = 28.0;
+pub const GOOMBA_HEIGHT: f32 = 26.0;
+pub const KOOPA_WIDTH: f32 = 26.0;
+pub const KOOPA_HEIGHT: f32 = 34.0;
+pub const SHELL_WIDTH: f32 = 28.0;
+pub const SHELL_HEIGHT: f32 = 20.0;
+
+// Combat
+pub const STOMP_BOUNCE_FORCE: f32 = 500.0;
+pub const INVULNERABILITY_DURATION: f32 = 2.0;
+pub const INVULNERABILITY_FLASH_RATE: f32 = 0.1;
+pub const GOOMBA_SQUISH_DURATION: f32 = 0.4;
+
+// Mushroom collider
+pub const MUSHROOM_COLLIDER_WIDTH: f32 = 20.0;
+pub const MUSHROOM_COLLIDER_HEIGHT: f32 = 18.0;
+
 // Mushroom
 pub const MUSHROOM_SPEED: f32 = 80.0;
 pub const MUSHROOM_RISE_SPEED: f32 = 60.0;

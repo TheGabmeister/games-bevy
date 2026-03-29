@@ -45,6 +45,9 @@ pub struct KoopaTroopa;
 #[derive(Component)]
 pub struct Shell;
 
+#[derive(Component)]
+pub struct Enemy;
+
 // Tiles
 #[derive(Component)]
 pub struct Solid;
@@ -91,4 +94,9 @@ pub struct Mushroom;
 pub struct Collider {
     pub width: f32,
     pub height: f32,
+}
+
+#[derive(Component)]
+pub struct InvulnerabilityTimer {
+    pub timer: Timer,
 }

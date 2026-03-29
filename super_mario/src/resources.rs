@@ -3,6 +3,18 @@
 use crate::constants::*;
 use bevy::prelude::*;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum EnemyKind {
+    Goomba,
+    Koopa,
+}
+
+#[derive(Clone)]
+pub struct EnemySpawnData {
+    pub tile_x: usize,
+    pub kind: EnemyKind,
+}
+
 #[derive(Resource)]
 pub struct GameData {
     pub score: u32,
@@ -20,6 +32,7 @@ pub struct LevelState {
     pub camera_min_x: f32,
     pub camera_max_x: f32,
     pub camera_y: f32,
+    pub enemy_spawns: Vec<EnemySpawnData>,
 }
 
 impl Default for GameData {

@@ -3,12 +3,13 @@ use bevy::ecs::system::SystemParam;
 
 use crate::{
     components::{
-        BlockContents, BrickBlock, Coin, Mushroom, PowerState, QuestionBlock, QuestionMarkVisual,
+        BlockContents, BrickBlock, Coin, Collider, Mushroom, Player, PowerState, QuestionBlock,
+        QuestionMarkVisual, Solid, Velocity,
     },
     constants::*,
     messages::BlockHit,
     resources::GameData,
-    states::AppState,
+    states::{AppState, PlayState},
 };
 
 pub struct BlocksPlugin;
@@ -26,6 +27,13 @@ impl Plugin for BlocksPlugin {
                 animate_mushroom_emergence,
             )
                 .run_if(in_state(AppState::Playing)),
+        )
+        .add_systems(
+            Update,
+            (move_mushrooms, collect_mushrooms, despawn_fallen_mushrooms)
+                .chain()
+                .run_if(in_state(AppState::Playing))
+                .run_if(in_state(PlayState::Running)),
         );
     }
 }
@@ -253,6 +261,16 @@ fn animate_mushroom_emergence(
 
         if emergence.timer.is_finished() {
             commands.entity(entity).remove::<MushroomEmergence>();
+            commands.entity(entity).insert((
+                Velocity {
+                    x: MUSHROOM_SPEED,
+                    y: 0.0,
+                },
+                Collider {
+                    width: MUSHROOM_COLLIDER_WIDTH,
+                    height: MUSHROOM_COLLIDER_HEIGHT,
+                },
+            ));
         }
     }
 }
@@ -391,4 +409,139 @@ fn spawn_mushroom_emergence(
                 Transform::from_xyz(TILE_SIZE * 0.1, TILE_SIZE * 0.18, 0.2),
             ));
         });
+}
+
+fn move_mushrooms(
+    time: Res<Time>,
+    mut mushroom_query: Query<
+        (&mut Transform, &mut Velocity, &Collider),
+        (With<Mushroom>, Without<MushroomEmergence>, Without<Solid>, Without<Player>),
+    >,
+    solid_query: Query<(&Transform, &Collider), (With<Solid>, Without<Mushroom>)>,
+) {
+    let dt = time.delta_secs();
+    for (mut transform, mut velocity, collider) in &mut mushroom_query {
+        velocity.y = (velocity.y + GRAVITY * dt).max(MAX_FALL_SPEED);
+
+        let half_w = collider.width * 0.5;
+        let half_h = collider.height * 0.5;
+
+        // Horizontal
+        let next_x = transform.translation.x + velocity.x * dt;
+        let mut blocked = false;
+        for (solid_tf, solid_col) in &solid_query {
+            if aabb_overlap(
+                next_x,
+                transform.translation.y,
+                half_w,
+                half_h,
+                solid_tf.translation.x,
+                solid_tf.translation.y,
+                solid_col.width * 0.5,
+                solid_col.height * 0.5,
+            ) {
+                blocked = true;
+                break;
+            }
+        }
+        if blocked {
+            velocity.x = -velocity.x;
+        } else {
+            transform.translation.x = next_x;
+        }
+
+        // Vertical
+        let next_y = transform.translation.y + velocity.y * dt;
+        let mut landed = false;
+        let mut land_y = next_y;
+        for (solid_tf, solid_col) in &solid_query {
+            if aabb_overlap(
+                transform.translation.x,
+                next_y,
+                half_w,
+                half_h,
+                solid_tf.translation.x,
+                solid_tf.translation.y,
+                solid_col.width * 0.5,
+                solid_col.height * 0.5,
+            ) {
+                if velocity.y < 0.0 {
+                    land_y = solid_tf.translation.y + solid_col.height * 0.5 + half_h;
+                    landed = true;
+                }
+                break;
+            }
+        }
+        if landed {
+            transform.translation.y = land_y;
+            velocity.y = 0.0;
+        } else {
+            transform.translation.y = next_y;
+        }
+    }
+}
+
+fn collect_mushrooms(
+    mut commands: Commands,
+    mut player_query: Query<
+        (&mut Transform, &mut Collider, &mut PowerState),
+        (With<Player>, Without<Mushroom>),
+    >,
+    mushroom_query: Query<
+        (Entity, &Transform, &Collider),
+        (With<Mushroom>, Without<MushroomEmergence>, Without<Player>),
+    >,
+    mut game_data: ResMut<GameData>,
+) {
+    let Ok((mut player_tf, mut player_col, mut power_state)) = player_query.single_mut() else {
+        return;
+    };
+
+    let p_hw = player_col.width * 0.5;
+    let p_hh = player_col.height * 0.5;
+
+    for (mushroom_entity, mushroom_tf, mushroom_col) in &mushroom_query {
+        let m_hw = mushroom_col.width * 0.5;
+        let m_hh = mushroom_col.height * 0.5;
+
+        if (player_tf.translation.x - mushroom_tf.translation.x).abs() < p_hw + m_hw
+            && (player_tf.translation.y - mushroom_tf.translation.y).abs() < p_hh + m_hh
+        {
+            commands.entity(mushroom_entity).despawn();
+            game_data.score += 1000;
+
+            if *power_state == PowerState::Small {
+                *power_state = PowerState::Big;
+                player_tf.translation.y += (PLAYER_BIG_HEIGHT - PLAYER_HEIGHT) * 0.5;
+                player_tf.scale.y = PLAYER_BIG_HEIGHT / PLAYER_HEIGHT;
+                player_col.width = PLAYER_BIG_WIDTH;
+                player_col.height = PLAYER_BIG_HEIGHT;
+            }
+            break;
+        }
+    }
+}
+
+fn despawn_fallen_mushrooms(
+    mut commands: Commands,
+    query: Query<(Entity, &Transform), (With<Mushroom>, Without<MushroomEmergence>)>,
+) {
+    for (entity, transform) in &query {
+        if transform.translation.y < DEATH_Y {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
+fn aabb_overlap(
+    ax: f32,
+    ay: f32,
+    ahw: f32,
+    ahh: f32,
+    bx: f32,
+    by: f32,
+    bhw: f32,
+    bhh: f32,
+) -> bool {
+    (ax - bx).abs() < ahw + bhw && (ay - by).abs() < ahh + bhh
 }
