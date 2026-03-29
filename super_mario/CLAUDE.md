@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code when working in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Scope
 
@@ -41,19 +41,20 @@ Target output is redirected to `D:/cargo-target-dir` via `.cargo/config.toml`.
 
 ## Current Repository State
 
-The project is an early playable platformer slice (through Phase 4 of SPEC.md), not just scaffolding.
+The project is a playable platformer slice through Phase 6 of SPEC.md (enemies and power-ups).
 
 Source files in `src/`:
 
 - `main.rs` — app bootstrap, window/camera setup, state/message/plugin registration
 - `constants.rs` — tunable values, physics, tile sizes, animation durations, and color palette
-- `components.rs` — shared ECS marker and data components (Player, Velocity, Grounded, block types, etc.)
-- `resources.rs` — `GameData` (score/coins/lives/timer) and `LevelState` (level bounds, player start, camera limits)
+- `components.rs` — shared ECS marker and data components (Player, Velocity, Grounded, Enemy, block types, etc.)
+- `resources.rs` — `GameData` (score/coins/lives/timer), `LevelState` (level bounds, player start, camera limits, enemy spawns)
 - `states.rs` — `AppState` and `PlayState` enums
 - `messages.rs` — cross-system gameplay messages (AddScore, BlockHit, PlayerDied, etc.)
 - `level.rs` — `LevelPlugin`: data-driven World 1-1 layout, tile/pipe/flagpole/castle spawning, camera follow
-- `player.rs` — `PlayerPlugin`: player spawning, input, gravity, AABB collision resolution, facing direction
-- `blocks.rs` — `BlocksPlugin`: question/brick/hard block hit handling, bump animations, coin pops, score popups, debris, mushroom emergence
+- `player.rs` — `PlayerPlugin`: player spawning, input, gravity, AABB collision resolution, facing direction, invulnerability flashing
+- `blocks.rs` — `BlocksPlugin`: question/brick/hard block hit handling, bump animations, coin pops, score popups, debris, mushroom emergence/movement/collection
+- `enemies.rs` — `EnemyPlugin`: Goomba/Koopa spawning, patrol AI, shell mechanics, stomp/damage detection, defeat effects
 
 Current runtime behavior:
 
@@ -61,7 +62,11 @@ Current runtime behavior:
 - A World 1-1-inspired level renders from Rust data using primitive meshes
 - Mario moves, jumps, collides with solids, and drives a side-scrolling camera
 - Question blocks spawn coins or mushrooms; brick blocks break when Big Mario hits them
-- Still missing: start menu, HUD, enemies, power-up collection, death/lives, level completion, game over
+- Goombas and Koopas patrol, reverse on walls, and fall with gravity
+- Stomping enemies defeats them (Goombas squish, Koopas become kickable shells)
+- Mushrooms emerge from blocks, move with physics, and power up Mario to Big on collection
+- Big Mario can break bricks; taking damage shrinks back to Small with invulnerability flashing
+- Still missing: start menu, HUD, death/lives, level completion, game over
 
 ## Architecture Direction
 
@@ -103,6 +108,7 @@ Guidance:
 - Use `OnEnter` and `OnExit` for spawn/cleanup symmetry
 - Prefer `DespawnOnExit(...)` for state-bound entities
 - Use `.after(...)` or ordered `SystemSet`s where frame ordering matters
+- When an `OnEnter` system in one plugin depends on data populated by an `OnEnter` system in another plugin, use `.after(other_system)` to guarantee ordering (e.g. `spawn_enemies.after(spawn_level)`)
 
 ## Cross-System Communication
 
@@ -237,5 +243,6 @@ app.init_state::<AppState>().add_sub_state::<PlayState>();
 - Level layout and camera: `src/level.rs`
 - Player movement and collision: `src/player.rs`
 - Block interactions and animations: `src/blocks.rs`
+- Enemy spawning, AI, and combat: `src/enemies.rs`
 - Design spec and phase plan: `SPEC.md`
 - Build output location: `.cargo/config.toml`

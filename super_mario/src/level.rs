@@ -472,6 +472,7 @@ fn build_world_1_1() -> LevelDefinition {
 
     let g = GROUND_TILE_ROWS;
     let enemy_spawns = vec![
+        EnemySpawnData { tile_x: 6, tile_y: g, kind: EnemyKind::Goomba },
         EnemySpawnData { tile_x: 10, tile_y: g, kind: EnemyKind::Goomba },
         EnemySpawnData { tile_x: 16, tile_y: g, kind: EnemyKind::Goomba },
         EnemySpawnData { tile_x: 25, tile_y: g, kind: EnemyKind::Koopa },
