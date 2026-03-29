@@ -81,3 +81,45 @@ Asset paths are plain relative strings passed to `asset_server.load(...)` — ke
 - `ScalingMode` is in `bevy::camera::ScalingMode`, not `bevy::render::camera`.
 - Use `ApplyDeferred` (struct) not `apply_deferred` (no such function) for command flushing between systems.
 - 2D rendering uses `Camera2d`, `Mesh2d`, `MeshMaterial2d`, `Sprite`.
+
+### Bloom / HDR
+
+- The bloom component is `Bloom`, not `BloomSettings` (renamed).
+- Import: `use bevy::{core_pipeline::tonemapping::{DebandDither, Tonemapping}, post_process::bloom::Bloom};`
+- `Bloom` has presets: `Bloom::NATURAL`, `Bloom::OLD_SCHOOL`, `Bloom::ANAMORPHIC`.
+- Camera setup for bloom:
+  ```rust
+  commands.spawn((
+      Camera2d,
+      Camera {
+          clear_color: ClearColorConfig::Custom(Color::BLACK),
+          ..default()
+      },
+      Tonemapping::TonyMcMapface,
+      Bloom::default(),
+      DebandDither::Enabled,
+  ));
+  ```
+- `ColorMaterial` has **no** `emissive` field. To make shapes glow with bloom, use `Color` values > 1.0 directly (e.g., `Color::srgb(5.0, 1.0, 0.2)`). The bloom post-process extracts bright regions above its threshold.
+
+### State-Scoped Entities
+
+- `StateScoped` was renamed to `DespawnOnExit<S: States>` (and `DespawnOnEnter<S: States>`).
+- Usage: `commands.spawn((MyComponent, DespawnOnExit(AppState::Playing)));`
+- Entities are automatically despawned when the state exits (or enters, respectively).
+
+### SubStates
+
+- Define with `#[derive(SubStates)]` and a `#[source(ParentState = ParentState::Variant)]` attribute:
+  ```rust
+  #[derive(SubStates, Clone, PartialEq, Eq, Hash, Debug, Default)]
+  #[source(AppState = AppState::Playing)]
+  enum PlayState {
+      #[default]
+      Running,
+      Paused,
+  }
+  ```
+- Register: `app.init_state::<AppState>().add_sub_state::<PlayState>();`
+- Sub-states only exist when the source state matches; they are removed automatically otherwise.
+- `ComputedStates` also exists for read-only derived states (`app.add_computed_state::<T>()`).

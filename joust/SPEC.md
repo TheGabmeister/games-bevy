@@ -8,7 +8,7 @@ A modernized 2D recreation of Williams Electronics' Joust (1982) using Bevy with
 
 Single-screen arena. One or two players ride lance-wielding birds. Flight is controlled by repeated flapping (button mashing for altitude). Combat resolves by height — the higher lance wins. Defeated enemies drop eggs that hatch into stronger foes if not collected. Waves of increasing difficulty, culminating in survival rounds with an unkillable pterodactyl.
 
-**Window**: 1200 x 900, fixed. No camera zoom or scroll.
+**Window**: 1200 x 900, fixed. No camera zoom or scroll. Constants stored as `f32` for physics math; cast to `u32` when passed to `WindowResolution::new()`.
 
 ---
 
@@ -18,24 +18,27 @@ Single-screen arena. One or two players ride lance-wielding birds. Flight is con
 
 This is the single most important system. If flapping doesn't feel right, nothing works.
 
-**Model**: Custom physics, no physics engine. Each flapping entity has:
+**Model**: Custom physics, no physics engine. Gravity is a global constant, not per-entity. Each flapping entity has a `Velocity(Vec2)` component. Shared physics constants live in `constants.rs`:
 
-| Property | Description |
+| Constant | Description |
 |---|---|
-| `velocity: Vec2` | Current movement vector |
-| `gravity: f32` | Constant downward acceleration (~980 px/s^2, tunable) |
-| `flap_impulse: f32` | Upward velocity added per flap (~320 px/s, tunable) |
-| `max_rise_speed: f32` | Clamp on upward velocity to prevent rocket launches |
-| `max_fall_speed: f32` | Terminal velocity downward |
-| `horizontal_accel: f32` | Left/right acceleration |
-| `horizontal_drag: f32` | Deceleration when no input (creates the signature slide) |
-| `max_horizontal_speed: f32` | Horizontal speed cap |
+| `GRAVITY` | Downward acceleration (~980 px/s^2, tunable) |
+| `FLAP_IMPULSE` | Upward velocity added per flap (~320 px/s) |
+| `MAX_RISE_SPEED` | Clamp on upward velocity to prevent rocket launches |
+| `MAX_FALL_SPEED` | Terminal velocity downward |
+| `HORIZONTAL_ACCEL` | Left/right acceleration while airborne |
+| `WALK_ACCEL` | Left/right acceleration while grounded (slower than airborne) |
+| `HORIZONTAL_DRAG` | Deceleration when no input (creates the signature slide) |
+| `MAX_HORIZONTAL_SPEED` | Horizontal speed cap |
+| `WALK_MAX_SPEED` | Horizontal speed cap while grounded (slower) |
 
-**Flap behavior**: Each flap press adds `flap_impulse` to vertical velocity (clamped by `max_rise_speed`). Gravity applies every frame. Rapid tapping = hover. Single tap = small hop. No tap = fall. There is NO jump — only accumulated flap impulses against gravity.
+**Flap behavior**: Each flap press adds `FLAP_IMPULSE` to vertical velocity (clamped by `MAX_RISE_SPEED`). Gravity applies every frame via `velocity.y -= GRAVITY * time.delta_secs()`. Rapid tapping = hover. Single tap = small hop. No tap = fall. There is NO jump — only accumulated flap impulses against gravity.
 
 **Horizontal movement**: Acceleration-based with drag. The player cannot stop instantly — they slide. This momentum is core to the jousting feel. Direction input accelerates; releasing input applies drag toward zero.
 
-**Ground state**: When on a platform, vertical velocity is zeroed, gravity stops, and the entity can walk left/right with the same horizontal acceleration model. A flap while grounded launches upward.
+**Ground state**: When on a platform, vertical velocity is zeroed, gravity stops, and the entity can walk left/right using `WALK_ACCEL` / `WALK_MAX_SPEED` (slower than airborne). A flap while grounded launches upward. Track ground state with a `Grounded` marker component — add it on landing, remove it on leaving the platform or flapping.
+
+**Delta-time**: All physics math must multiply by `time.delta_secs()`. Never assume fixed frame rate.
 
 **Tuning concern**: The flap-to-gravity ratio determines the entire feel. Too floaty = no tension. Too heavy = frustrating. The original Joust used roughly 4-5 flaps per second to maintain altitude. Target: ~5 flaps/sec to hover, with visible bob between flaps.
 
@@ -43,33 +46,34 @@ This is the single most important system. If flapping doesn't feel right, nothin
 
 Entities wrap horizontally. Exit the left edge, appear on the right, and vice versa.
 
-**Implementation**: When `entity.x > WINDOW_WIDTH / 2 + WRAP_MARGIN`, teleport to `-WINDOW_WIDTH / 2 - WRAP_MARGIN` (and inverse). `WRAP_MARGIN` is half the entity's visual width so the entity fully exits before reappearing.
+**Implementation**: When `entity.x > ARENA_RIGHT + WRAP_MARGIN`, teleport to `ARENA_LEFT - WRAP_MARGIN` (and inverse). `WRAP_MARGIN` is half the entity's visual width so the entity fully exits before reappearing. Arena bounds are derived from window size and any HUD inset.
 
-**Hard problem — collision across the wrap boundary**: Two entities near opposite edges are actually adjacent. Solutions:
+**Collision across the wrap boundary**: Two entities near opposite edges are actually adjacent. Use modular distance for ALL distance/collision checks: `dx = min(|x1 - x2|, ARENA_WIDTH - |x1 - x2|)`. This covers combat, egg collection, AI targeting, and lava hand detection.
 
-- **Ghost entity approach**: When an entity is within `WRAP_MARGIN + COLLISION_RADIUS` of an edge, spawn a temporary ghost at the mirrored position. Run collision checks against ghosts. Despawn ghosts each frame.
-- **Chosen approach**: Modular distance — compute horizontal distance as `min(|x1 - x2|, WINDOW_WIDTH - |x1 - x2|)`. This is cheaper than ghost entities and sufficient for a single-screen game. Apply this to ALL distance checks (collision, AI targeting, rendering).
+**Split rendering**: Separate concern from collision. When an entity's visual bounds overlap a screen edge, spawn a **render-only ghost** — a child entity with the same mesh/material parented to a separate transform at the mirrored position. Ghost entities carry a `WrapGhost` marker component and are updated (or despawned) each frame by a dedicated system in `RenderSet`. Ghosts have no collision components and do not participate in gameplay logic.
 
-**Hard problem — split rendering**: When an entity is partially off-screen on one side, the other half should be visible on the opposite side. Render the entity at both its actual position and its wrapped position when within `WRAP_MARGIN` of an edge. This means some entities briefly have two visual representations.
+**Platform wrap**: The bottom ground-level platforms span the full arena width and connect at the screen edges. Entities walking off one end appear on the other. Mid-level and upper platforms do NOT wrap — they have defined left/right edges.
 
 ### 2.3 Platforms
 
 Platforms are one-way: entities can fly up through them but land on top.
 
 **Collision rule**: Only apply platform collision when:
-1. Entity's bottom edge is within a small tolerance of the platform's top edge, AND
+1. Entity's bottom edge is within `PLATFORM_SNAP_DISTANCE` (3px) of the platform's top edge, AND
 2. Entity's vertical velocity is downward (or zero)
 
-This means you can flap up through a platform from below, but land on it from above. Walking off a platform edge causes falling.
+This means you can flap up through a platform from below, but land on it from above. Walking off a platform edge causes falling (remove `Grounded` component).
 
-**Platform layout**: Static per wave. Defined as arrays of `(x, y, width)`. The classic layout:
+**Data structure**: Platforms are stored as a `Vec<PlatformDef>` resource (each: `x, y, width, wraps: bool`). With ~10 platforms, brute-force collision against all is fine — no spatial index needed.
+
+**Platform layout**: Static per wave. The classic layout:
 - Two long platforms mid-height on left and right
 - One short platform top-center
 - Two small ledges at upper-left and upper-right
-- Ground-level walkway along the very bottom (above lava)
+- Ground-level walkway along the very bottom (above lava), `wraps: true`
 - All platforms have small lips/edges rendered as rectangles
 
-**Edge case — landing precision**: Entities should snap to platform top when close enough (within 2-4px) and moving downward, to avoid jitter. Use a `Grounded` component to track state and avoid re-checking every frame.
+**Edge case — landing precision**: Entities snap to platform top when within `PLATFORM_SNAP_DISTANCE` and moving downward. The `Grounded` marker component tracks state; add it on landing, remove it when the entity flaps or walks off the edge.
 
 ### 2.4 Combat (Height-Based Jousting)
 
@@ -81,33 +85,42 @@ The core combat rule: when two riders collide, compare the Y position of their l
 - If `lance_y_b - lance_y_a > JOUST_THRESHOLD`: B wins
 - If `abs(lance_y_a - lance_y_b) <= JOUST_THRESHOLD`: Both bounce off (no kill)
 
-`JOUST_THRESHOLD` (~6-10px): The "equal height" dead zone. Too small = feels random. Too large = hard to get kills.
+`JOUST_THRESHOLD` (~8px): The "equal height" dead zone. Too small = feels random. Too large = hard to get kills.
 
-**Bounce on equal height**: Both entities receive opposing horizontal impulse and small vertical impulse. Brief invincibility frames (~0.3s) prevent immediate re-collision.
+**Bounce on equal height**: Both entities receive opposing horizontal impulse and small vertical impulse. Apply an `Invincible` marker component with a `Timer` (0.3s) to prevent immediate re-collision. Systems skip collision checks for entities with `Invincible`.
 
-**Collision shape**: Use circle-circle collision for the riders. Each rider has a collision radius. Compute modular distance (for screen wrap), check if < sum of radii.
+**Collision shapes and radii**:
+
+| Entity | Collision Radius |
+|---|---|
+| Rider (player/enemy) | 18px |
+| Egg | 10px |
+| Pterodactyl body | 25px |
+| Pterodactyl head (kill zone) | 8px |
+| Lance tip (for pterodactyl kill) | 6px |
+
+Use circle-circle collision. Compute modular distance (for screen wrap), check if < sum of radii.
 
 **Edge cases**:
-- **Simultaneous multi-collision**: Process all collision pairs, mark kills, then apply. Don't let order-of-processing affect outcomes.
+- **Simultaneous multi-collision**: Collect all collision pairs in one pass. In the second pass, mark all losers. An entity that loses ANY joust is dead — even if it also won a different joust in the same frame. Third pass: despawn dead entities and spawn eggs. This prevents order-of-processing from affecting outcomes.
 - **Player vs player (2P mode)**: Same rules apply. Friendly fire is ON (faithful to original). Both players bounce on equal height.
-- **Velocity-based tiebreaker**: When heights are equal, the entity with greater downward velocity could lose (optional modernization). Original had pure bounce.
 
 ### 2.5 Egg System
 
 Defeated enemies become eggs. Eggs are collectible for bonus points. Uncollected eggs hatch after a timer into a stronger enemy type.
 
 **Lifecycle**:
-1. Enemy dies → egg spawns at death position with enemy's velocity
+1. Enemy dies -> egg spawns at death position with enemy's velocity (use an `Observer` on entity removal — see section 10.2)
 2. Egg falls (has gravity, no flapping), lands on platforms
-3. Egg sits for `EGG_HATCH_TIME` seconds (original: ~10-15s, decreases in later waves)
-4. If collected (player touches egg): award points, despawn
-5. If timer expires: egg hatches → spawn enemy one tier higher (Bounder→Hunter→Shadow Lord)
+3. Egg sits for `EGG_HATCH_TIME` seconds (stored as a `Timer` component, decreases in later waves)
+4. If collected (player touches egg): emit `ScoreEvent`, despawn egg
+5. If timer expires: egg hatches -> spawn enemy one tier higher (Bounder->Hunter->Shadow Lord)
 
-**Egg physics**: Gravity + platform landing only. No horizontal movement once landed. Eggs on platforms near an edge can fall off if nudged (optional — adds depth but increases complexity).
+**Egg physics**: Gravity + platform landing only. No horizontal movement once landed (apply full drag). Eggs can be nudged off platforms by a player walking into them — apply a small horizontal impulse, remove `Grounded`.
 
-**Visual**: Egg shape changes/pulses as hatch timer approaches zero. Color shifts from white → enemy color.
+**Visual**: Egg shape pulses (scale oscillation driven by `Timer`) as hatch timer approaches zero. Color lerps from white toward the enemy tier color based on `timer.fraction()`.
 
-**Edge case**: Egg falls into lava → destroyed, no hatch. Egg is on a ledge and gets knocked off by a player walking into it → falls.
+**Edge case**: Egg falls into lava -> destroyed, no hatch, no points.
 
 ### 2.6 Lava
 
@@ -115,16 +128,15 @@ The bottom of the screen is lava. Anything that touches it is destroyed.
 
 **Lava surface**: Animated sine wave along the bottom ~60px tall. Entities below `LAVA_Y` are destroyed on contact.
 
-**Lava Troll (hand)**: When an entity hovers near lava level for too long, a hand rises from the lava and grabs downward. The hand targets the nearest entity within a horizontal range of the hand's position. Contact = instant death.
+**Lava Troll (hand)**: When an entity is near lava level, a hand rises and grabs. Uses modular distance for targeting (respects screen wrap).
 
 **Hand behavior**:
-1. Track nearest entity within `HAND_DETECT_RANGE` of hand's X, below `HAND_DETECT_Y`
+1. Track nearest entity within `HAND_DETECT_RANGE` of hand's X position, below `HAND_DETECT_Y` threshold
 2. Rise at `HAND_RISE_SPEED` toward target
 3. If target escapes range, hand retracts
 4. If hand contacts target, target is destroyed
-5. Cooldown after grab attempt: `HAND_COOLDOWN` seconds
-
-**Edge case**: Two entities near lava — hand targets nearest. Hand should not clip through platforms.
+5. Cooldown `Timer` after grab attempt: `HAND_COOLDOWN` seconds
+6. Hand does not clip through platforms — clamp max Y to the bottom of the lowest platform above it
 
 ### 2.7 Enemies
 
@@ -132,32 +144,34 @@ Three tiers of increasing difficulty:
 
 | Type | Color | Speed | AI Aggression | Flap Rate |
 |---|---|---|---|---|
-| Bounder (Red) | Red tones | Slow | Wanders, avoids player | Low |
-| Hunter (Silver) | White/silver | Medium | Seeks player | Medium |
-| Shadow Lord (Blue) | Dark blue | Fast | Aggressive pursuit | High |
+| Bounder | Red tones | Slow | Wanders, avoids player | Low |
+| Hunter | White/silver | Medium | Seeks player | Medium |
+| Shadow Lord | Dark blue | Fast | Aggressive pursuit | High |
 
-**AI behavior** — each enemy runs a simple state machine:
+**AI behavior** — each enemy runs a simple state machine stored as an `AiState` enum component:
 
-1. **Wander**: Pick random direction, flap occasionally, change direction at edges or after timer
-2. **Pursue**: Fly toward player. Higher aggression = more direct path
-3. **Evade**: If player is above and approaching, try to gain altitude or dodge
-4. **Land**: If on platform, walk briefly, then take off
+1. **Wander**: Pick random direction, flap occasionally, change direction at edges or after a `Timer`. Transition to Pursue when player is within detection range.
+2. **Pursue**: Fly toward player using modular distance (screen wrap-aware). Higher aggression = more direct path. Transition to Evade if player is above and closing.
+3. **Evade**: If player is above and approaching, gain altitude or dodge horizontally. Transition back to Pursue after evade `Timer` expires.
+4. **Land**: If on platform, walk briefly (ground `Timer`), then take off. Max ground time: Bounder 4s, Hunter 2s, Shadow Lord 1s.
 
-**AI flapping**: Enemies flap at their tier's rate. Higher tiers flap more precisely to maintain altitude near the player. AI never flaps perfectly — add small random delays to prevent robotic behavior.
+**AI flapping**: Enemies flap at their tier's rate using a per-entity `FlapCooldown` timer. Add small random jitter (0-0.1s) to the cooldown to prevent robotic synchronized flapping.
 
-**Spawn pattern**: Enemies spawn from the top of the screen in waves. Brief materialization animation (circles expanding from a point). New enemies have brief invincibility (0.5s) to prevent spawn-camping.
+**Spawn pattern**: Enemies spawn from the top of the screen. Brief materialization animation (circles expanding from a point). Spawning enemies get an `Invincible` marker with a 0.5s `Timer` to prevent spawn-camping. Visual indicator: entity blinks (alpha oscillates) during invincibility.
 
-**Edge case — AI and screen wrap**: AI distance calculations must use modular distance, or enemies will fly away from a nearby player who happens to be across the wrap boundary.
+**AI and screen wrap**: All AI distance calculations use modular distance.
+
+**Random number generation**: Add `rand` crate to `Cargo.toml` for AI jitter, wander direction, and spawn positions.
 
 ### 2.8 Pterodactyl
 
-Appears if a wave takes too long (e.g., 60s with 1 enemy remaining, or 90s total). Nearly unkillable — can only be hit by a perfectly timed lance to the mouth (tiny hitbox).
+Appears if a wave takes too long (e.g., 60s with <=1 enemy remaining, or 90s total). Nearly unkillable — can only be hit by a perfectly timed lance to the mouth (tiny hitbox).
 
-**Behavior**: Flies in sine-wave patterns, targeting the player. Ignores platforms (flies through them). Very fast. Contact = instant death to rider.
+**Behavior**: Flies in sine-wave patterns, targeting the nearest player. Ignores platforms (flies through them). Very fast. Contact with body = instant death to rider.
 
-**Kill condition**: Player's lance must contact the pterodactyl's head hitbox (a small circle, ~10px radius at the front of a ~60px body). This is intentionally very hard.
+**Kill condition**: Player's lance tip hitbox (6px radius circle at lance end) must contact the pterodactyl's head hitbox (8px radius circle at the front of a ~60px body). This is intentionally very hard.
 
-**Visual**: Larger shape than riders. Distinct angular/triangular wing shapes. Flashing/pulsing effect.
+**Visual**: Larger shape than riders (~3x). Distinct angular/triangular wing shapes. Pulsing emissive outline (HDR color for bloom glow).
 
 ### 2.9 Wave System
 
@@ -169,52 +183,66 @@ Appears if a wave takes too long (e.g., 60s with 1 enemy remaining, or 90s total
 | 4 | 6 | More Hunters | 10s | 80s |
 | 5+ | 6-8 | Increasing Shadow Lords | 8s (min) | 60s (min) |
 
-**Between waves**: Brief pause (2s), "WAVE X" text, all eggs cleared, platform layout may change.
+Wave definitions stored as a `Vec<WaveDef>` resource, each containing enemy counts by tier, hatch time, and pterodactyl timer. Waves beyond the table extrapolate by clamping to max difficulty values.
+
+**Wave clear condition**: Zero living enemies AND zero eggs on screen. Eggs that fall into lava count as cleared.
+
+**Between waves**: Brief pause (2s `Timer`), "WAVE X" announcement, remaining eggs are auto-despawned (bonus points for any collected during the wave, none awarded for auto-cleared eggs). Platform layout may change in later waves.
 
 **Survival wave** (every 5th wave): No enemies. Pterodactyl spawns immediately. Survive for 30 seconds. Bonus points for killing it.
+
+### 2.10 Player Death and Respawn
+
+When a player dies with remaining lives:
+1. Decrement lives, emit `PlayerDeathEvent`
+2. Brief death animation (shape explodes into particles)
+3. After 1.5s `Timer`, respawn at a safe location (top-center platform, or highest empty platform)
+4. Spawned player gets `Invincible` marker with 2.0s `Timer` (longer than enemy invincibility)
+5. Visual indicator: blinking during invincibility
+
+When a player dies with zero lives remaining: that player is permanently dead. In 2P mode, the other player continues. Game over when all players are dead.
 
 ---
 
 ## 3. Entity Rendering (Primitive Shapes Only)
 
-All entities built from Bevy `Mesh2d` + `MeshMaterial2d` with `ColorMaterial`. Each entity is a parent with child shape entities.
+All entities built from Bevy `Mesh2d` + `MeshMaterial2d<ColorMaterial>`. Each entity is a parent with child shape entities using relative `Transform` offsets.
 
 ### 3.1 Player / Enemy Rider
 
-Built from ~6-8 primitive shapes:
+Built from ~6-8 primitive shapes as children of a root entity:
 
 ```
-    [diamond]         ← lance tip (rotated square)
+    [diamond]         <- lance tip (rotated square, small)
    /
-  [circle]            ← head
-  [rectangle]         ← body/torso
-  [trapezoid/rect]    ← bird body (wider rectangle below torso)
+  [circle]            <- head
+  [rectangle]         <- body/torso
+  [trapezoid/rect]    <- bird body (wider rectangle below torso)
  / \
-[ellipse] [ellipse]   ← wings (animated rotation for flapping)
+[ellipse] [ellipse]   <- wings (animated rotation for flapping)
   | |
- [rect][rect]         ← legs/feet
+ [rect][rect]         <- legs/feet (animated when grounded)
 ```
 
 - **Body**: Rectangle (torso) + larger rectangle (bird body)
 - **Head**: Circle on top of torso
-- **Lance**: Thin rotated rectangle extending from the head in the facing direction
-- **Wings**: Two ellipses parented to the bird body, animated via rotation to simulate flapping
-- **Legs**: Two small rectangles below bird body, animated to walk when grounded
+- **Lance**: Thin rotated rectangle extending from the head in the facing direction. Tip uses HDR emissive color for bloom glow.
+- **Wings**: Two ellipses parented to the bird body, animated via `Transform` rotation
+- **Legs**: Two small rectangles below bird body, animated to alternate when grounded and walking
 
-**Facing direction**: All child shapes mirror horizontally when direction changes. Lance points in movement direction.
+**Facing direction**: Flip all child `Transform` X-offsets and rotations when `FacingDirection` changes. Lance points in movement direction.
 
-**Color scheme**: Player 1 = warm yellow/gold. Player 2 = cyan/teal. Enemies use their tier color for body, with consistent grey for rider parts.
+**Color scheme**: Player 1 = warm yellow/gold. Player 2 = cyan/teal. Enemies use their tier color for bird body, with consistent grey for rider parts.
 
 ### 3.2 Wing Flap Animation
 
-Each flap press triggers a wing animation cycle:
-1. Wings rotate from 0 degrees (horizontal/resting) to -60 degrees (downstroke) over ~0.08s
-2. Wings rotate from -60 degrees back to +20 degrees (upstroke) over ~0.15s
-3. Wings settle back to 0 degrees over ~0.1s
+Each flap press triggers a wing animation cycle driven by a `FlapAnimation` component containing a `Timer` and current phase:
 
-Use a `FlapAnimationTimer` component to drive this. Interpolate rotation with easing (ease-out for downstroke snap, ease-in for recovery).
+1. **Downstroke**: Wings rotate from 0 deg to -60 deg over ~0.08s (ease-out for snappy feel)
+2. **Upstroke**: Wings rotate from -60 deg to +20 deg over ~0.15s (ease-in)
+3. **Settle**: Wings return to 0 deg over ~0.1s (linear)
 
-When not flapping (falling), wings rest at a slight upward angle (+15 degrees) to suggest gliding.
+Interpolate rotation using `Timer::fraction()` with easing curves. When not flapping (falling), wings rest at a slight upward angle (+15 deg) to suggest gliding.
 
 ### 3.3 Platforms
 
@@ -222,28 +250,28 @@ Rectangles with subtle border effect (slightly smaller inner rectangle in a ligh
 
 ### 3.4 Lava
 
-Multiple overlapping sine-wave shapes (using Bevy mesh generation):
+Three layers of overlapping animated shapes:
 - Back layer: dark red, slow sine wave
-- Mid layer: orange, medium sine wave offset
-- Front layer: bright yellow/white, fast small sine wave
+- Mid layer: orange, medium sine wave, phase-offset
+- Front layer: bright yellow/white (HDR emissive), fast small sine wave
 
-Generate these as custom meshes each frame or use a few stacked rectangles with vertex displacement. For simplicity: use 20-30 thin vertical rectangles per layer whose heights oscillate with sine functions at different frequencies and phases.
+**Implementation**: Use 20-30 thin vertical rectangles per layer. Each rectangle's Y-scale oscillates via `Transform` driven by `sin(x_position * frequency + time * speed)`. No custom mesh generation needed — standard rectangle `Mesh2d` with `Transform` scale changes.
 
 ### 3.5 Eggs
 
-Small oval/ellipse shape. Pulses (scale oscillation) as hatch timer progresses. Color shifts from white toward the enemy tier color.
+Small ellipse shape. Scale pulses using `sin(timer.fraction() * PI * pulse_count)` — faster pulsing as hatch approaches. Color lerps from white toward the enemy tier color based on `timer.fraction()`.
 
 ### 3.6 Pterodactyl
 
-Larger angular shape:
+Larger angular shape (~3x rider size):
 - Body: elongated diamond/hexagon
 - Wings: two large triangles, animated with slow flapping
 - Head: small triangle at front with a circle "eye"
-- Distinguished by size (~3x a rider) and distinct dark color with bright outline
+- Distinguished by size and HDR emissive outline color for bloom glow
 
 ### 3.7 Lava Hand
 
-Built from overlapping circles and rectangles to form a blocky claw shape. Rises from lava surface. Uses lava color palette (orange/red).
+Built from overlapping circles and rectangles forming a blocky claw. Rises from lava surface. Uses lava color palette (orange/red). HDR emissive fingertips.
 
 ---
 
@@ -251,90 +279,146 @@ Built from overlapping circles and rectangles to form a blocky claw shape. Rises
 
 ### 4.1 Bloom / Glow
 
-Enable Bevy's `Bloom` post-processing on the camera. Assign emissive materials (HDR colors with values > 1.0) to:
-- Lance tips (bright glow matching rider color)
-- Lava surface (orange/yellow glow)
-- Death explosions
-- Egg hatch moments
-- Score text
+Enable Bevy's `Bloom` post-processing on the camera. Camera setup:
 
-This creates a neon-arcade aesthetic from pure shapes. Key tuning: `BloomSettings { intensity, low_frequency_boost, threshold }`. Start with low intensity (~0.3) to avoid washing out.
+```rust
+commands.spawn((
+    Camera2d,
+    Camera {
+        clear_color: ClearColorConfig::Custom(Color::srgb(0.04, 0.04, 0.07)),
+        ..default()
+    },
+    Tonemapping::TonyMcMapface,
+    Bloom {
+        intensity: 0.3,
+        ..Bloom::OLD_SCHOOL  // 1990s arcade glow aesthetic
+    },
+    DebandDither::Enabled,
+));
+```
+
+Import: `use bevy::{core_pipeline::tonemapping::{DebandDither, Tonemapping}, post_process::bloom::Bloom};`
+
+HDR emissive colors use values > 1.0 on `ColorMaterial::color` directly (e.g., `Color::srgb(5.0, 1.0, 0.2)`). `ColorMaterial` has no separate emissive field — the bloom post-process extracts bright regions from any color above the threshold.
+
+**Bloom targets** (entities with HDR colors):
+- Lance tips (bright glow matching rider color)
+- Lava front layer (orange/yellow glow)
+- Death particle bursts
+- Egg at near-hatch
+- Pterodactyl outline
 
 ### 4.2 Particle Effects
 
-Implement a lightweight custom particle system (no external crate). Each particle is a small shape entity with velocity, lifetime, and color fade.
+Lightweight custom particle system. Each particle is a single `Mesh2d` entity with:
+- `Particle` component: `velocity: Vec2`, `lifetime: Timer`
+- `MeshMaterial2d<ColorMaterial>` with alpha faded based on `lifetime.fraction_remaining()`
 
-| Event | Particle Type |
-|---|---|
-| Flap | 3-5 small circles downward from wings, fade to transparent |
-| Kill | 15-20 shapes burst outward from death point, enemy color |
-| Egg collect | 8-10 shapes spiral upward, gold |
-| Egg hatch | Ring of expanding shapes |
-| Lava bubble | Occasional circles rising from lava surface and popping |
-| Landing dust | 2-4 small shapes at feet on platform landing |
-| Joust bounce | Sparks (bright small shapes) at collision point |
+A single `update_particles` system ticks all particle timers, applies velocity, fades alpha, and despawns when `lifetime` finishes. Particles are spawned in response to gameplay events (see section 10.2).
 
-**Implementation**: A `Particle` component with `velocity`, `lifetime`, `max_lifetime`. A single system ticks all particles, applies velocity, fades alpha based on remaining lifetime, despawns at zero. Spawn particles via events.
+| Event | Particle Count | Behavior |
+|---|---|---|
+| Flap | 3-5 | Small circles downward from wings, fade quickly |
+| Kill | 15-20 | Burst outward from death point, enemy color, HDR |
+| Egg collect | 8-10 | Spiral upward, gold |
+| Egg hatch | 10-12 | Ring of expanding shapes |
+| Lava bubble | 1-2 | Occasional circles rising from lava surface |
+| Landing dust | 2-4 | Small shapes at feet on platform landing |
+| Joust bounce | 6-8 | Bright sparks at collision point, HDR |
 
-**Performance concern**: Cap total particles at ~200. Use a ring buffer or despawn oldest when limit is hit. Each particle is a single `Mesh2d` entity — at 200 this is fine for Bevy.
+**Performance**: Cap total particle entities at ~200. Query `With<Particle>` count before spawning; if at cap, skip ambient particles (lava bubbles, landing dust) but still spawn gameplay-critical ones (kill burst). Each particle is a single entity — at 200 this is trivial for Bevy.
 
 ### 4.3 Screen Shake
 
 On high-impact events (kills, lava death, pterodactyl appearance):
-- Apply small random offset to camera transform for ~0.2s
-- Decay offset exponentially
-- Store shake state in a resource, not per-entity
+- Store `ScreenShake` resource: `intensity: f32`, `decay_timer: Timer`
+- Each frame: apply random offset to camera `Transform` scaled by `intensity * decay_timer.fraction_remaining()`
+- Exponential decay via the timer's fraction
 
 ### 4.4 Trail Effects
 
 Moving entities leave a brief trail:
-- Spawn small fading shapes at entity's previous position every N frames
-- 3-5 trail segments per entity, each fading and shrinking
-- Use entity color at reduced alpha
-
-Keep this subtle — 3 trail shapes per entity max, or it clutters the screen.
+- A `TrailTimer` component (repeating `Timer`, ~0.05s) on each rider entity
+- When timer fires: spawn a small shape at entity's current position with a `TrailFade` component containing a 0.15s `Timer`
+- `TrailFade` system: shrink scale and reduce alpha based on `timer.fraction()`, despawn when finished
+- Max 3 trail shapes per entity to avoid clutter
 
 ### 4.5 Flash on Hit
 
-When a joust bounce occurs (equal height), both entities flash white for 2 frames. Set material color to white, then restore. Use a `FlashTimer` component.
+When a joust bounce occurs (equal height), both entities get a `FlashTimer` component (0.1s `Timer`). While active, override all child material colors to white. On timer finish, restore original colors and remove the component.
 
 ### 4.6 Wave Announcement
 
-Large text "WAVE X" with scale animation (start large, settle to normal, then fade out). Use Bevy UI text with transform animation. Emissive color for bloom glow on the text.
+Large "WAVE X" text as a world-space `Text2d` entity (not UI node) at center screen, Z-layer 10. Animation driven by a `Timer`:
+- 0.0-0.3s: scale from 2.0 to 1.0 (ease-out)
+- 0.3-1.5s: hold at scale 1.0
+- 1.5-2.0s: fade alpha to 0, then despawn
+
+Use HDR text color for bloom glow on the announcement.
 
 ### 4.7 Background
 
-Dark background (near-black, #0A0A12) with:
-- Subtle grid of very dim dots or lines (parallax optional, but not needed for single-screen)
-- Occasional "star" twinkle (small shape that briefly increases alpha)
-- Keeps the focus on the bright gameplay elements with bloom
+Dark background (clear color ~#0A0A12) with:
+- Subtle grid of very dim dots (static entities, Z=0, low alpha)
+- Occasional "star" twinkle: a few entities with a repeating `Timer` that briefly increases alpha
+- Keeps focus on the bright gameplay elements with bloom
 
 ---
 
 ## 5. State Machine
 
 ```
-StartScreen → Playing → GameOver
-                ↑          |
-                └──────────┘
-             (restart)
+AppState:
+  StartScreen -> Playing -> GameOver -> StartScreen
 
-Playing sub-states:
-  WaveIntro → WaveActive → WaveClear → (next wave or GameOver)
+PlayState (SubState of AppState::Playing):
+  WaveIntro -> WaveActive -> WaveClear -> WaveIntro (next wave)
+                                      \-> triggers GameOver (if no lives)
 ```
 
-**States**:
+### 5.1 State Definitions
+
+```rust
+#[derive(States, Clone, PartialEq, Eq, Hash, Debug, Default)]
+enum AppState {
+    #[default]
+    StartScreen,
+    Playing,
+    GameOver,
+}
+
+#[derive(SubStates, Clone, PartialEq, Eq, Hash, Debug, Default)]
+#[source(AppState = AppState::Playing)]
+enum PlayState {
+    #[default]
+    WaveIntro,
+    WaveActive,
+    WaveClear,
+}
+```
+
+Register: `app.init_state::<AppState>().add_sub_state::<PlayState>();`
+
+### 5.2 State Behavior
 
 | State | What Happens |
 |---|---|
-| `StartScreen` | Title text, "Press SPACE to start", "Press 2 for 2-player". High score display. |
-| `Playing` | Active gameplay. Sub-states handle wave transitions. |
-| `WaveIntro` | Brief pause, "WAVE X" announcement, enemies spawn. |
-| `WaveActive` | Normal gameplay until all enemies and eggs are cleared. |
-| `WaveClear` | Brief celebration pause, bonus tally. |
-| `GameOver` | "GAME OVER" text, final score, "Press SPACE to restart". |
+| `StartScreen` | Title, "Press SPACE to start", "Press 2 for 2-player". High score display. Background demo AI. |
+| `Playing` | Active gameplay. `PlayState` sub-state drives wave flow. |
+| `WaveIntro` | 2s pause, "WAVE X" announcement, enemies spawn. Transition to `WaveActive`. |
+| `WaveActive` | Normal gameplay. Transition to `WaveClear` when wave clear condition met. |
+| `WaveClear` | 2s celebration pause, bonus tally. Transition to next `WaveIntro` or `GameOver`. |
+| `GameOver` | "GAME OVER" overlay on frozen arena, final score, "Press SPACE to restart". |
 
-Use Bevy `States` with `SubStates` for the wave sub-states. `StateScoped` entities for cleanup.
+### 5.3 Entity Cleanup
+
+Use `DespawnOnExit(state)` component (Bevy 0.18's state-scoped entity system) on all entities tied to a state:
+- Gameplay entities (riders, enemies, eggs, particles, platforms): `DespawnOnExit(AppState::Playing)`
+- Wave announcement text: `DespawnOnExit(PlayState::WaveIntro)`
+- Start screen UI: `DespawnOnExit(AppState::StartScreen)`
+- Game over overlay: `DespawnOnExit(AppState::GameOver)`
+
+This eliminates manual cleanup systems. Only use `OnExit` schedules for resetting resources, not despawning entities.
 
 ---
 
@@ -348,11 +432,11 @@ Use Bevy `States` with `SubStates` for the wave sub-states. `StateScoped` entiti
 | Move Right | D / Right Arrow | L |
 | Flap | W / Up Arrow / Space | I |
 
-**Concern**: Space is used for both flap (P1) and start game. Disambiguate by state: Space = start on `StartScreen`, Space = flap on `Playing`.
+**Concern**: Space is used for both flap (P1) and start game. Disambiguate by state: Space starts on `StartScreen`, flaps on `Playing`. Gate input systems with `run_if(in_state(...))`.
 
 ### 6.2 Input Buffering
 
-Flap inputs should feel responsive. If a flap is pressed within 2 frames of landing on a platform, treat it as an immediate take-off flap. This prevents the "I pressed flap but nothing happened" frustration.
+Flap inputs should feel responsive. Store the last flap press time in a `FlapBuffer` component with a short `Timer` (0.08s). If the entity lands on a platform while the buffer timer hasn't finished, immediately trigger a take-off flap. This prevents the "I pressed flap but nothing happened" frustration.
 
 ### 6.3 Gamepad Support (Optional/Future)
 
@@ -372,13 +456,15 @@ Not in initial scope. Note: Bevy's gamepad API would map well (left stick = move
 | Survive survival wave | 1500 |
 | Extra life | Every 10,000 points |
 
-**High score**: Persist to a local file (`assets/highscore.dat` or similar). Load on startup, save on game over if beaten.
+Cap lives at `MAX_LIVES` (5) to prevent trivialization at high scores.
+
+**High score persistence**: Save to a file outside `assets/` (which is for read-only game assets). Use a platform-appropriate path — e.g., `dirs::data_local_dir()` via the `dirs` crate, or a simple `highscore.dat` in the working directory as a fallback. Store as a single `u32`. Load on startup, save on game over if beaten.
 
 ---
 
 ## 8. Audio
 
-**No audio in initial implementation.** The spec is visual-first. Audio can be layered in later (flap sound, collision sound, death sound, wave music). Placeholder hooks: emit events (`FlapEvent`, `KillEvent`, etc.) that an audio system can subscribe to.
+**No audio in initial implementation.** The spec is visual-first. Audio can be layered in later. The event system (section 10.2) already emits all gameplay events an audio system would subscribe to — no additional hooks needed.
 
 ---
 
@@ -387,26 +473,27 @@ Not in initial scope. Note: Bevy's gamepad API would map well (left stick = move
 ### 9.1 HUD (During Play)
 
 ```
-┌─────────────────────────────────────────────┐
-│ P1: 12500    WAVE 3    LIVES: ♦♦♦    P2: 0  │
-│                                              │
-│              [game arena]                    │
-│                                              │
-└─────────────────────────────────────────────┘
++-------------------------------------------------+
+| P1: 12500    WAVE 3    LIVES: *** |   P2: 8300  |
+|                                                  |
+|              [game arena]                        |
+|                                                  |
++-------------------------------------------------+
 ```
 
-- Top bar: score(s), wave number, lives (shown as small rider shape icons)
-- Bottom: lava
-- Use Bevy UI nodes for HUD, absolutely positioned at top
+- Top bar: Bevy UI `Node` with `FlexDirection::Row`, `JustifyContent::SpaceBetween`
+- Score text: update via `Changed<Score>` query filter (only re-render when score changes)
+- Lives: shown as small diamond shapes (rider silhouette icons)
+- Use `DespawnOnExit(AppState::Playing)` on the HUD root node
 
 ### 9.2 Start Screen
 
 ```
-         ╔═══════════════╗
-         ║    J O U S T  ║
-         ╚═══════════════╝
+         +==================+
+         |    J O U S T     |
+         +==================+
 
-      [animated riders jousting]
+      [animated demo riders jousting]
 
         Press SPACE to Start
         Press 2 for 2 Players
@@ -414,11 +501,11 @@ Not in initial scope. Note: Bevy's gamepad API would map well (left stick = move
          High Score: 25000
 ```
 
-Animated demo of two AI riders jousting in the background.
+Background: two AI-controlled riders jousting on the actual game arena. Systems run in `StartScreen` state with AI-only input. Gives a preview of gameplay.
 
 ### 9.3 Game Over Screen
 
-Overlay on top of frozen gameplay:
+Semi-transparent overlay on top of frozen gameplay:
 ```
          GAME OVER
 
@@ -428,45 +515,87 @@ Overlay on top of frozen gameplay:
       Press SPACE to Restart
 ```
 
+Freeze: stop running `PhysicsSet` and `CombatSet` systems in `GameOver` state (they already gate on `Playing`). Overlay is a UI node with a dark semi-transparent background.
+
 ---
 
 ## 10. Architecture (Module Layout)
 
 ```
 src/
-  main.rs          — App setup, plugin registration, state init
-  constants.rs     — All tunable values
-  components.rs    — ECS components (Velocity, Rider, Enemy, Egg, etc.)
-  resources.rs     — GameState (scores, lives, wave), ParticlePool
-  states.rs        — AppState + PlayState enums
-  physics.rs       — Gravity, flap, drag, platform collision, screen wrap
-  player.rs        — Player input handling, spawn/despawn
-  enemy.rs         — Enemy AI, spawn logic, tier definitions
-  combat.rs        — Joust collision detection, height comparison, kill/bounce
-  egg.rs           — Egg lifecycle, hatch timer, collection
-  hazards.rs       — Lava rendering, lava hand behavior
-  pterodactyl.rs   — Pterodactyl spawn, behavior, tiny hitbox
-  rendering.rs     — Entity shape builders (build_rider_shape, build_egg_shape, etc.)
-  particles.rs     — Particle spawning, lifecycle, pool management
-  effects.rs       — Screen shake, flash, trails, bloom setup
-  waves.rs         — Wave definitions, progression, spawn scheduling
-  ui.rs            — HUD, start screen, game over screen, wave announcements
-  score.rs         — Score tracking, high score persistence
+  main.rs        -- App setup, plugin registration, state init, system set ordering
+  constants.rs   -- All tunable values
+  components.rs  -- ECS components (Velocity, Rider, Enemy, Egg, FacingDirection, etc.)
+  resources.rs   -- GameState (scores, lives, wave), ScreenShake, WaveDefs
+  states.rs      -- AppState, PlayState enums
+  physics.rs     -- Gravity, flap, drag, platform collision, screen wrap
+  player.rs      -- Player input, spawn/despawn, respawn
+  enemy.rs       -- Enemy AI, spawn logic, tier definitions, pterodactyl
+  combat.rs      -- Joust collision detection, height comparison, kill/bounce, egg lifecycle
+  rendering.rs   -- Shape builders (build_rider, build_egg, etc.), wrap ghost management
+  effects.rs     -- Particles, screen shake, flash, trails, bloom setup, lava animation
+  waves.rs       -- Wave definitions, progression, spawn scheduling
+  ui.rs          -- HUD, start screen, game over, wave announcements
 ```
 
-### 10.1 System Ordering
+13 modules. Each domain module (player, enemy, combat, waves, effects, rendering, ui) exposes a `Plugin` registered in `main.rs`. Shared types live in `components.rs`, `resources.rs`, `states.rs`, `constants.rs`.
 
+**Why not more modules**: Separating `egg.rs` from `combat.rs`, or `particles.rs` from `effects.rs`, or `pterodactyl.rs` from `enemy.rs` would create modules with only 1-2 systems each. Keep related systems together until a module exceeds ~300 lines, then split.
+
+### 10.1 System Sets and Ordering
+
+```rust
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+enum GameSet {
+    Input,
+    Physics,
+    Combat,
+    Effects,
+    Render,
+}
 ```
-InputSet → PhysicsSet → CombatSet → EffectsSet → RenderSet
 
-InputSet:   player_input, ai_decision
-PhysicsSet: apply_gravity, apply_flap, apply_movement, platform_collision, screen_wrap
-CombatSet:  detect_collisions, resolve_jousts, spawn_eggs, collect_eggs, hatch_eggs
-EffectsSet: spawn_particles, update_particles, screen_shake, flash_update, trail_update
-RenderSet:  update_facing, animate_wings, animate_walk, update_lava
+Configure in `main.rs`:
+```
+Input -> Physics -> Combat -> ApplyDeferred -> Effects -> Render
 ```
 
-`ApplyDeferred` between `CombatSet` and `EffectsSet` to ensure despawns are flushed before effects reference entities.
+`ApplyDeferred` between `Combat` and `Effects` ensures entity despawns from kills are flushed before particle systems try to read dead entities.
+
+**Set contents**:
+
+| Set | Systems |
+|---|---|
+| `Input` | `player_input`, `ai_decision` |
+| `Physics` | `apply_gravity`, `apply_flap`, `apply_movement`, `platform_collision`, `screen_wrap` |
+| `Combat` | `detect_jousts`, `resolve_jousts`, `collect_eggs`, `hatch_eggs`, `lava_kill`, `hand_behavior` |
+| `Effects` | `update_particles`, `screen_shake`, `flash_update`, `trail_spawn`, `trail_fade`, `lava_animate` |
+| `Render` | `update_facing`, `animate_wings`, `animate_walk`, `manage_wrap_ghosts` |
+
+All sets gated with `.run_if(in_state(AppState::Playing))` except `Render` (which also runs in `StartScreen` for the demo).
+
+### 10.2 Events and Observers
+
+**Events** (emitted by gameplay systems, consumed by effects/UI/scoring):
+
+| Event | Payload | Emitted By | Consumed By |
+|---|---|---|---|
+| `FlapEvent` | `entity, position` | `player_input`, `ai_decision` | `effects` (particles) |
+| `JoustKillEvent` | `winner, loser, position, enemy_tier` | `combat` | `effects` (particles, shake), `waves` (count), `ui` (score) |
+| `JoustBounceEvent` | `entity_a, entity_b, position` | `combat` | `effects` (sparks, flash) |
+| `EggCollectEvent` | `position, tier` | `combat` | `effects` (particles), `ui` (score) |
+| `EggHatchEvent` | `position, new_tier` | `combat` | `effects` (particles), `enemy` (spawn) |
+| `PlayerDeathEvent` | `player_id, position, lives_remaining` | `combat` | `effects` (particles, shake), `player` (respawn), `ui` (lives) |
+| `LavaDeathEvent` | `entity, position` | `combat` | `effects` (particles, shake) |
+| `LandingEvent` | `entity, position` | `physics` | `effects` (dust particles) |
+| `ScoreEvent` | `player_id, points` | `combat` | `ui` (score update, extra life check) |
+
+**Observers**: Use `Observer` + `Trigger` for one-shot entity lifecycle reactions:
+- When an enemy entity is despawned: clean up any references (AI target tracking)
+- When a `Grounded` component is added: trigger landing effects
+- When a `Grounded` component is removed: reset walk animation
+
+This follows CLAUDE.md guidance to prefer observers over `Added<T>`/`RemovedComponents<T>` query patterns.
 
 ---
 
@@ -476,104 +605,106 @@ RenderSet:  update_facing, animate_wings, animate_walk, update_lava
 
 Three entities collide simultaneously. Entity A beats B (higher), B beats C, but C beats A.
 
-**Resolution**: Process all pairs. If an entity is killed in any pair, it's dead — don't process its "wins." First pass: collect all collision pairs and outcomes. Second pass: mark deaths (an entity dies if it loses ANY joust). Third pass: apply deaths and spawn eggs. This means a dead entity can't also score a kill in the same frame.
+**Resolution**: Two-pass approach. First pass: collect all collision pairs and determine winner/loser for each pair independently. Second pass: any entity that is a loser in ANY pair is marked dead — regardless of whether it also won a different pair. Dead entities still award kills to their victors. Third pass: despawn dead entities, spawn eggs, emit events.
+
+This means mutual kills are possible: if A kills B and B kills C in the same frame, both B and C die. A only dies if it also lost a separate joust.
 
 ### 11.2 Platform Edge Precision
 
 An entity standing on a platform walks to the edge. At what point do they fall off?
 
-**Rule**: The entity's center (X position) must be within the platform's X range. Once center passes the edge, they fall. No partial-on-platform state.
+**Rule**: The entity's center X must be within the platform's `[left, right]` range. Once center passes the edge, remove `Grounded` and let them fall. No partial-on-platform state.
 
 ### 11.3 Flap While Rising
 
-Player flaps again while still rising from a previous flap. Each flap adds impulse but is clamped by `max_rise_speed`. Rapid flapping feels additive up to the cap, then does nothing until velocity drops. This is correct — don't gate flapping on "is falling."
+Player flaps again while still rising from a previous flap. Each flap adds `FLAP_IMPULSE` but velocity is clamped by `MAX_RISE_SPEED`. Rapid flapping feels additive up to the cap, then has no additional effect until velocity drops. This is correct — do NOT gate flapping on "is falling."
 
 ### 11.4 Enemy Stuck on Platform
 
-AI enemy lands on a platform and never takes off. Add a max ground time timer per enemy (e.g., 2-4s). After timer, force a flap. Shorter timer for higher tiers.
+AI enemy lands on a platform and never takes off. Each enemy has a `GroundTimer` component (per-tier duration: Bounder 4s, Hunter 2s, Shadow Lord 1s). When timer finishes, force a flap.
 
 ### 11.5 Entity Spawn Overlap
 
 New wave enemies spawn at top of screen. If a player is near the top, they could immediately collide.
 
-**Solution**: Spawning enemies have 0.5s invincibility (and visual indicator — blinking/pulsing). They phase through other entities during this time.
+**Solution**: Spawning enemies get `Invincible` with 0.5s `Timer`. Collision systems skip entities with `Invincible`. Visual: alpha oscillates to indicate invincibility.
 
 ### 11.6 All Enemies Become Eggs Simultaneously
 
-Player manages to kill all remaining enemies at once. Wave should not clear until all eggs are also collected or hatched-then-killed. Wave clear condition: zero living enemies AND zero eggs.
+Player kills all remaining enemies at once. Wave does NOT clear yet — eggs still exist. Wave clear condition: zero entities with `Enemy` component AND zero entities with `Egg` component.
 
 ### 11.7 Two Players Both Die on Same Frame
 
-Game over only triggers when all players are dead. If both P1 and P2 die simultaneously, it's game over. If one dies and the other has lives, only the dead one respawns.
+Process both deaths. If either player has remaining lives, only that player respawns. If both have zero lives, game over. If both have lives, both respawn.
 
 ### 11.8 Egg on Lava
 
-An egg drops and reaches lava Y. It's destroyed — no hatching. This is a valid strategy: knock enemies off low platforms so their eggs fall into lava.
+An egg reaches `LAVA_Y`. Despawn it — no hatching, no points. This is a valid strategy: knock enemies near lava so their eggs fall in.
 
 ### 11.9 Pterodactyl and Screen Wrap
 
-The pterodactyl is large (~60px wide). Its wrap rendering must handle partial visibility on both edges. Its collision must use modular distance.
+The pterodactyl is large (~60px wide). Its wrap ghost rendering must handle partial visibility on both edges. Its collision uses modular distance like all other entities.
 
-### 11.10 Score Overflow / Extra Lives
+### 11.10 Respawn Safety
 
-At 10,000-point intervals, extra lives are awarded. With high scores, this could give many lives. Cap lives at 5 (or 9) to prevent trivialization.
+Player respawns at "safest" location: scan platforms top-to-bottom, pick the one farthest from any enemy (using modular distance). If all platforms have nearby enemies, use top-center as fallback.
 
 ---
 
 ## 12. Technical Concerns
 
-### 12.1 Custom Mesh Generation for Lava
+### 12.1 Lava Animation Performance
 
-Lava waves require generating a mesh each frame (or using many small rectangles). Regenerating a mesh every frame:
-- Use `Meshes.add()` sparingly — it allocates a new GPU resource each time.
-- **Preferred approach**: Pre-allocate the lava mesh, then update vertex positions each frame via direct mesh mutation. Bevy 0.18 supports `Mesh::attribute_mut()` for this.
-- Fallback: Use 30 thin rectangles per lava layer whose Y-scale oscillates via Transform. Simpler, no custom mesh code, visually convincing enough.
+Lava uses ~60-90 thin rectangle entities (3 layers x 20-30 per layer). Each frame, a system updates their `Transform.scale.y` based on a sine function. This is cheap — just Transform writes, no mesh regeneration, no GPU resource allocation.
 
 ### 12.2 Z-Ordering
 
-2D rendering order matters. Use `Transform.translation.z` to layer:
+2D rendering order via `Transform.translation.z`:
 
 | Z | Layer |
 |---|---|
-| 0 | Background |
-| 1 | Lava back layer |
-| 2 | Platforms |
-| 3 | Eggs |
-| 4 | Lava hand |
-| 5 | Trails, particles (behind entities) |
-| 6 | Enemies |
-| 7 | Players |
-| 8 | Lava front layer (overlaps entities near bottom) |
-| 9 | Particles (front) |
-| 10 | UI |
+| 0.0 | Background (stars, grid) |
+| 1.0 | Lava back layer |
+| 2.0 | Platforms |
+| 3.0 | Eggs |
+| 4.0 | Lava hand |
+| 5.0 | Trails |
+| 6.0 | Enemies |
+| 7.0 | Players |
+| 8.0 | Lava front layer (overlaps entities near bottom for depth) |
+| 9.0 | Particles |
+| 10.0 | Wave announcement text |
+
+UI nodes render in their own pass and don't need Z-ordering against world entities.
 
 ### 12.3 Entity Count Budget
 
-Estimate max entities:
-- 2 players x ~8 shapes = 16
-- 8 enemies x ~8 shapes = 64
-- 8 eggs x 1 shape = 8
-- 1 pterodactyl x ~6 shapes = 6
-- ~10 platform shapes = 10
-- ~60 lava shapes (3 layers x 20) = 60
-- ~200 particles = 200
-- ~20 trails = 20
-- UI entities ~20 = 20
-- **Total: ~424 entities**
+| Category | Count |
+|---|---|
+| Players (2 x ~8 shapes) | 16 |
+| Enemies (8 x ~8 shapes) | 64 |
+| Eggs (8 x 1 shape) | 8 |
+| Pterodactyl (~6 shapes) | 6 |
+| Platforms (~10 shapes) | 10 |
+| Lava (3 layers x 25) | 75 |
+| Particles (cap) | 200 |
+| Trails (~30) | 30 |
+| Wrap ghosts (~10) | 10 |
+| Background (~20) | 20 |
+| UI (~20) | 20 |
+| **Total** | **~459** |
 
-This is well within Bevy's comfort zone. No optimization needed.
+Well within Bevy's comfort zone. No optimization needed.
 
-### 12.4 Bloom Configuration
+### 12.4 Mesh and Material Reuse
 
-Bloom affects all entities. To control what glows, use HDR colors:
-- Entities that should glow: color values > 1.0 (e.g., `Color::linear_rgb(2.0, 0.5, 0.0)`)
-- Entities that shouldn't glow: standard 0.0-1.0 range
+Pre-create shared `Handle<Mesh>` and `Handle<ColorMaterial>` in a startup system, store them in a `GameAssets` resource. Reuse for all entities of the same type. Avoids redundant `meshes.add()` / `materials.add()` calls per spawn.
 
-Need `Camera2d` with `Camera { hdr: true, .. }` and `Bloom` component. Background must be dark or bloom washes out.
+Example: one `circle_mesh` handle reused for all rider heads, all particles, all egg shapes. One `rect_mesh` for all body parts, platforms, lava strips. Create per-color materials for each entity tier.
 
 ### 12.5 Determinism
 
-Not aiming for deterministic simulation. AI randomness and float physics mean replays won't match. This is acceptable for an arcade game. If replays were needed, would need fixed-point math and seeded RNG.
+Not aiming for deterministic simulation. AI randomness and float physics mean replays won't match. Acceptable for an arcade game.
 
 ---
 
@@ -583,87 +714,148 @@ Not aiming for deterministic simulation. AI randomness and float physics mean re
 
 **Decision: Custom physics.**
 
-Joust's physics are simple (gravity, impulse, drag, AABB/circle collisions) but quirky (one-way platforms, height-based combat, screen wrap). A physics engine would fight us on one-way platforms, the wrap-around, and the height-comparison combat. Custom physics code is <300 lines and gives full control over the "feel."
+Joust's physics are simple (gravity, impulse, drag, circle collisions) but quirky (one-way platforms, height-based combat, screen wrap modular distance). A physics engine would fight us on all three. Custom code is <300 lines and gives full control over the "feel."
 
 ### 13.2 Faithful vs Modernized
 
 **Decision: Modernized aesthetic, faithful mechanics.**
 
-Gameplay rules match the original closely (flapping, height combat, eggs, waves, pterodactyl). Visuals are modernized (bloom, particles, smooth animation). No gameplay changes that would alter the fundamental Joust feel (no dashing, no power-ups, no new enemy types).
+Gameplay rules match the original closely (flapping, height combat, eggs, waves, pterodactyl). Visuals are modernized (bloom, particles, smooth animation). No gameplay changes that would alter the fundamental Joust feel.
 
 ### 13.3 Shape Complexity vs Readability
 
 **Decision: 6-8 shapes per entity, distinct silhouettes.**
 
-More shapes = better looking but harder to distinguish at speed. Fewer shapes = clear but ugly. 6-8 is the sweet spot where entities read as "rider on bird" without becoming visual noise. Color does most of the identification work.
+More shapes = better looking but harder to distinguish at speed. Fewer = clear but ugly. 6-8 is the sweet spot where entities read as "rider on bird" without becoming visual noise. Color does most of the identification work.
 
-### 13.4 Particle Count vs Performance vs Visual Impact
+### 13.4 Particle Count vs Visual Impact
 
 **Decision: Cap at 200, bias toward fewer-but-brighter particles.**
 
-More particles look better in screenshots but muddy gameplay. Use emissive/bloom particles (fewer needed since each is more visible). Heavy effects (death bursts) use 15-20 particles; ambient effects (lava bubbles) use 1-2.
+Fewer HDR/bloom particles are individually more visible than many dim ones. Kill bursts (15-20) are the heaviest single event. Ambient effects (lava, dust) are optional and shed first at cap.
 
 ### 13.5 2-Player on Same Keyboard
 
 **Decision: Support it, WASD + IJK split.**
 
-Same-keyboard 2P is authentic to the arcade original (which had two sets of controls on one cabinet). The WASD/IJK split keeps hands separate. Gamepad support is out of scope for v1.
+Same-keyboard 2P is authentic to the arcade original. The WASD/IJK split keeps hands separate. Gamepad support is out of scope for v1.
 
-### 13.6 High Score Persistence
+### 13.6 `rand` Dependency
 
-**Decision: Simple file I/O, not a database.**
+**Decision: Add `rand` crate.**
 
-Write a single `u32` to a file. Read on startup, write on game over if beaten. No leaderboard, no name entry (those can be v2).
+Needed for AI jitter, wander direction, spawn position variation, particle spread. Bevy does not bundle an RNG. Use `rand::thread_rng()` — no need for deterministic seeded RNG since we don't need replay.
+
+### 13.7 High Score Persistence
+
+**Decision: Simple file I/O in working directory.**
+
+Write a single `u32` to `highscore.dat` in the current working directory. No external crate needed for the fallback approach. Optional: use `dirs` crate for a proper platform path.
 
 ---
 
 ## 14. Implementation Order
 
-Recommended build sequence, each step producing a testable artifact:
+Recommended build sequence. Each step produces a testable artifact.
 
-1. **Window + camera + bloom** — dark window with bloom enabled, lava rendering at bottom
-2. **Platforms** — static rectangles, verify visual layout
-3. **Player shape + flight physics** — flap, gravity, drag. Tune until it feels right. This is the longest step.
-4. **Platform collision** — one-way landing, ground state, walking
-5. **Screen wrap** — horizontal wrap with split rendering
-6. **Enemy shapes + AI** — basic wander AI, then pursue
-7. **Combat system** — height comparison, kill, bounce
-8. **Egg system** — spawn, timer, hatch, collect
-9. **Wave system** — wave definitions, progression, spawning
-10. **Particles + effects** — flap dust, death burst, screen shake, trails
-11. **Lava hand** — hazard behavior
-12. **Pterodactyl** — spawn trigger, behavior, tiny hitbox
-13. **UI** — HUD, start screen, game over
-14. **Scoring + lives** — point tracking, extra lives, high score persistence
-15. **2-player support** — second input set, second player entity
-16. **Polish** — animation easing, visual tuning, difficulty balancing
+1. **Module scaffolding + state machine** — Create all source files, `AppState`/`PlayState` enums, plugin stubs, system set ordering in `main.rs`. Verify state transitions with placeholder text.
+2. **Window + camera + bloom** — Dark window with `Bloom` enabled, `Tonemapping`, background stars. Verify HDR colors glow.
+3. **Platforms + lava rendering** — Static platform rectangles, animated lava strips. Verify visual layout.
+4. **Player shape + flight physics** — Flap, gravity, drag, delta-time. Tune until it feels right. **This is the longest step.**
+5. **Platform collision + grounded state** — One-way landing, `Grounded` component, walking.
+6. **Screen wrap** — Modular distance, teleport, wrap ghost rendering.
+7. **Wing/walk animation** — Flap animation cycle, walk leg alternation, facing direction flip.
+8. **Enemy shapes + AI** — Basic wander AI, then pursue. Spawn/despawn.
+9. **Combat system** — Height comparison, kill, bounce, invincibility.
+10. **Egg system** — Spawn on kill, timer, hatch, collect.
+11. **Particles + effects** — Flap dust, death burst, screen shake, trails, flash.
+12. **Wave system** — Wave definitions, progression, spawning, clear condition.
+13. **Lava hand** — Targeting, rise/retract, kill.
+14. **Pterodactyl** — Spawn trigger, sine-wave flight, tiny hitbox.
+15. **UI** — HUD, start screen (with demo), game over overlay.
+16. **Scoring + lives** — Point tracking, extra lives, high score file, respawn.
+17. **2-player support** — Second input set, second player entity, per-player scores/lives.
+18. **Polish** — Animation easing, difficulty balancing, visual tuning, edge case testing.
 
 ---
 
 ## 15. Constants (Initial Values)
 
 ```
-WINDOW_WIDTH:       1200
-WINDOW_HEIGHT:      900
-GRAVITY:            980.0
-FLAP_IMPULSE:       320.0
-MAX_RISE_SPEED:     400.0
-MAX_FALL_SPEED:     600.0
-HORIZONTAL_ACCEL:   800.0
-HORIZONTAL_DRAG:    400.0
-MAX_HORIZONTAL_SPEED: 300.0
-JOUST_THRESHOLD:    8.0
+// Window
+WINDOW_WIDTH:           1200.0
+WINDOW_HEIGHT:          900.0
+
+// Arena (inset from window for HUD)
+ARENA_TOP:              410.0
+ARENA_BOTTOM:           -410.0   // above lava
+ARENA_LEFT:             -600.0
+ARENA_RIGHT:            600.0
+
+// Flight physics
+GRAVITY:                980.0
+FLAP_IMPULSE:           320.0
+MAX_RISE_SPEED:         400.0
+MAX_FALL_SPEED:         600.0
+HORIZONTAL_ACCEL:       800.0
+WALK_ACCEL:             400.0
+HORIZONTAL_DRAG:        400.0
+MAX_HORIZONTAL_SPEED:   300.0
+WALK_MAX_SPEED:         150.0
+
+// Platform
+PLATFORM_SNAP_DISTANCE: 3.0
+PLATFORM_THICKNESS:     12.0
+
+// Combat
+JOUST_THRESHOLD:        8.0
+BOUNCE_HORIZONTAL:      250.0
+BOUNCE_VERTICAL:        150.0
+INVINCIBILITY_TIME:     0.3
+RESPAWN_INVINCIBILITY:  2.0
+
+// Collision radii
 COLLISION_RADIUS_RIDER: 18.0
-EGG_HATCH_TIME_BASE: 15.0
-LAVA_Y:             -410.0
-HAND_DETECT_RANGE:  100.0
-HAND_RISE_SPEED:    200.0
-HAND_COOLDOWN:      5.0
-PARTICLE_CAP:       200
-SPAWN_INVINCIBILITY: 0.5
-MAX_LIVES:          5
-EXTRA_LIFE_INTERVAL: 10000
-PTERODACTYL_WAVE_TIMER: 60.0
+COLLISION_RADIUS_EGG:   10.0
+COLLISION_RADIUS_PTERO: 25.0
+COLLISION_RADIUS_PTERO_HEAD: 8.0
+COLLISION_RADIUS_LANCE: 6.0
+
+// Eggs
+EGG_HATCH_TIME_BASE:    15.0
+
+// Lava
+LAVA_Y:                 -410.0
+HAND_DETECT_RANGE:      100.0
+HAND_DETECT_Y:          -350.0
+HAND_RISE_SPEED:        200.0
+HAND_COOLDOWN:          5.0
+
+// Particles
+PARTICLE_CAP:           200
+
+// Scoring
+MAX_LIVES:              5
+EXTRA_LIFE_INTERVAL:    10000
+
+// Waves
+PTERODACTYL_BASE_TIMER: 90.0
+PTERODACTYL_MIN_TIMER:  60.0
+
+// Screen wrap
+WRAP_MARGIN:            20.0
 ```
 
-All values in `constants.rs`. All tunable. Expect heavy iteration on physics values.
+All values in `constants.rs`. All `f32` except `PARTICLE_CAP` (`usize`), `MAX_LIVES` (`u32`), `EXTRA_LIFE_INTERVAL` (`u32`). Expect heavy iteration on physics values.
+
+---
+
+## 16. Dependencies
+
+```toml
+[dependencies]
+bevy = { version = "0.18.1", features = ["dynamic_linking"] }
+rand = "0.9"
+```
+
+Optional (for proper high score path): `dirs = "6"`.
