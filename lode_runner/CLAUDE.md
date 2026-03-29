@@ -9,10 +9,12 @@ This project lives inside a monorepo. Stay scoped to this directory only — do 
 ## Build & Run Commands
 
 ```bash
-cargo run          # Build and run the game
-cargo build        # Build only
-cargo check        # Fast type-check (use for most code changes)
-cargo clippy       # Lint (use when changing API patterns broadly)
+cargo run              # Build and run the game
+cargo build            # Build only
+cargo check            # Fast type-check (use for most code changes)
+cargo clippy           # Lint (use when changing API patterns broadly)
+cargo test             # Run all tests (grid module has 34 unit tests)
+cargo test bfs         # Run tests matching a name pattern
 ```
 
 Target dir is redirected to `D:/cargo-target-dir` via `.cargo/config.toml`.
@@ -28,50 +30,94 @@ Dependencies compile at `opt-level = 3` while the main crate uses `opt-level = 1
 
 ## Architecture
 
-This is a template for 2D arcade-style Bevy games. When building out from the hello world starter, follow this modular layout:
+Lode Runner clone with grid-based movement, digging, guard AI, and multi-level progression.
 
-- **`main.rs`** — App setup, plugin registration, system scheduling with explicit ordering
-- **`constants.rs`** — All tunable values as named constants (window size, speeds, radii, scoring)
-- **`components.rs`** — Marker components for entity types + data components (Velocity, FacingDirection, etc.)
-- **`resources.rs`** — Shared game state (score, lives, wave progression)
-- **`states.rs`** — `AppState` enum driving a state machine (StartScreen → Playing → GameOver)
-- **Domain modules** — One module per gameplay domain (player, enemy, combat, ui, audio, etc.), each exposing a Plugin
+### Module Layout
 
-### State Machine Pattern
+Each domain module exports `pub` system functions. `main.rs` does all system registration — keeping the full execution order visible in one place.
 
-Systems should be state-aware:
-- Gate gameplay systems with `.run_if(in_state(AppState::Playing))`
-- Use `OnEnter`/`OnExit` for spawn/cleanup symmetry
-- Prefer `DespawnOnExit(AppState::Playing)` on entities that should auto-despawn when leaving a state — this eliminates most manual cleanup systems
-- Use `.after()` chains where frame ordering matters; for 10+ systems, group into `SystemSet`s (e.g., `MovementSet`, `CollisionSet`) and order at the set level
+**Core data modules:**
+- **`constants.rs`** — All tunable values: window size, speeds, durations, colors, scoring
+- **`components.rs`** — ECS marker components (`Player`, `Guard`, `Gold`) and data components (`GridPosition`, `MovementState`, `Hole`, HUD markers)
+- **`resources.rs`** — Shared mutable game state (`GameState` for score/lives/level, `DeathTimer`)
+- **`states.rs`** — `AppState` enum and `PlayState` sub-state
+- **`grid.rs`** — `LevelGrid` tile map, `HoleMap` overlay, movement validation (`can_enter`, `can_move_horizontal`, `is_supported`, `can_dig`), BFS pathfinding, level parsing
 
-### Events and Observers
+**Domain modules (pub system functions, no scheduling):**
+- **`player.rs`** — `player_input` (sets `MovementState::Digging`; hole entity is spawned by `advance_movement` on dig completion)
+- **`guard.rs`** — `guard_ai` (BFS toward player each AI tick)
+- **`movement.rs`** — `advance_movement`, `tick_holes`, `apply_gravity`, `sync_transforms`
+- **`gameplay.rs`** — `collect_gold`, `check_guard_trap`, `check_player_death`, `check_exit`, death/restart
+- **`ui.rs`** — All screens (start, pause, HUD, level complete, game over)
+- **`render.rs`** — `RenderAssets` resource, `setup_render_assets`
+- **`levels.rs`** — Level string data (`LEVELS` array)
 
-- `EventWriter<T>`, `EventReader<T>`, and `App::add_event::<T>()` are **not available**. Use a shared `Resource` with a `Vec` to pass data between systems instead of the event system.
-- Use `Observer` and `Trigger` for one-shot reactions to entity lifecycle or custom game events — these replace boilerplate `Added<T>`/`RemovedComponents<T>` query patterns.
+**Orchestrator:**
+- **`main.rs`** — App setup, camera, `spawn_level`, `cleanup_play_resources`, all `.add_systems()` calls with set/chain/run_if ordering
 
-### Timers
+### State Machine
 
-Use `Timer` with `Res<Time>` for cooldowns, spawn intervals, and delays — do not use frame-counting. Store timers in components (per-entity) or resources (global). Tick them with `timer.tick(time.delta())` each frame.
+```
+StartScreen → Playing → LevelComplete → Playing (next level) → GameOver
+                  ↕           ↑                                     ↑
+             Restarting ───┘ (death w/ lives)          (death w/o lives or all levels done)
+```
+
+`PlayState` is a sub-state of `AppState::Playing` with variants: `Running`, `Paused`, `Dying`.
+
+The `Restarting` state is **transient** — it exists only to trigger `OnExit(Playing)` cleanup then immediately re-enters `Playing` to respawn the level. `OnExit(Playing)` does two things: `DespawnOnExit` removes all play-scoped entities, and `cleanup_play_resources` removes play-time resources (`LevelGrid`, `HoleMap`, `DeathTimer`). Score and lives persist across restarts; gold and exit status reset.
+
+### System Set Pipeline
+
+Gameplay systems run under `PlayState::Running` in four ordered sets:
+
+1. **`GameSet::Input`** — Player keyboard handling, dig initiation
+2. **`GameSet::Simulate`** — `advance_movement` → `tick_holes` → `guard_ai` → `apply_gravity` (chained)
+3. **`GameSet::Resolve`** — `collect_gold` → `check_guard_trap` → `check_player_death` → `check_exit` (chained)
+4. **`GameSet::Presentation`** — `sync_transforms`, `update_hud`
+
+Systems outside the pipeline (pause input, death tick, screen inputs) use `.run_if(in_state(...))` directly.
+
+### Grid-Based Movement
+
+Entities move cell-to-cell via `MovementState`, not continuous physics. `GridPosition` is the authoritative position; `Transform` is derived in `sync_transforms` by lerping between `from`/`to` based on `progress`. Movement states: `Idle`, `Moving`, `Falling`, `Climbing`, `Digging`, `Trapped`.
+
+`LevelGrid` is the base tile map (never mutated after parse, except `reveal_hidden_ladders`). `HoleMap` is a separate overlay that tracks dug holes without modifying the base grid — this keeps level resets trivial.
+
+### Level Format
+
+Levels are inline `&str` constants (28x16 grid). Characters:
+- `.` empty, `#` brick (diggable), `=` concrete (indestructible)
+- `H` ladder, `-` bar (monkey bar), `^` hidden ladder (revealed when all gold collected)
+- `$` gold, `S` gold on ladder, `P` player spawn, `G` guard spawn
+
+Rows are top-to-bottom in the string but bottom-up in grid coordinates (y=0 is the floor). `parse_level` handles the flip. Validation: all rows must be the same width, exactly one `P` is required, and unknown characters panic.
 
 ### Coding Rules
 
 - New tunable values go in `constants.rs`, not inline magic numbers
 - New shared mutable game state goes in `resources.rs`
 - New ECS marker/data types go in `components.rs`
-- Prefer extending an existing domain plugin over registering ad hoc systems in `main.rs`
 - Use marker components for entity classification (e.g., `#[derive(Component)] struct Player;`)
+
+### Events and Observers
+
+- `EventWriter<T>`, `EventReader<T>`, and `App::add_event::<T>()` are **not available**. Use a shared `Resource` with a `Vec` to pass data between systems instead of the event system.
+- Use `Observer` and `Trigger` for one-shot reactions to entity lifecycle or custom game events.
+
+### Timers
+
+Use `Timer` with `Res<Time>` for cooldowns, spawn intervals, and delays — do not use frame-counting. Store timers in components (per-entity) or resources (global). Tick them with `timer.tick(time.delta())` each frame.
 
 ### Query Filters
 
-Use Bevy's query filters for performance and correctness:
 - `With<T>`/`Without<T>` to narrow queries without reading a component's data
 - `Changed<T>` to run logic only when a component is mutated
 - `Added<T>` to detect newly added components
 
 ### Assets
 
-Asset paths are plain relative strings passed to `asset_server.load(...)` — keep them aligned with files under `assets/`. Store `Handle<T>` in a resource when an asset is used repeatedly to avoid redundant loads. 
+Asset paths are plain relative strings passed to `asset_server.load(...)` — keep them aligned with files under `assets/`. Store `Handle<T>` in a resource when an asset is used repeatedly to avoid redundant loads. This project uses a `RenderAssets` resource to pre-create all meshes and materials at startup.
 
 ## Bevy 0.18.1 API Notes
 

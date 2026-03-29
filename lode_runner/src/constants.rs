@@ -35,3 +35,8 @@ pub const COLOR_BACKGROUND: Color = Color::srgb(0.05, 0.05, 0.1);
 pub const STARTING_LIVES: u32 = 5;
 pub const GOLD_SCORE: u32 = 100;
 pub const LEVEL_COMPLETE_SCORE: u32 = 500;
+
+pub const GUARD_AI_INTERVAL: f32 = 0.25;
+pub const DEATH_PAUSE: f32 = 1.0;
+
+pub const HUD_HEIGHT: f32 = 32.0;

@@ -12,17 +12,15 @@ pub struct Gold;
 #[derive(Component, Copy, Clone, Debug)]
 pub struct GridPosition(pub IVec2);
 
-#[derive(Component)]
-pub struct SpawnPoint(pub IVec2);
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum HorizontalDir {
     Left,
     Right,
 }
 
-#[derive(Component, Debug)]
+#[derive(Component, Debug, Default)]
 pub enum MovementState {
+    #[default]
     Idle,
     Moving {
         from: IVec2,
@@ -43,15 +41,11 @@ pub enum MovementState {
         side: HorizontalDir,
         timer: Timer,
     },
+    Trapped {
+        timer: Timer,
+    },
 }
 
-impl Default for MovementState {
-    fn default() -> Self {
-        Self::Idle
-    }
-}
-
-/// Marker for a hole entity that visually represents a dug-out brick.
 #[derive(Component)]
 pub struct Hole {
     pub cell: IVec2,
@@ -65,10 +59,29 @@ pub enum HolePhase {
     Closing,
 }
 
-/// Marker on tile entities that are hidden ladders (invisible until exit unlocked).
 #[derive(Component)]
 pub struct HiddenLadderTile;
 
-/// Marker on tile entities representing the top-row exit zone.
+/// Guard AI recalculation timer.
 #[derive(Component)]
-pub struct ExitZone;
+pub struct AiTimer(pub Timer);
+
+/// HUD marker components.
+#[derive(Component)]
+pub struct HudRoot;
+
+#[derive(Component)]
+pub struct HudScore;
+
+#[derive(Component)]
+pub struct HudLives;
+
+#[derive(Component)]
+pub struct HudLevel;
+
+#[derive(Component)]
+pub struct HudGold;
+
+/// Pause overlay marker.
+#[derive(Component)]
+pub struct PauseOverlay;
