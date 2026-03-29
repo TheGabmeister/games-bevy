@@ -72,17 +72,18 @@ fn spawn_enemies(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    let ground_top_y = -WINDOW_HEIGHT * 0.5 + GROUND_TILE_ROWS as f32 * TILE_SIZE;
+    let bottom_y = -WINDOW_HEIGHT * 0.5;
 
     for spawn in &level_state.enemy_spawns {
         let x = spawn.tile_x as f32 * TILE_SIZE + TILE_SIZE * 0.5;
+        let foot_y = bottom_y + spawn.tile_y as f32 * TILE_SIZE;
         match spawn.kind {
             EnemyKind::Goomba => {
-                let y = ground_top_y + GOOMBA_HEIGHT * 0.5;
+                let y = foot_y + GOOMBA_HEIGHT * 0.5;
                 spawn_goomba(&mut commands, &mut meshes, &mut materials, Vec2::new(x, y));
             }
             EnemyKind::Koopa => {
-                let y = ground_top_y + KOOPA_HEIGHT * 0.5;
+                let y = foot_y + KOOPA_HEIGHT * 0.5;
                 spawn_koopa(&mut commands, &mut meshes, &mut materials, Vec2::new(x, y));
             }
         }

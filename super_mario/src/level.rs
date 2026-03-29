@@ -470,17 +470,18 @@ fn build_world_1_1() -> LevelDefinition {
 
     let player_start = tile_to_world(4, GROUND_TILE_ROWS + 3);
 
+    let g = GROUND_TILE_ROWS;
     let enemy_spawns = vec![
-        EnemySpawnData { tile_x: 10, kind: EnemyKind::Goomba },
-        EnemySpawnData { tile_x: 16, kind: EnemyKind::Goomba },
-        EnemySpawnData { tile_x: 25, kind: EnemyKind::Koopa },
-        EnemySpawnData { tile_x: 31, kind: EnemyKind::Goomba },
-        EnemySpawnData { tile_x: 33, kind: EnemyKind::Goomba },
-        EnemySpawnData { tile_x: 44, kind: EnemyKind::Goomba },
-        EnemySpawnData { tile_x: 46, kind: EnemyKind::Koopa },
-        EnemySpawnData { tile_x: 60, kind: EnemyKind::Goomba },
-        EnemySpawnData { tile_x: 62, kind: EnemyKind::Goomba },
-        EnemySpawnData { tile_x: 70, kind: EnemyKind::Goomba },
+        EnemySpawnData { tile_x: 10, tile_y: g, kind: EnemyKind::Goomba },
+        EnemySpawnData { tile_x: 16, tile_y: g, kind: EnemyKind::Goomba },
+        EnemySpawnData { tile_x: 25, tile_y: g, kind: EnemyKind::Koopa },
+        EnemySpawnData { tile_x: 31, tile_y: g, kind: EnemyKind::Goomba },
+        EnemySpawnData { tile_x: 33, tile_y: g, kind: EnemyKind::Goomba },
+        EnemySpawnData { tile_x: 44, tile_y: g, kind: EnemyKind::Goomba },
+        EnemySpawnData { tile_x: 46, tile_y: g, kind: EnemyKind::Koopa },
+        EnemySpawnData { tile_x: 60, tile_y: g, kind: EnemyKind::Goomba },
+        EnemySpawnData { tile_x: 62, tile_y: g, kind: EnemyKind::Goomba },
+        EnemySpawnData { tile_x: 70, tile_y: g, kind: EnemyKind::Goomba },
     ];
 
     LevelDefinition {

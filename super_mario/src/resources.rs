@@ -12,6 +12,7 @@ pub enum EnemyKind {
 #[derive(Clone)]
 pub struct EnemySpawnData {
     pub tile_x: usize,
+    pub tile_y: usize,
     pub kind: EnemyKind,
 }
 
