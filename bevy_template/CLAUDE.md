@@ -123,3 +123,10 @@ Asset paths are plain relative strings passed to `asset_server.load(...)` — ke
 - Register: `app.init_state::<AppState>().add_sub_state::<PlayState>();`
 - Sub-states only exist when the source state matches; they are removed automatically otherwise.
 - `ComputedStates` also exists for read-only derived states (`app.add_computed_state::<T>()`).
+
+- `EventWriter<T>`, `EventReader<T>`, and `App::add_event::<T>()` are **not available**. Use a shared `Resource` with a `Vec` to pass data between systems instead of the event system.
+- `ChildBuilder` is **not in the prelude**. Avoid naming it as a type in function signatures. Instead, inline child-spawning logic inside `.with_children(|parent| { ... })` closures. Nested `.with_children` calls may fail type inference — flatten children under one parent instead.
+- `ColorMaterial::from_color(color)` works for creating `ColorMaterial` from a `Color`.
+- `Text2d::new("text")` works for world-space text (score popups, etc.), paired with `TextFont` and `TextColor`.
+- Primitive 2D shapes for `Mesh2d`: `Circle::new(radius)`, `Capsule2d::new(radius, middle_length)`, `RegularPolygon::new(circumradius, sides)`, `Ellipse::new(half_w, half_h)`. The capsule is vertical by default — rotate with `Quat::from_rotation_z(FRAC_PI_2)` for horizontal.
+- Systems with many parameters (6+) still work with `.after()` ordering as long as all parameter types resolve correctly.
