@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use bevy::prelude::*;
 
 // Window
@@ -30,6 +32,7 @@ pub const PLAYER_BIG_HEIGHT: f32 = 56.0;
 pub const INITIAL_LIVES: u32 = 3;
 pub const INITIAL_TIMER: u32 = 400;
 pub const COINS_FOR_1UP: u32 = 100;
+pub const WORLD_LABEL_1_1: &str = "1-1";
 
 // Score values
 pub const SCORE_COIN: u32 = 200;

@@ -7,12 +7,12 @@ use bevy::{
 
 mod components;
 mod constants;
-mod events;
+mod messages;
 mod resources;
 mod states;
 
 use constants::*;
-use events::*;
+use messages::*;
 use resources::GameData;
 use states::*;
 
@@ -31,17 +31,16 @@ fn main() {
         .init_state::<AppState>()
         .add_sub_state::<PlayState>()
         // Resources
-        .insert_resource(ClearColor(COLOR_SKY))
         .init_resource::<GameData>()
-        // Event queues
-        .init_resource::<AddScoreEvents>()
-        .init_resource::<PlayerDamagedEvents>()
-        .init_resource::<PlayerDiedEvents>()
-        .init_resource::<BlockHitEvents>()
-        .init_resource::<EnemyStompedEvents>()
-        .init_resource::<LevelCompletedEvents>()
-        .init_resource::<SpawnParticlesEvents>()
-        .init_resource::<CameraShakeEvents>()
+        // Messages
+        .add_message::<AddScore>()
+        .add_message::<PlayerDamaged>()
+        .add_message::<PlayerDied>()
+        .add_message::<BlockHit>()
+        .add_message::<EnemyStomped>()
+        .add_message::<LevelCompleted>()
+        .add_message::<SpawnParticles>()
+        .add_message::<CameraShakeRequested>()
         // Startup
         .add_systems(Startup, setup_camera)
         .run();

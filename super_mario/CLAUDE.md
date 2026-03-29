@@ -1,131 +1,237 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working in this repository.
 
 ## Scope
 
-This project lives inside a monorepo. Stay scoped to this directory only — do not read, edit, or run git commands that reference parent or sibling directories.
+- Stay scoped to this project directory only.
+- Do not read, edit, or run git commands against parent or sibling directories.
+- Treat unrelated local changes as user-owned unless the task clearly requires touching them.
 
-## Build & Run Commands
+## Build And Validation
+
+Run these commands from the project root:
 
 ```bash
-cargo run          # Build and run the game
-cargo build        # Build only
-cargo check        # Fast type-check (use for most code changes)
-cargo clippy       # Lint (use when changing API patterns broadly)
+cargo run
+cargo build
+cargo check
+cargo clippy
 ```
 
-Target dir is redirected to `D:/cargo-target-dir` via `.cargo/config.toml`.
+Validation expectations:
+
+- Run `cargo check` for most code changes.
+- Run `cargo clippy` when changing API usage or broad architectural patterns.
+- If validation cannot be run, say so explicitly.
+
+Target output is redirected to `D:/cargo-target-dir` via `.cargo/config.toml`.
 
 ## Dev Profile
 
-Dependencies compile at `opt-level = 3` while the main crate uses `opt-level = 1` — fast iteration on game code with performant dependencies.
+- The main crate uses `opt-level = 1` in dev.
+- Dependencies use `opt-level = 3` in dev.
+- Prefer small, iteration-friendly changes over broad rewrites.
 
 ## Tech Stack
 
-- **Bevy 0.18.1** (with `dynamic_linking` feature) — ECS game engine
-- **Rust Edition 2024**
+- Rust edition `2024`
+- Bevy `0.18.1`
+- `bevy` is enabled with the `dynamic_linking` feature
 
-## Architecture
+## Current Repository State
 
-This is a template for 2D arcade-style Bevy games. When building out from the hello world starter, follow this modular layout:
+The project is no longer a single-file hello-world starter, but it is still early scaffolding rather than a full game.
 
-- **`main.rs`** — App setup, plugin registration, system scheduling with explicit ordering
-- **`constants.rs`** — All tunable values as named constants (window size, speeds, radii, scoring)
-- **`components.rs`** — Marker components for entity types + data components (Velocity, FacingDirection, etc.)
-- **`resources.rs`** — Shared game state (score, lives, wave progression)
-- **`states.rs`** — `AppState` enum driving a state machine (StartScreen → Playing → GameOver)
-- **Domain modules** — One module per gameplay domain (player, enemy, combat, ui, audio, etc.), each exposing a Plugin
+Current files in `src/`:
 
-### State Machine Pattern
+- `main.rs`
+- `constants.rs`
+- `components.rs`
+- `messages.rs`
+- `resources.rs`
+- `states.rs`
 
-Systems should be state-aware:
+Current implementation already includes:
+
+- Window configuration
+- Camera setup with bloom and tonemapping
+- `AppState` and `PlayState`
+- Core resource initialization
+- Cross-system message definitions in `messages.rs`
+
+The actual platformer loop, world, player, enemies, HUD, and menus are still mostly to be built.
+
+## Architecture Direction
+
+This repository is a **Mario-style 2D platformer**, not a generic arcade/shooter template.
+
+When the codebase grows, prefer this structure:
+
+- `main.rs` for app setup, plugin registration, and high-level wiring
+- `constants.rs` for tunable values such as window size, physics values, timers, and palette choices
+- `components.rs` for ECS markers and shared gameplay data components
+- `resources.rs` for shared mutable game state such as score, lives, timer, and world metadata
+- `states.rs` for `AppState`, `PlayState`, and related state helpers
+- `messages.rs` for cross-system message types
+- Domain modules such as `player`, `level`, `enemies`, `items`, `ui`, and `effects`
+
+Prefer small domain plugins over growing `main.rs` indefinitely.
+
+## State Machine Pattern
+
+The current state model is:
+
+- `AppState::StartScreen`
+- `AppState::Playing`
+- `AppState::LevelClear`
+- `AppState::GameOver`
+
+The current play sub-state model is:
+
+- `PlayState::Running`
+- `PlayState::Paused`
+- `PlayState::Dying`
+- `PlayState::Respawning`
+- `PlayState::Cutscene`
+
+Guidance:
+
 - Gate gameplay systems with `.run_if(in_state(AppState::Playing))`
-- Use `OnEnter`/`OnExit` for spawn/cleanup symmetry
-- Prefer `DespawnOnExit(AppState::Playing)` on entities that should auto-despawn when leaving a state — this eliminates most manual cleanup systems
-- Use `.after()` chains where frame ordering matters; for 10+ systems, group into `SystemSet`s (e.g., `MovementSet`, `CollisionSet`) and order at the set level
+- Gate active gameplay logic more narrowly with `PlayState` where needed
+- Use `OnEnter` and `OnExit` for spawn/cleanup symmetry
+- Prefer `DespawnOnExit(...)` for state-bound entities
+- Use `.after(...)` or ordered `SystemSet`s where frame ordering matters
 
-### Events and Observers
+## Cross-System Communication
 
-- `EventWriter<T>`, `EventReader<T>`, and `App::add_event::<T>()` are **not available**. Use a shared `Resource` with a `Vec` to pass data between systems instead of the event system.
-- Use `Observer` and `Trigger` for one-shot reactions to entity lifecycle or custom game events — these replace boilerplate `Added<T>`/`RemovedComponents<T>` query patterns.
+For new work in Bevy `0.18.1`, prefer Bevy's **message system** over ad hoc `Resource<Vec<_>>` queues:
 
-### Timers
+- Register with `app.add_message::<T>()`
+- Send with `MessageWriter<T>`
+- Read with `MessageReader<T>`
 
-Use `Timer` with `Res<Time>` for cooldowns, spawn intervals, and delays — do not use frame-counting. Store timers in components (per-entity) or resources (global). Tick them with `timer.tick(time.delta())` each frame.
-- The check method is `timer.is_finished()`, **not** `timer.finished()` (`finished` is a private field).
-- `WindowResolution` is **not in the prelude** — import with `use bevy::window::WindowResolution;`.
+Use `Observer` and `Trigger` when reactive observer-style behavior is a better fit than schedule-polled messages.
 
-### Coding Rules
+Note:
 
-- New tunable values go in `constants.rs`, not inline magic numbers
-- New shared mutable game state goes in `resources.rs`
-- New ECS marker/data types go in `components.rs`
-- Prefer extending an existing domain plugin over registering ad hoc systems in `main.rs`
-- Use marker components for entity classification (e.g., `#[derive(Component)] struct Player;`)
+- `src/messages.rs` contains the project's cross-system message types.
+- Prefer message-based communication over custom queue resources for new work.
 
-### Query Filters
+## Timers
 
-Use Bevy's query filters for performance and correctness:
-- `With<T>`/`Without<T>` to narrow queries without reading a component's data
-- `Changed<T>` to run logic only when a component is mutated
-- `Added<T>` to detect newly added components
+Use `Timer` with `Res<Time>` for cooldowns, delays, and animation timing.
 
-### Assets
+- Store timers in components for per-entity timing
+- Store timers in resources for global timing
+- Tick timers with `timer.tick(time.delta())`
+- Use `timer.is_finished()`
+- Do not use frame-counting for gameplay timing
 
-Asset paths are plain relative strings passed to `asset_server.load(...)` — keep them aligned with files under `assets/`. Store `Handle<T>` in a resource when an asset is used repeatedly to avoid redundant loads. 
+## Coding Rules
+
+- Make the smallest coherent change that solves the task
+- Do not rewrite working code just to make it "cleaner"
+- Put new tunable values in `constants.rs` once that module is the obvious home
+- Put new shared mutable game state in `resources.rs` once that module is the obvious home
+- Put shared marker/data ECS types in `components.rs` once that module is the obvious home
+- Prefer extending an existing domain plugin over adding many ad hoc systems to `main.rs`
+- Use marker components for entity classification
+- Keep module boundaries aligned to platformer gameplay domains
+
+## Query Filters
+
+Use query filters for both clarity and performance:
+
+- `With<T>` and `Without<T>` to narrow queries without reading component data
+- `Changed<T>` when logic should run only after mutation
+- `Added<T>` for newly inserted components
+
+## Assets
+
+This project currently does **not** rely on checked-in game assets for core gameplay.
+
+If assets are introduced later:
+
+- Use plain relative paths with `asset_server.load(...)`
+- Keep references aligned with files under `assets/`
+- Store reused `Handle<T>` values in a resource when appropriate
+
+Do not design new gameplay features assuming an asset pipeline already exists.
 
 ## Bevy 0.18.1 API Notes
 
-- `despawn()` is recursive by default — do **not** use `despawn_recursive()` (removed).
-- `WindowResolution::new(width, height)` takes `u32`, not `f32`. Cast with `as u32` if constants are `f32`.
-- `ScalingMode` is in `bevy::camera::ScalingMode`, not `bevy::render::camera`.
-- Use `ApplyDeferred` (struct) not `apply_deferred` (no such function) for command flushing between systems.
-- 2D rendering uses `Camera2d`, `Mesh2d`, `MeshMaterial2d`, `Sprite`.
-- `ChildBuilder` is **not in the prelude**. Avoid naming it as a type in function signatures. Instead, inline child-spawning logic inside `.with_children(|parent| { ... })` closures. Nested `.with_children` calls may fail type inference — flatten children under one parent instead.
-- `ColorMaterial::from_color(color)` works for creating `ColorMaterial` from a `Color`.
-- `Text2d::new("text")` works for world-space text (score popups, etc.), paired with `TextFont` and `TextColor`.
-- Primitive 2D shapes for `Mesh2d`: `Circle::new(radius)`, `Capsule2d::new(radius, middle_length)`, `RegularPolygon::new(circumradius, sides)`, `Ellipse::new(half_w, half_h)`. The capsule is vertical by default — rotate with `Quat::from_rotation_z(FRAC_PI_2)` for horizontal.
-- Systems with many parameters (6+) still work with `.after()` ordering as long as all parameter types resolve correctly.
+- `despawn()` is recursive by default; do not use `despawn_recursive()`
+- `WindowResolution::new(width, height)` expects `u32`
+- `ScalingMode` is in `bevy::camera::ScalingMode`
+- Use `ApplyDeferred` rather than a nonexistent `apply_deferred` helper function
+- 2D rendering uses current APIs such as `Camera2d`, `Sprite`, `Mesh2d`, and `MeshMaterial2d`
+- `WindowResolution` is not in the prelude; import it from `bevy::window::WindowResolution`
+- `Text2d::new("text")` works for world-space text such as score popups
+- `ColorMaterial` does not have an `emissive` field
 
-### Bloom / HDR
+### Bloom And HDR
 
-- The bloom component is `Bloom`, not `BloomSettings` (renamed).
-- Import: `use bevy::{core_pipeline::tonemapping::{DebandDither, Tonemapping}, post_process::bloom::Bloom};`
-- `Bloom` has presets: `Bloom::NATURAL`, `Bloom::OLD_SCHOOL`, `Bloom::ANAMORPHIC`.
-- Camera setup for bloom:
-  ```rust
-  commands.spawn((
-      Camera2d,
-      Camera {
-          clear_color: ClearColorConfig::Custom(Color::BLACK),
-          ..default()
-      },
-      Tonemapping::TonyMcMapface,
-      Bloom::default(),
-      DebandDither::Enabled,
-  ));
-  ```
-- `ColorMaterial` has **no** `emissive` field. To make shapes glow with bloom, use `Color` values > 1.0 directly (e.g., `Color::srgb(5.0, 1.0, 0.2)`). The bloom post-process extracts bright regions above its threshold.
+- Use `Bloom`, not `BloomSettings`
+- Typical import:
+
+```rust
+use bevy::{
+    core_pipeline::tonemapping::{DebandDither, Tonemapping},
+    post_process::bloom::Bloom,
+};
+```
+
+- Bright colors can drive bloom without a dedicated emissive material field
+- Keep the scene readable even if bloom is removed or toned down
 
 ### State-Scoped Entities
 
-- `StateScoped` was renamed to `DespawnOnExit<S: States>` (and `DespawnOnEnter<S: States>`).
-- Usage: `commands.spawn((MyComponent, DespawnOnExit(AppState::Playing)));`
-- Entities are automatically despawned when the state exits (or enters, respectively).
+- `DespawnOnExit<S: States>` and `DespawnOnEnter<S: States>` are available in Bevy `0.18.1`
+- Use them for entities that should be cleaned up automatically on state transitions
+
+Example:
+
+```rust
+commands.spawn((MyComponent, DespawnOnExit(AppState::Playing)));
+```
 
 ### SubStates
 
-- Define with `#[derive(SubStates)]` and a `#[source(ParentState = ParentState::Variant)]` attribute:
-  ```rust
-  #[derive(SubStates, Clone, PartialEq, Eq, Hash, Debug, Default)]
-  #[source(AppState = AppState::Playing)]
-  enum PlayState {
-      #[default]
-      Running,
-      Paused,
-  }
-  ```
-- Register: `app.init_state::<AppState>().add_sub_state::<PlayState>();`
-- Sub-states only exist when the source state matches; they are removed automatically otherwise.
-- `ComputedStates` also exists for read-only derived states (`app.add_computed_state::<T>()`).
+Use sub-states for gameplay flow inside `AppState::Playing`.
+
+Example:
+
+```rust
+#[derive(SubStates, Clone, PartialEq, Eq, Hash, Debug, Default)]
+#[source(AppState = AppState::Playing)]
+enum PlayState {
+    #[default]
+    Running,
+    Paused,
+}
+```
+
+Register with:
+
+```rust
+app.init_state::<AppState>().add_sub_state::<PlayState>();
+```
+
+## Preferred Change Pattern
+
+1. Inspect the current code and module boundaries before making assumptions.
+2. Implement the change in the owning file or module.
+3. Extract new modules only when the code is large enough to justify them.
+4. Run validation, usually `cargo check`.
+5. Summarize what changed and any remaining risks.
+
+## Good First Places To Look
+
+- App boot and current wiring: `src/main.rs`
+- State definitions: `src/states.rs`
+- Shared game data: `src/resources.rs`
+- Shared ECS types: `src/components.rs`
+- Cross-system communication types: `src/messages.rs`
+- Build output location: `.cargo/config.toml`
+- Dependency configuration: `Cargo.toml`

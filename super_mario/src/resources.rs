@@ -1,5 +1,7 @@
-use bevy::prelude::*;
+#![allow(dead_code)]
+
 use crate::constants::*;
+use bevy::prelude::*;
 
 #[derive(Resource)]
 pub struct GameData {
@@ -17,7 +19,7 @@ impl Default for GameData {
             coins: 0,
             lives: INITIAL_LIVES,
             timer: INITIAL_TIMER,
-            world_label: "1-1".to_string(),
+            world_label: WORLD_LABEL_1_1.to_string(),
         }
     }
 }
@@ -37,6 +39,7 @@ impl GameData {
         self.coins = 0;
         self.lives = INITIAL_LIVES;
         self.timer = INITIAL_TIMER;
+        self.world_label = WORLD_LABEL_1_1.to_string();
     }
 
     pub fn reset_timer(&mut self) {
