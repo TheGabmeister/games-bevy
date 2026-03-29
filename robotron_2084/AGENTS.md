@@ -13,7 +13,7 @@ Guidance for coding agents working in `c:\dev\games-bevy\robotron_2084`.
 - Rust edition `2024`
 - Bevy `0.18.1`
 - `bevy` is enabled with the `dynamic_linking` feature
-- Current app state: minimal Bevy starter, not yet a full arcade/shooter implementation
+- `rand 0.9` is used for spawn placement, AI wander, and particles
 
 ## Build And Validation
 
@@ -23,13 +23,13 @@ Use these commands from the project root:
 cargo run
 cargo build
 cargo check
-cargo clippy
+cargo clippy --all-targets --all-features
 ```
 
 Validation expectations:
 
 - Run `cargo check` for most code changes.
-- Run `cargo clippy` when changing patterns that may affect API usage or code quality broadly.
+- Run `cargo clippy --all-targets --all-features` when touching APIs, scheduling, or shared patterns.
 - If you cannot run validation, say so explicitly.
 
 ## Build Configuration
@@ -37,83 +37,67 @@ Validation expectations:
 - Target output is redirected by `.cargo/config.toml` to `D:/cargo-target-dir`.
 - The crate uses `opt-level = 1` in dev.
 - Dependencies use `opt-level = 3` in dev.
-- Keep iteration-friendly workflows in mind; prefer targeted changes over broad rewrites.
+- Prefer targeted iterations over broad rewrites so Bevy compile times stay reasonable.
 
 ## Current Project Layout
 
-- `src/main.rs`: current app bootstrap and all gameplay/UI code that exists today
-- `assets/`: space-shooter themed sprite and audio assets available for future gameplay work
-- `.cargo/config.toml`: shared cargo target-dir configuration
+- `src/main.rs`: app bootstrap, window/camera setup, plugin registration, game-set ordering
+- `src/constants.rs`: tunable values for arena size, movement, collisions, waves, FX, and UI timing
+- `src/components.rs`: ECS markers and gameplay data components
+- `src/resources.rs`: shared assets, game state, timers, screen shake, and high-score persistence
+- `src/states.rs`: `AppState`, `PlayState`, and ordered `GameSet`s
+- `src/arena.rs`: borders, velocity application, confinement, lifetime cleanup
+- `src/player.rs`: player spawn, movement, aiming, firing, invincibility blink, respawn
+- `src/enemy.rs`: enemy AI, spawner children, enemy projectiles, missile steering, shell bounces
+- `src/human.rs`: human wandering
+- `src/combat.rs`: rescue logic, collision handling, damage resolution, wave clear checks
+- `src/waves.rs`: wave definitions, wave spawn orchestration, state transitions
+- `src/effects.rs`: particles, score popups, camera shake
+- `src/ui.rs`: start screen, HUD, pause overlay, game over flow
+- `assets/`: available art/audio assets for later expansion
 
 ## Current Runtime Behavior
 
-The current app is a starter scene:
+The project is already a playable Robotron-style prototype, not a starter scene.
 
-- `DefaultPlugins` are registered with no custom plugin split yet.
-- A `Camera2d` is spawned at startup.
-- A centered `Hello, World!` UI text node is spawned at startup.
-- There is no state machine, gameplay loop, audio lifecycle, or asset loading wired up yet.
+- `AppState` flows through `StartScreen`, `Playing`, and `GameOver`.
+- `PlayState` handles `WaveIntro`, `WaveActive`, `WaveClear`, `PlayerDeath`, and `Paused`.
+- The arena, player, enemies, humans, waves, HUD, particles, and high-score persistence are implemented.
+- Rendering uses primitive 2D meshes plus bright `ColorMaterial`s, bloom, and a fixed-vertical 2D camera.
+- Gameplay uses manual circle-circle collision instead of a physics engine.
 
-When making changes, align your work with what actually exists in the repo rather than assuming the larger game architecture is already implemented.
+## Architecture Notes
 
-## Architecture Guidance For Future Expansion
-
-If the user grows this starter into the intended arcade/shooter template, prefer this structure:
-
-- `src/main.rs`: app setup, plugin registration, high-level wiring
-- `src/constants.rs`: tunable values such as window size, speeds, cooldowns, UI sizing
-- `src/components.rs`: marker and data ECS components
-- `src/resources.rs`: shared mutable game-wide state
-- `src/states.rs`: `AppState` enum and state-related helpers
-- Domain modules such as `src/player.rs`, `src/enemy.rs`, `src/combat.rs`, `src/ui.rs`, and `src/audio.rs`
-
-Prefer small domain plugins over growing `main.rs` indefinitely once the game has more than a handful of systems.
+- The repo already follows the recommended domain-plugin structure. Prefer extending the owning plugin instead of putting new systems back into `main.rs`.
+- `GameSet::Input -> Movement -> Confinement -> Combat -> Resolution` is chained only while `PlayState::WaveActive`.
+- Use `OnEnter` / `OnExit` for spawn-cleanup symmetry when entities are owned by a state.
+- Use `WaveEntity` for entities that should be cleared between waves without leaving `AppState::Playing`.
+- Keep cross-system shared state in resources rather than duplicating counters across modules.
 
 ## Bevy Conventions To Follow
 
-- Use `OnEnter` and `OnExit` for spawn/cleanup symmetry once states are introduced.
-- Gate gameplay systems with `run_if(in_state(...))` once an `AppState` exists.
-- Use resources for cross-system shared state.
-- Use marker components for entity categories.
-- Use explicit system ordering with `.after(...)` where frame ordering matters.
+- `despawn()` is recursive by default. Do not use removed APIs like `despawn_recursive()`.
+- `WindowResolution::new(width, height)` expects `u32`.
+- `ScalingMode` is in `bevy::camera::ScalingMode`.
+- When later systems must observe despawns or inserts from earlier systems in the same schedule, use `ApplyDeferred` explicitly.
+- Use `DespawnOnExit` for state-owned entities and UI instead of frame-by-frame cleanup systems when possible.
+- Prefer marker components for categories such as `Player`, `Killable`, `DamagesPlayer`, `EnemyProjectile`, and `WaveEntity`.
 
 ## Coding Rules For This Repo
 
 - Make the smallest coherent change that solves the task.
-- Do not rewrite working structure just to make it "cleaner".
-- Keep module boundaries aligned to gameplay domains once modules are introduced.
-- Put new tunable values in `src/constants.rs` instead of scattering magic numbers once that module exists.
-- Add new shared mutable game state to `src/resources.rs` once that module exists.
-- Add shared marker/data ECS types to `src/components.rs` once that module exists.
-- Prefer extending an existing domain plugin over registering many ad hoc systems from `main.rs`.
-- When spawning entities tied to a state, define the matching cleanup path on `OnExit` if they should not persist.
-
-## UI And Asset Notes
-
-- UI currently uses Bevy's component-based UI directly.
-- Asset paths should remain plain relative strings passed to `asset_server.load(...)`.
-- Keep asset references aligned with files under `assets/`.
-- Reuse the existing space-shooter asset naming pattern when adding related content.
-
-## Bevy 0.18.1 Notes
-
-- `despawn()` is recursive by default; do not use removed older APIs like `despawn_recursive()`.
-- `WindowResolution::new(width, height)` expects `u32`.
-- `ScalingMode` is in `bevy::camera::ScalingMode`.
-- Use `ApplyDeferred` rather than a nonexistent `apply_deferred` helper function.
-- 2D rendering uses current Bevy APIs such as `Camera2d`, `Sprite`, `Mesh2d`, and `MeshMaterial2d`.
-
-## Preferred Change Pattern
-
-1. Inspect the current code and local module boundaries before making assumptions.
-2. Implement the change in the owning file or module.
-3. Extract constants/resources/components only when the code has grown enough to justify it.
-4. Run validation, usually `cargo check`.
-5. Summarize what changed and any remaining risks.
+- Do not rewrite working gameplay structure only to make it look cleaner.
+- Keep module boundaries aligned to gameplay domains.
+- Add new tunables to `src/constants.rs` instead of scattering magic numbers.
+- Add new shared state to `src/resources.rs`.
+- Add reusable markers/data components to `src/components.rs`.
+- If a state owns an entity, define the matching cleanup path as part of the same change.
 
 ## Good First Places To Look
 
-- App boot or current behavior: `src/main.rs`
+- App wiring: `src/main.rs`
+- Gameplay state flow: `src/states.rs`, `src/waves.rs`
+- Collision and scoring: `src/combat.rs`
+- AI and spawns: `src/enemy.rs`
+- UI flow: `src/ui.rs`
 - Build output location: `.cargo/config.toml`
-- Dependency/runtime configuration: `Cargo.toml`
-- Available art/audio for future gameplay work: `assets/`

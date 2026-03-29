@@ -74,7 +74,7 @@ fn hulk_ai(
     let dt = time.delta_secs();
     for (tf, mut vel, mut timer, mut target, mut kb) in &mut hulk_q {
         timer.0.tick(time.delta());
-        if timer.0.just_finished() {
+        if target.0 == Vec2::ZERO || timer.0.just_finished() {
             let pos = tf.translation.truncate();
             let bias = (player_pos - pos).normalize_or_zero() * 0.3;
             let random_dir = Vec2::new(
@@ -99,7 +99,6 @@ fn brain_ai(
     player_q: Query<&Transform, With<Player>>,
     human_q: Query<&Transform, With<Human>>,
     mut brain_q: Query<(&Transform, &mut Velocity, &mut FireCooldown), With<Brain>>,
-    enemy_count: Query<(), With<Enemy>>,
 ) {
     let player_pos = player_q
         .single()
@@ -122,7 +121,7 @@ fn brain_ai(
 
         // Fire homing missiles
         cooldown.0.tick(time.delta());
-        if cooldown.0.just_finished() && enemy_count.iter().count() < MAX_TOTAL_ENEMIES as usize {
+        if cooldown.0.just_finished() {
             let missile_dir = (player_pos - pos).normalize_or_zero();
             commands.spawn((
                 EnemyProjectile,
@@ -159,7 +158,6 @@ fn prog_ai(
     }
 }
 
-// FIX: Added Transform to query and compute proper direction-to-target
 fn spawner_wander(
     time: Res<Time>,
     mut query: Query<
@@ -176,7 +174,7 @@ fn spawner_wander(
     let mut rng = rand::rng();
     for (tf, mut vel, mut timer, mut target, is_spheroid) in &mut query {
         timer.0.tick(time.delta());
-        if timer.0.just_finished() {
+        if target.0 == Vec2::ZERO || timer.0.just_finished() {
             let tx = rng.random_range(-ARENA_HALF_WIDTH * 0.8..ARENA_HALF_WIDTH * 0.8);
             let ty = rng.random_range(-ARENA_HALF_HEIGHT * 0.8..ARENA_HALF_HEIGHT * 0.8);
             target.0 = Vec2::new(tx, ty);
@@ -200,16 +198,18 @@ fn spawner_spawn(
     mut quark_q: Query<(&Transform, &mut SpawnerState), (With<Quark>, Without<Spheroid>)>,
     enemy_count: Query<(), With<Enemy>>,
 ) {
-    let total = enemy_count.iter().count();
+    let active_enemies = enemy_count.iter().count() as u32;
+    let mut remaining_capacity = MAX_TOTAL_ENEMIES.saturating_sub(active_enemies);
 
     // Spheroids spawn Enforcers
     for (tf, mut state) in &mut spheroid_q {
+        if remaining_capacity == 0 {
+            break;
+        }
         state.cooldown.tick(time.delta());
-        if state.cooldown.just_finished()
-            && state.children_spawned < state.max_children
-            && total < MAX_TOTAL_ENEMIES as usize
-        {
+        if state.cooldown.just_finished() && state.children_spawned < state.max_children {
             state.children_spawned += 1;
+            remaining_capacity -= 1;
             let pos = tf.translation.truncate();
             commands
                 .spawn((
@@ -240,12 +240,13 @@ fn spawner_spawn(
 
     // Quarks spawn Tanks
     for (tf, mut state) in &mut quark_q {
+        if remaining_capacity == 0 {
+            break;
+        }
         state.cooldown.tick(time.delta());
-        if state.cooldown.just_finished()
-            && state.children_spawned < state.max_children
-            && total < MAX_TOTAL_ENEMIES as usize
-        {
+        if state.cooldown.just_finished() && state.children_spawned < state.max_children {
             state.children_spawned += 1;
+            remaining_capacity -= 1;
             let pos = tf.translation.truncate();
             commands
                 .spawn((
@@ -264,7 +265,10 @@ fn spawner_spawn(
                     DespawnOnExit(AppState::Playing),
                 ))
                 .insert((
-                    FireCooldown(Timer::from_seconds(TANK_FIRE_COOLDOWN, TimerMode::Repeating)),
+                    FireCooldown(Timer::from_seconds(
+                        TANK_FIRE_COOLDOWN,
+                        TimerMode::Repeating,
+                    )),
                     WanderTarget(Vec2::ZERO),
                     WanderTimer(Timer::from_seconds(3.0, TimerMode::Repeating)),
                 ));
@@ -292,7 +296,7 @@ fn enforcer_ai(
     let mut rng = rand::rng();
     for (tf, mut vel, mut timer, mut target) in &mut query {
         timer.0.tick(time.delta());
-        if timer.0.just_finished() {
+        if target.0 == Vec2::ZERO || timer.0.just_finished() {
             let pos = tf.translation.truncate();
             let bias = (player_pos - pos).normalize_or_zero() * 0.3;
             let rand_dir = Vec2::new(
@@ -358,7 +362,7 @@ fn tank_ai(
     let mut rng = rand::rng();
     for (tf, mut vel, mut timer, mut target) in &mut query {
         timer.0.tick(time.delta());
-        if timer.0.just_finished() {
+        if target.0 == Vec2::ZERO || timer.0.just_finished() {
             let pos = tf.translation.truncate();
             let bias = (player_pos - pos).normalize_or_zero() * 0.2;
             let rand_dir = Vec2::new(
@@ -439,8 +443,7 @@ fn bounce_shell_reflect(
             vel.0.x = -vel.0.x;
             bounced = true;
         }
-        if pos.y <= -ARENA_HALF_HEIGHT + SHELL_RADIUS || pos.y >= ARENA_HALF_HEIGHT - SHELL_RADIUS
-        {
+        if pos.y <= -ARENA_HALF_HEIGHT + SHELL_RADIUS || pos.y >= ARENA_HALF_HEIGHT - SHELL_RADIUS {
             vel.0.y = -vel.0.y;
             bounced = true;
         }

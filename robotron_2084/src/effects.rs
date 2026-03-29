@@ -18,7 +18,6 @@ impl Plugin for EffectsPlugin {
     }
 }
 
-// FIX: Now uses a material handle parameter instead of ignoring the color argument
 pub fn spawn_particles(
     commands: &mut Commands,
     assets: &GameAssets,
@@ -95,10 +94,8 @@ fn apply_screen_shake(
     if shake.trauma > 0.0 {
         let mut rng = rand::rng();
         let intensity = shake.trauma * shake.trauma;
-        cam_tf.translation.x =
-            rng.random_range(-1.0f32..1.0) * SCREEN_SHAKE_MAX_OFFSET * intensity;
-        cam_tf.translation.y =
-            rng.random_range(-1.0f32..1.0) * SCREEN_SHAKE_MAX_OFFSET * intensity;
+        cam_tf.translation.x = rng.random_range(-1.0f32..1.0) * SCREEN_SHAKE_MAX_OFFSET * intensity;
+        cam_tf.translation.y = rng.random_range(-1.0f32..1.0) * SCREEN_SHAKE_MAX_OFFSET * intensity;
     } else {
         cam_tf.translation.x = 0.0;
         cam_tf.translation.y = 0.0;

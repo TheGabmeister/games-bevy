@@ -18,10 +18,7 @@ impl Plugin for ArenaPlugin {
                     despawn_oob_bullets.in_set(GameSet::Combat),
                 ),
             )
-            .add_systems(
-                Update,
-                tick_lifetimes.run_if(in_state(AppState::Playing)),
-            );
+            .add_systems(Update, tick_lifetimes.run_if(in_state(AppState::Playing)));
     }
 }
 

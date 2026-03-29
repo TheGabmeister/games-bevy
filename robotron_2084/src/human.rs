@@ -20,7 +20,7 @@ fn human_wander(
     let mut rng = rand::rng();
     for (mut vel, mut timer, mut target) in &mut query {
         timer.0.tick(time.delta());
-        if timer.0.just_finished() {
+        if target.0 == Vec2::ZERO || timer.0.just_finished() {
             let angle: f32 = rng.random_range(0.0..std::f32::consts::TAU);
             target.0 = Vec2::new(angle.cos(), angle.sin());
         }

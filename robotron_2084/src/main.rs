@@ -44,7 +44,7 @@ fn main() {
             next_extra_life_score: EXTRA_LIFE_EVERY,
         })
         .init_resource::<ScreenShake>()
-        // System set ordering: Input → Movement → Confinement → Combat → Resolution
+        // System set ordering: Input -> Movement -> Confinement -> Combat -> Resolution
         .configure_sets(
             Update,
             (

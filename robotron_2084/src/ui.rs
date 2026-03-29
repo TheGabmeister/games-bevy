@@ -20,35 +20,26 @@ impl Plugin for UiPlugin {
             )
             // HUD
             .add_systems(OnEnter(AppState::Playing), spawn_hud)
-            .add_systems(
-                Update,
-                update_hud.run_if(in_state(AppState::Playing)),
-            )
+            .add_systems(Update, update_hud.run_if(in_state(AppState::Playing)))
             // Wave overlay
             .add_systems(OnEnter(PlayState::WaveIntro), spawn_wave_overlay)
             // Pause
             .add_systems(Update, pause_input.in_set(GameSet::Input))
             .add_systems(OnEnter(PlayState::Paused), spawn_pause_overlay)
             .add_systems(OnExit(PlayState::Paused), despawn_pause_overlay)
-            .add_systems(
-                Update,
-                unpause_input.run_if(in_state(PlayState::Paused)),
-            )
+            .add_systems(Update, unpause_input.run_if(in_state(PlayState::Paused)))
             // Game over
             .add_systems(
                 OnEnter(AppState::GameOver),
                 (persist_high_score, spawn_game_over, start_game_over_timer),
             )
-            .add_systems(
-                Update,
-                game_over_input.run_if(in_state(AppState::GameOver)),
-            );
+            .add_systems(Update, game_over_input.run_if(in_state(AppState::GameOver)));
     }
 }
 
 // --- Start Screen ---
 
-fn spawn_start_screen(mut commands: Commands) {
+fn spawn_start_screen(mut commands: Commands, game: Res<GameState>) {
     commands
         .spawn((
             Node {
@@ -80,7 +71,15 @@ fn spawn_start_screen(mut commands: Commands) {
                 TextColor(Color::srgb(0.7, 0.7, 0.7)),
             ));
             parent.spawn((
-                Text::new("ESC to pause"),
+                Text::new(format!("High Score: {}", game.high_score)),
+                TextFont {
+                    font_size: 18.0,
+                    ..default()
+                },
+                TextColor(Color::srgb(5.0, 5.0, 0.5)),
+            ));
+            parent.spawn((
+                Text::new("ESC to pause  |  ENTER also starts"),
                 TextFont {
                     font_size: 16.0,
                     ..default()
@@ -176,9 +175,8 @@ fn spawn_hud(mut commands: Commands) {
     ));
 }
 
-// FIX: High score tracked in memory but no longer saved to disk every frame
 fn update_hud(
-    mut game: ResMut<GameState>,
+    game: Res<GameState>,
     mut score_q: Query<
         &mut Text,
         (
@@ -216,9 +214,6 @@ fn update_hud(
         ),
     >,
 ) {
-    if game.score > game.high_score {
-        game.high_score = game.score;
-    }
     if let Ok(mut text) = score_q.single_mut() {
         *text = Text::new(format!("SCORE: {}", game.score));
     }
@@ -295,6 +290,14 @@ fn spawn_pause_overlay(mut commands: Commands) {
                 },
                 TextColor(Color::WHITE),
             ));
+            parent.spawn((
+                Text::new("Press ESC or SPACE to resume"),
+                TextFont {
+                    font_size: 18.0,
+                    ..default()
+                },
+                TextColor(Color::srgb(0.8, 0.8, 0.8)),
+            ));
         });
 }
 
@@ -306,7 +309,6 @@ fn despawn_pause_overlay(mut commands: Commands, query: Query<Entity, With<Pause
 
 // --- Game Over ---
 
-// FIX: High score saved to disk once on game over instead of every frame
 fn persist_high_score(game: Res<GameState>) {
     save_high_score(game.high_score);
 }
@@ -363,7 +365,7 @@ fn spawn_game_over(mut commands: Commands, game: Res<GameState>) {
                 TextColor(Color::srgb(0.7, 0.7, 0.7)),
             ));
             parent.spawn((
-                Text::new("Press SPACE to restart"),
+                Text::new("Press SPACE or ENTER to restart"),
                 TextFont {
                     font_size: 24.0,
                     ..default()

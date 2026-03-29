@@ -63,13 +63,14 @@ pub struct GameState {
 impl GameState {
     pub fn award_score(&mut self, points: u32) {
         self.score += points;
-        if self.score >= self.next_extra_life_score {
+        self.high_score = self.high_score.max(self.score);
+        while self.score >= self.next_extra_life_score {
             self.lives += 1;
             self.next_extra_life_score += EXTRA_LIFE_EVERY;
         }
     }
 
-    pub fn reset(&mut self) {
+    pub fn reset_for_new_run(&mut self) {
         self.score = 0;
         self.lives = STARTING_LIVES;
         self.current_wave = 1;
@@ -159,10 +160,8 @@ pub fn setup_assets(
     let hulk_material = materials.add(ColorMaterial::from_color(Color::srgb(0.2, 5.0, 0.2)));
     let brain_material = materials.add(ColorMaterial::from_color(Color::srgb(5.0, 0.5, 5.0)));
     let prog_material = materials.add(ColorMaterial::from_color(Color::srgb(5.0, 0.2, 3.0)));
-    let spheroid_material =
-        materials.add(ColorMaterial::from_color(Color::srgb(3.0, 3.0, 5.0)));
-    let enforcer_material =
-        materials.add(ColorMaterial::from_color(Color::srgb(5.0, 2.0, 0.2)));
+    let spheroid_material = materials.add(ColorMaterial::from_color(Color::srgb(3.0, 3.0, 5.0)));
+    let enforcer_material = materials.add(ColorMaterial::from_color(Color::srgb(5.0, 2.0, 0.2)));
     let quark_material = materials.add(ColorMaterial::from_color(Color::srgb(2.0, 5.0, 3.0)));
     let tank_material = materials.add(ColorMaterial::from_color(Color::srgb(5.0, 3.0, 1.0)));
     let human_materials = [
@@ -170,11 +169,9 @@ pub fn setup_assets(
         materials.add(ColorMaterial::from_color(Color::srgb(5.0, 4.0, 0.5))),
         materials.add(ColorMaterial::from_color(Color::srgb(1.0, 2.0, 5.0))),
     ];
-    let electrode_material =
-        materials.add(ColorMaterial::from_color(Color::srgb(4.0, 4.0, 5.0)));
+    let electrode_material = materials.add(ColorMaterial::from_color(Color::srgb(4.0, 4.0, 5.0)));
     let bullet_material = materials.add(ColorMaterial::from_color(Color::srgb(5.0, 5.0, 0.5)));
-    let missile_material =
-        materials.add(ColorMaterial::from_color(Color::srgb(5.0, 0.5, 1.0)));
+    let missile_material = materials.add(ColorMaterial::from_color(Color::srgb(5.0, 0.5, 1.0)));
     let spark_material = materials.add(ColorMaterial::from_color(Color::srgb(5.0, 3.0, 0.2)));
     let shell_material = materials.add(ColorMaterial::from_color(Color::srgb(5.0, 4.0, 2.0)));
     let border_material = materials.add(ColorMaterial::from_color(Color::srgb(0.5, 0.5, 5.0)));

@@ -82,7 +82,7 @@ pub fn wave_definition(wave: u32) -> WaveDefinition {
 // --- Systems ---
 
 fn reset_game_state(mut game: ResMut<GameState>, mut shake: ResMut<ScreenShake>) {
-    game.reset();
+    game.reset_for_new_run();
     shake.trauma = 0.0;
 }
 
@@ -192,7 +192,10 @@ fn spawn_wave(
             PointValue(0),
             Knockback(Vec2::ZERO),
             WanderTarget(Vec2::ZERO),
-            WanderTimer(Timer::from_seconds(HULK_WANDER_INTERVAL, TimerMode::Repeating)),
+            WanderTimer(Timer::from_seconds(
+                HULK_WANDER_INTERVAL,
+                TimerMode::Repeating,
+            )),
             DespawnOnExit(AppState::Playing),
         ));
     }
@@ -332,7 +335,6 @@ fn tick_wave_intro(
     }
 }
 
-// NEW: WaveClear state — brief pause before advancing to next wave
 fn start_clear_timer(mut wave_state: ResMut<WaveState>) {
     wave_state.clear_timer.reset();
 }

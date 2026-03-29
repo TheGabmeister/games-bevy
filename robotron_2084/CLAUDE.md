@@ -1,114 +1,88 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides project guidance for coding agents working in this repository.
 
 ## Scope
 
-This project lives inside a monorepo. Stay scoped to this directory only — do not read, edit, or run git commands that reference parent or sibling directories.
+Stay scoped to `c:\dev\games-bevy\robotron_2084` only. Do not read, edit, or run git commands against parent or sibling directories.
 
-## Build & Run Commands
+## Build And Run
 
-```bash
-cargo run          # Build and run the game
-cargo build        # Build only
-cargo check        # Fast type-check (use for most code changes)
-cargo clippy       # Lint (use when changing API patterns broadly)
+```powershell
+cargo run
+cargo build
+cargo check
+cargo clippy --all-targets --all-features
 ```
 
-Target dir is redirected to `D:/cargo-target-dir` via `.cargo/config.toml`.
+Target output is redirected to `D:/cargo-target-dir` by `.cargo/config.toml`.
 
-## Dev Profile
+## Stack
 
-Dependencies compile at `opt-level = 3` while the main crate uses `opt-level = 1` — fast iteration on game code with performant dependencies.
-
-## Tech Stack
-
-- **Bevy 0.18.1** (with `dynamic_linking` feature) — ECS game engine
-- **rand 0.9** — RNG for spawning, wander AI, particles
-- **Rust Edition 2024**
+- Rust edition `2024`
+- Bevy `0.18.1` with `dynamic_linking`
+- `rand 0.9`
 
 ## Architecture
 
-The game is split into domain-specific modules with Bevy plugins:
+The project is already split into gameplay-domain plugins:
 
-```
+```text
 src/
-  main.rs          — app setup, camera, plugin registration, system set ordering
-  constants.rs     — all tunable values (speeds, radii, cooldowns, counts)
-  states.rs        — AppState, PlayState, GameSet system sets
-  components.rs    — all ECS marker and data components
-  resources.rs     — GameAssets, GameState, WaveState, ScreenShake, high score I/O, setup_assets
-  arena.rs         — ArenaPlugin: borders, velocity, confinement, lifetime despawn
-  player.rs        — PlayerPlugin: movement, aim, fire, invincibility, respawn
-  enemy.rs         — EnemyPlugin: all enemy AI, spawner logic, projectile steering
-  human.rs         — HumanPlugin: human wander behavior
-  combat.rs        — CombatPlugin: collision detection, damage resolution, wave clear
-  waves.rs         — WavePlugin: wave definitions, spawn orchestration, state transitions
-  effects.rs       — EffectsPlugin: particles, score popups, screen shake
-  ui.rs            — UiPlugin: start screen, HUD, pause, wave overlay, game over
+  main.rs
+  constants.rs
+  components.rs
+  resources.rs
+  states.rs
+  arena.rs
+  player.rs
+  enemy.rs
+  human.rs
+  combat.rs
+  waves.rs
+  effects.rs
+  ui.rs
 ```
 
-### Key Patterns
+Primary ownership:
 
-- **Plugin-per-domain**: Each gameplay domain is a Bevy plugin that registers its own systems.
-- **System sets for ordering**: `GameSet::Input → Movement → Confinement → Combat → Resolution` chained during `WaveActive`. Always-on systems (effects, HUD) run with `run_if(in_state(AppState::Playing))`.
-- **Marker-driven collision**: `DamagesPlayer` marks anything that kills the player. `Killable` marks enemies that count toward wave clear. `Confined` marks entities clamped to arena bounds. `WaveEntity` marks entities despawned between waves.
-- **Shared asset resource**: All meshes and materials are created once in `setup_assets` and stored in `GameAssets`. Entity spawning clones handles from this resource.
-- **Player spawn reuse**: `spawn_player_entity()` is a helper called from both initial spawn and respawn-after-death.
-- **Score helper**: `GameState::award_score()` handles score increment + extra life threshold check in one place.
-- **Wave scaling**: `wave_definition()` computes enemy counts programmatically rather than using a data table.
-- **Collision**: Circle-circle overlap (`distance_squared < (r1+r2)^2`) for all gameplay collision. No physics engine.
-- **High score persistence**: Saved to `highscore.txt` next to the executable, written once on game over (not every frame).
+- `main.rs`: app setup, window/camera config, plugin registration
+- `resources.rs`: shared assets, game state, wave timers, high-score persistence
+- `states.rs`: `AppState`, `PlayState`, `GameSet`
+- `combat.rs`: collisions, scoring, rescue, damage, wave completion
+- `waves.rs`: spawn orchestration and play-state transitions
 
-### State Machine
+## State Flow
 
-```
-AppState: StartScreen → Playing → GameOver
-PlayState (sub-state of Playing): WaveIntro → WaveActive → WaveClear → WaveIntro...
-                                              ↕ Paused
-                                              → PlayerDeath → WaveActive / WaveClear / GameOver
+```text
+AppState: StartScreen -> Playing -> GameOver
+PlayState: WaveIntro -> WaveActive -> WaveClear -> WaveIntro ...
+                                     -> PlayerDeath -> WaveActive / WaveClear / GameOver
+                                     -> Paused
 ```
 
-- Gate gameplay systems via `GameSet` (inherits `run_if(in_state(PlayState::WaveActive))`)
-- Use `OnEnter`/`OnExit` for spawn/cleanup symmetry
-- Use `DespawnOnExit(AppState::Playing)` on gameplay entities for automatic cleanup
-- Use `DespawnOnExit(PlayState::WaveIntro)` for wave overlay UI
-- `WaveEntity` is used for per-wave cleanup via explicit despawn in `despawn_wave_entities`
+## Bevy Notes
 
-### Cross-Module Dependencies
+- `despawn()` is recursive by default.
+- `WindowResolution::new(width, height)` takes `u32`.
+- `ScalingMode` lives in `bevy::camera::ScalingMode`.
+- Use `ApplyDeferred` when later systems in the same schedule need to observe queued despawns or inserts from earlier systems.
+- `DespawnOnExit` is preferred for state-owned cleanup.
+- `Mesh2d`, `MeshMaterial2d<ColorMaterial>`, and `Text2d` are the current rendering approach.
 
-- `combat.rs` imports from `effects.rs` (spawn_particles, spawn_score_popup) and `waves.rs` (wave_definition)
-- `enemy.rs` imports from `waves.rs` (wave_definition)
-- All domain modules import from `constants.rs`, `components.rs`, `resources.rs`, `states.rs`
+## Current Gameplay Summary
 
-## Bevy 0.18.1 API Notes
+- Keyboard controls use `WASD` for movement and arrow keys for aim/fire.
+- The arena is single-screen and rectangular.
+- Collision is manual circle-circle overlap; there is no physics crate.
+- Waves include grunts, hulks, brains, progs, spheroids, enforcers, quarks, tanks, electrodes, and humans.
+- HUD, pause, game over, particles, score popups, bloom, and screen shake are implemented.
 
-- `despawn()` is recursive by default — do **not** use `despawn_recursive()` (removed).
-- `WindowResolution::new(width, height)` takes `u32`, not `f32`.
-- `WindowResolution` is **not in the prelude** — import with `use bevy::window::WindowResolution;`.
-- `ScalingMode` is in `bevy::camera::ScalingMode`, not `bevy::render::camera`.
-- Use `ApplyDeferred` (struct) not `apply_deferred` (no such function) for command flushing between systems.
-- 2D rendering uses `Camera2d`, `Mesh2d`, `MeshMaterial2d`, `Sprite`.
-- `ChildBuilder` is **not in the prelude**. Inline child-spawning logic inside `.with_children(|parent| { ... })` closures.
-- `ColorMaterial::from_color(color)` works for creating materials from a `Color`.
-- `Text2d::new("text")` for world-space text, paired with `TextFont` and `TextColor`.
-- Primitive 2D shapes: `Circle::new(r)`, `Capsule2d::new(r, len)`, `RegularPolygon::new(circumradius, sides)`, `Ellipse::new(hw, hh)`.
-- **Bundle tuple size limit**: `commands.spawn((...))` fails with more than ~15 elements. Split with `.spawn(first_batch).insert(rest)`.
+## Repo Conventions
 
-### Timers
-
-- Tick with `timer.tick(time.delta())` each frame.
-- Check with `timer.is_finished()`, **not** `timer.finished()` (`finished` is a private field).
-- `timer.just_finished()` is true only on the tick the timer completed.
-
-### Bloom / HDR
-
-- Bloom component is `Bloom` (not `BloomSettings`). Presets: `Bloom::NATURAL`, `Bloom::OLD_SCHOOL`.
-- Import: `use bevy::{core_pipeline::tonemapping::{DebandDither, Tonemapping}, post_process::bloom::Bloom};`
-- `ColorMaterial` has **no** `emissive` field. Use `Color` values > 1.0 for bloom glow (e.g., `Color::srgb(5.0, 1.0, 0.2)`).
-
-### State-Scoped Entities
-
-- `DespawnOnExit<S: States>` (and `DespawnOnEnter<S: States>`) — replaces old `StateScoped`.
-- Register sub-states: `app.init_state::<AppState>().add_sub_state::<PlayState>();`
-- Define with `#[derive(SubStates)]` and `#[source(AppState = AppState::Playing)]`.
+- Prefer small coherent changes over architecture churn.
+- Put new tunables in `constants.rs`.
+- Put new shared state in `resources.rs`.
+- Put reusable ECS markers/data in `components.rs`.
+- Extend the owning domain plugin instead of growing `main.rs`.
+- Run `cargo check` after most changes and `cargo clippy --all-targets --all-features` when touching shared patterns.

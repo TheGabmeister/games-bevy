@@ -1,6 +1,8 @@
 #![allow(clippy::too_many_arguments, clippy::type_complexity)]
 
+use bevy::ecs::schedule::ApplyDeferred;
 use bevy::prelude::*;
+use std::collections::HashSet;
 
 use crate::components::*;
 use crate::constants::*;
@@ -17,7 +19,9 @@ impl Plugin for CombatPlugin {
             (
                 // Rescue resolves before brain conversion (spec requirement)
                 player_vs_human,
+                ApplyDeferred,
                 bullet_collisions,
+                ApplyDeferred,
                 // Damage systems run after bullets and rescue
                 (
                     damage_vs_player,
@@ -25,6 +29,7 @@ impl Plugin for CombatPlugin {
                     hulk_vs_human,
                     brain_vs_human,
                 ),
+                ApplyDeferred,
                 check_wave_clear,
             )
                 .chain()
@@ -80,17 +85,23 @@ fn bullet_collisions(
     mut hulk_q: Query<(&Transform, &CollisionRadius, &mut Knockback), With<Hulk>>,
     electrode_q: Query<(Entity, &Transform, &CollisionRadius), With<Electrode>>,
 ) {
+    let mut destroyed_targets = HashSet::new();
+
     for (b_entity, b_tf, b_vel, b_radius) in &bullet_q {
         let b_pos = b_tf.translation.truncate();
         let mut hit = false;
 
         // Check killable enemies
         for (e_entity, e_tf, e_radius, points) in &killable_q {
+            if destroyed_targets.contains(&e_entity) {
+                continue;
+            }
             let e_pos = e_tf.translation.truncate();
             let radii = b_radius.0 + e_radius.0;
             if b_pos.distance_squared(e_pos) < radii * radii {
                 commands.entity(b_entity).despawn();
                 commands.entity(e_entity).despawn();
+                destroyed_targets.insert(e_entity);
                 game.award_score(points.0);
                 spawn_particles(
                     &mut commands,
@@ -123,11 +134,15 @@ fn bullet_collisions(
         // Check electrodes
         if !hit {
             for (el_entity, el_tf, el_radius) in &electrode_q {
+                if destroyed_targets.contains(&el_entity) {
+                    continue;
+                }
                 let el_pos = el_tf.translation.truncate();
                 let radii = b_radius.0 + el_radius.0;
                 if b_pos.distance_squared(el_pos) < radii * radii {
                     commands.entity(b_entity).despawn();
                     commands.entity(el_entity).despawn();
+                    destroyed_targets.insert(el_entity);
                     game.award_score(25);
                     spawn_particles(
                         &mut commands,
@@ -143,8 +158,6 @@ fn bullet_collisions(
     }
 }
 
-// FIX: Combined hazard_vs_player and proj_vs_player into one system to prevent
-// double-death bug where both systems could fire in the same frame
 fn damage_vs_player(
     mut commands: Commands,
     mut game: ResMut<GameState>,
@@ -248,13 +261,19 @@ fn brain_vs_human(
     brain_q: Query<(&Transform, &CollisionRadius), With<Brain>>,
     human_q: Query<(Entity, &Transform, &CollisionRadius), With<Human>>,
 ) {
+    let mut converted_humans = HashSet::new();
+
     for (br_tf, br_r) in &brain_q {
         let br_pos = br_tf.translation.truncate();
         for (h_entity, h_tf, h_r) in &human_q {
+            if converted_humans.contains(&h_entity) {
+                continue;
+            }
             let h_pos = h_tf.translation.truncate();
             let radii = br_r.0 + h_r.0;
             if br_pos.distance_squared(h_pos) < radii * radii {
                 commands.entity(h_entity).despawn();
+                converted_humans.insert(h_entity);
                 // Convert human to Prog
                 commands.spawn((
                     Enemy,
@@ -276,13 +295,13 @@ fn brain_vs_human(
     }
 }
 
-// FIX: Now transitions to WaveClear instead of skipping straight to WaveIntro
 fn check_wave_clear(
     mut next_state: ResMut<NextState<PlayState>>,
     mut shake: ResMut<ScreenShake>,
+    player_q: Query<(), With<Player>>,
     killable_q: Query<(), With<Killable>>,
 ) {
-    if killable_q.is_empty() {
+    if !player_q.is_empty() && killable_q.is_empty() {
         shake.trauma = (shake.trauma + 0.3).min(1.0);
         next_state.set(PlayState::WaveClear);
     }
