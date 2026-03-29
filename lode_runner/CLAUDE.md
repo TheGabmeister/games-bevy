@@ -102,7 +102,7 @@ Rows are top-to-bottom in the string but bottom-up in grid coordinates (y=0 is t
 
 ### Events and Observers
 
-- `EventWriter<T>`, `EventReader<T>`, and `App::add_event::<T>()` are **not available**. Use a shared `Resource` with a `Vec` to pass data between systems instead of the event system.
+- `EventWriter<T>` / `EventReader<T>` / `App::add_event::<T>()` were renamed in Bevy 0.18. Use `MessageWriter<T>`, `MessageReader<T>`, and `App::add_message::<T>()` instead.
 - Use `Observer` and `Trigger` for one-shot reactions to entity lifecycle or custom game events.
 
 ### Timers
