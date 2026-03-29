@@ -11,6 +11,16 @@ pub const TILE_SIZE: f32 = 32.0;
 pub const LEVEL_HEIGHT_TILES: usize = 15;
 pub const GROUND_TILE_ROWS: usize = 2;
 pub const CAMERA_FOLLOW_LERP: f32 = 8.0;
+pub const BLOCK_BUMP_HEIGHT: f32 = 10.0;
+pub const BLOCK_BUMP_DURATION: f32 = 0.15;
+pub const COIN_POP_HEIGHT: f32 = 54.0;
+pub const COIN_POP_DURATION: f32 = 0.45;
+pub const SCORE_POP_RISE: f32 = 22.0;
+pub const SCORE_POP_DURATION: f32 = 0.7;
+pub const BRICK_DEBRIS_LIFETIME: f32 = 0.7;
+pub const BRICK_DEBRIS_GRAVITY: f32 = -1200.0;
+pub const MUSHROOM_EMERGE_HEIGHT: f32 = 28.0;
+pub const MUSHROOM_EMERGE_DURATION: f32 = 0.35;
 
 // Physics
 pub const GRAVITY: f32 = -1800.0;

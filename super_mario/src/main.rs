@@ -5,6 +5,7 @@ use bevy::{
     window::WindowResolution,
 };
 
+mod blocks;
 mod components;
 mod constants;
 mod level;
@@ -13,6 +14,7 @@ mod player;
 mod resources;
 mod states;
 
+use blocks::BlocksPlugin;
 use constants::*;
 use level::LevelPlugin;
 use messages::*;
@@ -46,7 +48,7 @@ fn main() {
         .add_message::<LevelCompleted>()
         .add_message::<SpawnParticles>()
         .add_message::<CameraShakeRequested>()
-        .add_plugins((LevelPlugin, PlayerPlugin))
+        .add_plugins((LevelPlugin, PlayerPlugin, BlocksPlugin))
         // Startup
         .add_systems(Startup, setup_camera)
         .run();

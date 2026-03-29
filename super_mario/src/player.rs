@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use crate::{
     components::{Collider, FacingDirection, Grounded, Player, PowerState, Solid, Velocity},
     constants::*,
+    messages::BlockHit,
     resources::LevelState,
     states::{AppState, PlayState},
 };
@@ -17,7 +18,7 @@ type PlayerMovementQuery<'w, 's> = Query<
 >;
 
 type SolidColliderQuery<'w, 's> =
-    Query<'w, 's, (&'static Transform, &'static Collider), (With<Solid>, Without<Player>)>;
+    Query<'w, 's, (Entity, &'static Transform, &'static Collider), (With<Solid>, Without<Player>)>;
 
 #[derive(Clone, Copy)]
 struct Aabb {
@@ -164,6 +165,7 @@ fn apply_player_gravity(time: Res<Time>, mut player_query: Query<&mut Velocity, 
 fn move_player_and_resolve_collisions(
     time: Res<Time>,
     mut player_query: PlayerMovementQuery,
+    mut block_hit_writer: MessageWriter<BlockHit>,
     solid_query: SolidColliderQuery,
 ) {
     let Ok((mut player_transform, mut velocity, mut grounded, player_collider)) = player_query.single_mut() else {
@@ -175,7 +177,7 @@ fn move_player_and_resolve_collisions(
     let half_height = player_collider.height * 0.5;
 
     let mut next_x = player_transform.translation.x + velocity.x * dt;
-    for (solid_transform, solid_collider) in &solid_query {
+    for (_, solid_transform, solid_collider) in &solid_query {
         if aabb_overlap(
             Aabb {
                 center: Vec2::new(next_x, player_transform.translation.y),
@@ -198,7 +200,7 @@ fn move_player_and_resolve_collisions(
 
     grounded.0 = false;
     let mut next_y = player_transform.translation.y + velocity.y * dt;
-    for (solid_transform, solid_collider) in &solid_query {
+    for (solid_entity, solid_transform, solid_collider) in &solid_query {
         if aabb_overlap(
             Aabb {
                 center: Vec2::new(player_transform.translation.x, next_y),
@@ -211,11 +213,15 @@ fn move_player_and_resolve_collisions(
         ) {
             if velocity.y > 0.0 {
                 next_y = solid_transform.translation.y - solid_collider.height * 0.5 - half_height;
+                block_hit_writer.write(BlockHit {
+                    entity: solid_entity,
+                });
             } else if velocity.y < 0.0 {
                 next_y = solid_transform.translation.y + solid_collider.height * 0.5 + half_height;
                 grounded.0 = true;
             }
             velocity.y = 0.0;
+            break;
         }
     }
     player_transform.translation.y = next_y;

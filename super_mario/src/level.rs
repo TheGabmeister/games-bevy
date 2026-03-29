@@ -2,7 +2,10 @@ use bevy::prelude::*;
 use std::f32::consts::FRAC_PI_2;
 
 use crate::{
-    components::{BlockContents, BrickBlock, Castle, Collider, Flagpole, HardBlock, Pipe, Player, QuestionBlock, Solid},
+    components::{
+        BlockContents, BrickBlock, Castle, Collider, Flagpole, HardBlock, Pipe, Player, QuestionBlock, QuestionMarkVisual,
+        Solid,
+    },
     constants::*,
     resources::LevelState,
     states::AppState,
@@ -193,6 +196,7 @@ fn spawn_level(
                         );
                         parent.spawn((
                             Text2d::new("?"),
+                            QuestionMarkVisual,
                             TextFont {
                                 font_size: TILE_SIZE * 0.7,
                                 ..default()

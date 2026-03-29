@@ -76,6 +76,9 @@ pub struct Flagpole;
 #[derive(Component)]
 pub struct Castle;
 
+#[derive(Component)]
+pub struct QuestionMarkVisual;
+
 // Items
 #[derive(Component)]
 pub struct Coin;
