@@ -20,33 +20,35 @@ impl Plugin for PhysicsPlugin {
             )
                 .chain()
                 .in_set(GameSet::Physics)
-                .run_if(in_state(PlayState::WaveActive)),
+                .run_if(in_state(AppState::Playing)),
         );
     }
 }
 
+// Full wrap period including margin on both sides.
+const WRAP_PERIOD: f32 = ARENA_WIDTH + 2.0 * WRAP_MARGIN;
+
 // --- Wrap helpers ---
 
 pub fn wrap_x(x: f32) -> f32 {
-    let margin = WRAP_MARGIN;
-    let left = ARENA_LEFT - margin;
-    let right = ARENA_RIGHT + margin;
-    let width = right - left;
+    let left = ARENA_LEFT - WRAP_MARGIN;
+    let right = ARENA_RIGHT + WRAP_MARGIN;
     if x < left {
-        x + width
+        x + WRAP_PERIOD
     } else if x > right {
-        x - width
+        x - WRAP_PERIOD
     } else {
         x
     }
 }
 
 pub fn wrapped_dx(from: f32, to: f32) -> f32 {
+    let half = WRAP_PERIOD / 2.0;
     let dx = to - from;
-    if dx > ARENA_WIDTH / 2.0 {
-        dx - ARENA_WIDTH
-    } else if dx < -ARENA_WIDTH / 2.0 {
-        dx + ARENA_WIDTH
+    if dx > half {
+        dx - WRAP_PERIOD
+    } else if dx < -half {
+        dx + WRAP_PERIOD
     } else {
         dx
     }
@@ -58,13 +60,18 @@ pub fn wrapped_distance(a: f32, b: f32) -> f32 {
 
 // --- Systems ---
 
-fn save_previous_positions(mut query: Query<(&Transform, &mut PreviousPosition)>) {
+fn save_previous_positions(
+    mut query: Query<(&Transform, &mut PreviousPosition), Without<Particle>>,
+) {
     for (transform, mut prev) in &mut query {
         prev.0 = transform.translation.truncate();
     }
 }
 
-fn gravity_system(time: Res<Time>, mut query: Query<&mut Velocity, Without<Grounded>>) {
+fn gravity_system(
+    time: Res<Time>,
+    mut query: Query<&mut Velocity, (Without<Grounded>, Without<Particle>)>,
+) {
     let dt = time.delta_secs();
     for mut vel in &mut query {
         vel.0.y -= GRAVITY * dt;
@@ -72,7 +79,10 @@ fn gravity_system(time: Res<Time>, mut query: Query<&mut Velocity, Without<Groun
     }
 }
 
-fn drag_system(time: Res<Time>, mut query: Query<(&mut Velocity, Option<&Grounded>)>) {
+fn drag_system(
+    time: Res<Time>,
+    mut query: Query<(&mut Velocity, Option<&Grounded>), Without<Particle>>,
+) {
     let dt = time.delta_secs();
     for (mut vel, grounded) in &mut query {
         let drag = if grounded.is_some() { GROUND_DRAG } else { AIR_DRAG };
@@ -86,7 +96,10 @@ fn drag_system(time: Res<Time>, mut query: Query<(&mut Velocity, Option<&Grounde
     }
 }
 
-fn apply_velocity_system(time: Res<Time>, mut query: Query<(&Velocity, &mut Transform)>) {
+fn apply_velocity_system(
+    time: Res<Time>,
+    mut query: Query<(&Velocity, &mut Transform), Without<Particle>>,
+) {
     let dt = time.delta_secs();
     for (vel, mut transform) in &mut query {
         transform.translation.x += vel.0.x * dt;
@@ -102,11 +115,13 @@ fn platform_collision_system(
         &mut Velocity,
         &PreviousPosition,
         Option<&Grounded>,
-    )>,
+        Option<&Egg>,
+    ), Without<Particle>>,
 ) {
-    for (entity, mut transform, mut velocity, prev_pos, grounded) in &mut query {
-        let prev_bottom = prev_pos.0.y - RIDER_RADIUS;
-        let curr_bottom = transform.translation.y - RIDER_RADIUS;
+    for (entity, mut transform, mut velocity, prev_pos, grounded, egg) in &mut query {
+        let radius = if egg.is_some() { EGG_RADIUS } else { RIDER_RADIUS };
+        let prev_bottom = prev_pos.0.y - radius;
+        let curr_bottom = transform.translation.y - radius;
         let curr_x = transform.translation.x;
         let mut landed_this_frame = false;
 
@@ -126,7 +141,7 @@ fn platform_collision_system(
                     && prev_bottom >= plat_top - PLATFORM_SNAP_DISTANCE
                     && curr_bottom <= plat_top + PLATFORM_SNAP_DISTANCE
                 {
-                    transform.translation.y = plat_top + RIDER_RADIUS;
+                    transform.translation.y = plat_top + radius;
                     velocity.0.y = 0.0;
                     if grounded.is_none() {
                         commands.entity(entity).insert(Grounded);
@@ -141,7 +156,7 @@ fn platform_collision_system(
         if grounded.is_some() && !landed_this_frame {
             let still_on = PLATFORMS.iter().any(|plat| {
                 let plat_top = plat.y + PLATFORM_THICKNESS / 2.0;
-                let on_y = (transform.translation.y - RIDER_RADIUS - plat_top).abs()
+                let on_y = (transform.translation.y - radius - plat_top).abs()
                     < PLATFORM_SNAP_DISTANCE * 2.0;
                 let on_x = if plat.wraps {
                     true
@@ -156,15 +171,17 @@ fn platform_collision_system(
             }
         }
 
-        // Ceiling clamp
-        if transform.translation.y + RIDER_RADIUS > ARENA_TOP {
-            transform.translation.y = ARENA_TOP - RIDER_RADIUS;
+        // Ceiling clamp (riders only)
+        if egg.is_none() && transform.translation.y + radius > ARENA_TOP {
+            transform.translation.y = ARENA_TOP - radius;
             velocity.0.y = velocity.0.y.min(0.0);
         }
     }
 }
 
-fn screen_wrap_system(mut query: Query<&mut Transform, With<Velocity>>) {
+fn screen_wrap_system(
+    mut query: Query<&mut Transform, (With<Velocity>, Without<Particle>)>,
+) {
     for mut transform in &mut query {
         transform.translation.x = wrap_x(transform.translation.x);
     }

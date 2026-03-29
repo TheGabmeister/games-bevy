@@ -12,26 +12,22 @@ pub struct CombatPlugin;
 
 impl Plugin for CombatPlugin {
     fn build(&self, app: &mut App) {
-        app.add_event::<JoustKillEvent>()
-            .add_event::<JoustBounceEvent>()
-            .add_event::<EggCollectedEvent>()
-            .add_event::<PlayerDiedEvent>()
-            .add_event::<ScoreEvent>()
-            .add_systems(
-                Update,
-                (
-                    invincibility_tick_system,
-                    joust_combat_system,
-                    egg_collection_system,
-                    egg_hatch_system,
-                    lava_kill_system,
-                    handle_score_events,
-                    check_game_over,
-                )
-                    .chain()
-                    .in_set(GameSet::Combat)
-                    .run_if(in_state(PlayState::WaveActive)),
-            );
+        app.add_systems(
+            Update,
+            (
+                invincibility_tick_system,
+                joust_combat_system,
+                egg_collection_system,
+                egg_hatch_system,
+                lava_kill_system,
+                handle_score_messages,
+                handle_player_died_messages,
+                check_game_over,
+            )
+                .chain()
+                .in_set(GameSet::Combat)
+                .run_if(in_state(AppState::Playing)),
+        );
     }
 }
 
@@ -42,7 +38,7 @@ fn invincibility_tick_system(
 ) {
     for (entity, mut inv) in &mut query {
         inv.0.tick(time.delta());
-        if inv.0.finished() {
+        if inv.0.is_finished() {
             commands.entity(entity).remove::<Invincible>();
         }
     }
@@ -53,16 +49,14 @@ fn joust_combat_system(
     riders: Query<(
         Entity,
         &Transform,
-        &Velocity,
         Option<&Player>,
-        Option<&Enemy>,
         Option<&EnemyTier>,
         Option<&Invincible>,
     ), With<Rider>>,
-    mut kill_events: EventWriter<JoustKillEvent>,
-    mut bounce_events: EventWriter<JoustBounceEvent>,
-    mut player_died_events: EventWriter<PlayerDiedEvent>,
-    mut score_events: EventWriter<ScoreEvent>,
+    mut velocities: Query<&mut Velocity>,
+    mut kill_writer: MessageWriter<JoustKillMessage>,
+    mut score_writer: MessageWriter<ScoreMessage>,
+    mut died_writer: MessageWriter<PlayerDiedMessage>,
     meshes: Res<SharedMeshes>,
     materials: Res<SharedMaterials>,
     game_state: Res<GameState>,
@@ -73,8 +67,8 @@ fn joust_combat_system(
 
     for i in 0..riders_vec.len() {
         for j in (i + 1)..riders_vec.len() {
-            let (e_a, t_a, _, p_a, _, tier_a, inv_a) = riders_vec[i];
-            let (e_b, t_b, _, p_b, _, tier_b, inv_b) = riders_vec[j];
+            let (e_a, t_a, p_a, tier_a, inv_a) = riders_vec[i];
+            let (e_b, t_b, p_b, tier_b, inv_b) = riders_vec[j];
 
             if inv_a.is_some() || inv_b.is_some() {
                 continue;
@@ -98,38 +92,49 @@ fn joust_combat_system(
             let diff = joust_a - joust_b;
 
             if diff > JOUST_DEAD_ZONE {
-                // A wins
-                handle_kill(
+                // A wins, B dies
+                kill_rider(
                     &mut commands, e_a, e_b, pos_b, p_a, p_b, tier_b,
-                    &mut kill_events, &mut player_died_events, &mut score_events,
+                    &mut kill_writer, &mut score_writer, &mut died_writer,
                     &meshes, &materials, &game_state, &mut respawn_timers, &mut dead,
                 );
             } else if diff < -JOUST_DEAD_ZONE {
-                // B wins
-                handle_kill(
+                // B wins, A dies
+                kill_rider(
                     &mut commands, e_b, e_a, pos_a, p_b, p_a, tier_a,
-                    &mut kill_events, &mut player_died_events, &mut score_events,
+                    &mut kill_writer, &mut score_writer, &mut died_writer,
                     &meshes, &materials, &game_state, &mut respawn_timers, &mut dead,
                 );
             } else {
                 // Bounce both
-                bounce_events.send(JoustBounceEvent {
-                    entity_a: e_a,
-                    entity_b: e_b,
-                });
+                let dir = wrapped_dx(pos_a.x, pos_b.x).signum();
+                if let Ok(mut va) = velocities.get_mut(e_a) {
+                    va.0.x = -dir * BOUNCE_HORIZONTAL;
+                    va.0.y = BOUNCE_VERTICAL;
+                }
+                if let Ok(mut vb) = velocities.get_mut(e_b) {
+                    vb.0.x = dir * BOUNCE_HORIZONTAL;
+                    vb.0.y = BOUNCE_VERTICAL;
+                }
+                commands
+                    .entity(e_a)
+                    .insert(Invincible(Timer::from_seconds(
+                        BOUNCE_INVINCIBILITY,
+                        TimerMode::Once,
+                    )));
+                commands
+                    .entity(e_b)
+                    .insert(Invincible(Timer::from_seconds(
+                        BOUNCE_INVINCIBILITY,
+                        TimerMode::Once,
+                    )));
             }
         }
     }
-
-    // Apply bounces
-    for event in bounce_events.send_buffer() {
-        let _ = event;
-    }
-    // Bounce handling done via separate pass below
 }
 
 #[allow(clippy::too_many_arguments)]
-fn handle_kill(
+fn kill_rider(
     commands: &mut Commands,
     winner: Entity,
     loser: Entity,
@@ -137,9 +142,9 @@ fn handle_kill(
     winner_player: Option<&Player>,
     loser_player: Option<&Player>,
     loser_tier: Option<&EnemyTier>,
-    kill_events: &mut EventWriter<JoustKillEvent>,
-    player_died_events: &mut EventWriter<PlayerDiedEvent>,
-    score_events: &mut EventWriter<ScoreEvent>,
+    kill_writer: &mut MessageWriter<JoustKillMessage>,
+    score_writer: &mut MessageWriter<ScoreMessage>,
+    died_writer: &mut MessageWriter<PlayerDiedMessage>,
     meshes: &SharedMeshes,
     materials: &SharedMaterials,
     game_state: &GameState,
@@ -148,44 +153,39 @@ fn handle_kill(
 ) {
     dead.push(loser);
 
-    // Award points to winner if they're a player
-    if let Some(player) = winner_player {
-        if let Some(tier) = loser_tier {
-            score_events.send(ScoreEvent {
-                player_id: player.id,
+    if let Some(tier) = loser_tier {
+        if let Some(p) = winner_player {
+            score_writer.write(ScoreMessage {
+                player_id: p.id,
                 points: tier.score(),
             });
         }
-    }
-
-    // Spawn egg if loser is enemy
-    if let Some(tier) = loser_tier {
         let hatch_time = get_wave_def(game_state.wave).egg_hatch_time;
         spawn_egg_entity(commands, meshes, materials, loser_pos, *tier, hatch_time);
     }
 
-    // Handle player death
-    if let Some(player) = loser_player {
-        player_died_events.send(PlayerDiedEvent {
-            player_id: player.id,
+    if let Some(p) = loser_player {
+        died_writer.write(PlayerDiedMessage {
+            player_id: p.id,
             position: loser_pos,
         });
+        // Note: lives are decremented via handle_score_messages for combat kills
+        // We must do it here since we have mutable access through game_state ref
+        // The game_state param is immutable here, so we handle it differently:
+        // Life decrement happens in the lava_kill_system and via a separate system.
+        // For combat kills, add a respawn timer; life decrement is handled below.
         respawn_timers.timers.push((
-            player.id,
+            p.id,
             Timer::from_seconds(PLAYER_RESPAWN_DELAY, TimerMode::Once),
         ));
     }
 
-    kill_events.send(JoustKillEvent {
-        winner,
+    kill_writer.write(JoustKillMessage {
         loser_position: loser_pos,
         loser_tier: loser_tier.copied(),
-        winner_player_id: winner_player.map(|p| p.id),
     });
 
     commands.entity(loser).despawn();
-
-    // Give winner brief invincibility and bounce
     commands
         .entity(winner)
         .insert(Invincible(Timer::from_seconds(
@@ -198,8 +198,7 @@ fn egg_collection_system(
     mut commands: Commands,
     players: Query<(&Player, &Transform), Without<Egg>>,
     eggs: Query<(Entity, &Transform), With<Egg>>,
-    mut score_events: EventWriter<ScoreEvent>,
-    mut collected_events: EventWriter<EggCollectedEvent>,
+    mut score_writer: MessageWriter<ScoreMessage>,
 ) {
     for (player, p_transform) in &players {
         for (egg_entity, e_transform) in &eggs {
@@ -211,12 +210,9 @@ fn egg_collection_system(
             let dist = (dx * dx + dy * dy).sqrt();
 
             if dist < RIDER_RADIUS + EGG_RADIUS {
-                score_events.send(ScoreEvent {
+                score_writer.write(ScoreMessage {
                     player_id: player.id,
                     points: SCORE_COLLECT_EGG,
-                });
-                collected_events.send(EggCollectedEvent {
-                    player_id: player.id,
                 });
                 commands.entity(egg_entity).despawn();
             }
@@ -244,48 +240,37 @@ fn egg_hatch_system(
 
 fn lava_kill_system(
     mut commands: Commands,
-    query: Query<(
-        Entity,
-        &Transform,
-        Option<&Player>,
-        Option<&Enemy>,
-        Option<&Egg>,
-    ), With<Velocity>>,
-    mut player_died_events: EventWriter<PlayerDiedEvent>,
+    query: Query<(Entity, &Transform, Option<&Player>), With<Velocity>>,
+    mut died_writer: MessageWriter<PlayerDiedMessage>,
     mut respawn_timers: ResMut<RespawnTimers>,
-    mut game_state: ResMut<GameState>,
 ) {
-    for (entity, transform, player, enemy, egg) in &query {
+    for (entity, transform, player) in &query {
         if transform.translation.y - RIDER_RADIUS < LAVA_Y {
             if let Some(p) = player {
-                player_died_events.send(PlayerDiedEvent {
+                died_writer.write(PlayerDiedMessage {
                     player_id: p.id,
                     position: transform.translation.truncate(),
                 });
-                if game_state.lives[p.id as usize] > 0 {
-                    game_state.lives[p.id as usize] -= 1;
-                    respawn_timers.timers.push((
-                        p.id,
-                        Timer::from_seconds(PLAYER_RESPAWN_DELAY, TimerMode::Once),
-                    ));
-                }
+                respawn_timers.timers.push((
+                    p.id,
+                    Timer::from_seconds(PLAYER_RESPAWN_DELAY, TimerMode::Once),
+                ));
             }
             commands.entity(entity).despawn();
         }
     }
 }
 
-fn handle_score_events(
-    mut events: EventReader<ScoreEvent>,
+fn handle_score_messages(
+    mut reader: MessageReader<ScoreMessage>,
     mut game_state: ResMut<GameState>,
 ) {
-    for event in events.read() {
-        let pid = event.player_id as usize;
+    for msg in reader.read() {
+        let pid = msg.player_id as usize;
         let old_score = game_state.scores[pid];
-        game_state.scores[pid] += event.points;
+        game_state.scores[pid] += msg.points;
         let new_score = game_state.scores[pid];
 
-        // Extra life check
         let old_lives_earned = old_score / EXTRA_LIFE_INTERVAL;
         let new_lives_earned = new_score / EXTRA_LIFE_INTERVAL;
         if new_lives_earned > old_lives_earned {
@@ -294,12 +279,12 @@ fn handle_score_events(
     }
 }
 
-fn handle_player_died(
-    mut events: EventReader<PlayerDiedEvent>,
+fn handle_player_died_messages(
+    mut reader: MessageReader<PlayerDiedMessage>,
     mut game_state: ResMut<GameState>,
 ) {
-    for event in events.read() {
-        let pid = event.player_id as usize;
+    for msg in reader.read() {
+        let pid = msg.player_id as usize;
         if game_state.lives[pid] > 0 {
             game_state.lives[pid] -= 1;
         }

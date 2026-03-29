@@ -13,8 +13,9 @@ impl Plugin for PlayerPlugin {
         app.add_systems(OnEnter(AppState::Playing), spawn_players)
             .add_systems(
                 Update,
-                (player_input_system.in_set(GameSet::Input),)
-                    .run_if(in_state(PlayState::WaveActive)),
+                player_input_system
+                    .in_set(GameSet::Input)
+                    .run_if(in_state(AppState::Playing)),
             )
             .add_systems(
                 Update,
@@ -47,10 +48,10 @@ fn spawn_players(
             Rider,
             Velocity::default(),
             FacingDirection::Right,
-            FlapCooldown(Timer::from_seconds(FLAP_COOLDOWN, TimerMode::Once)),
+            FlapCooldown::ready(),
             PreviousPosition(pos),
             Invincible(Timer::from_seconds(RESPAWN_INVINCIBILITY, TimerMode::Once)),
-            StateScoped(AppState::Playing),
+            DespawnOnExit(AppState::Playing),
         ));
     }
 }
@@ -95,7 +96,7 @@ fn player_input_system(
 
         // Flap
         let flap_pressed = flap_keys.iter().any(|k| keys.pressed(*k));
-        if flap_pressed && cooldown.0.finished() {
+        if flap_pressed && cooldown.0.is_finished() {
             vel.0.y = (vel.0.y + FLAP_IMPULSE).min(MAX_RISE_SPEED);
             cooldown.0.reset();
             if is_grounded {
@@ -116,7 +117,7 @@ fn player_respawn_system(
     let mut spawned = Vec::new();
     for (i, (player_id, timer)) in respawn_timers.timers.iter_mut().enumerate() {
         timer.tick(time.delta());
-        if timer.just_finished() {
+        if timer.is_finished() {
             let pid = *player_id;
             if game_state.lives[pid as usize] > 0 {
                 let pos = if pid == 0 {
@@ -142,10 +143,10 @@ fn player_respawn_system(
                     Rider,
                     Velocity::default(),
                     FacingDirection::Right,
-                    FlapCooldown(Timer::from_seconds(FLAP_COOLDOWN, TimerMode::Once)),
+                    FlapCooldown::ready(),
                     PreviousPosition(pos),
                     Invincible(Timer::from_seconds(RESPAWN_INVINCIBILITY, TimerMode::Once)),
-                    StateScoped(AppState::Playing),
+                    DespawnOnExit(AppState::Playing),
                 ));
             }
             spawned.push(i);

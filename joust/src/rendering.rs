@@ -1,3 +1,4 @@
+use bevy::ecs::relationship::Relationship;
 use bevy::prelude::*;
 
 use crate::components::*;
@@ -115,6 +116,7 @@ pub fn spawn_egg_entity(
             },
             Velocity::default(),
             PreviousPosition(position),
+            DespawnOnExit(crate::states::AppState::Playing),
         ))
         .id()
 }
@@ -130,7 +132,7 @@ pub fn spawn_arena(
             Mesh2d(meshes.rect_platform[i].clone()),
             MeshMaterial2d(materials.platform.clone()),
             Transform::from_xyz(plat.center_x, plat.y, Z_PLATFORMS),
-            StateScoped(crate::states::AppState::Playing),
+            DespawnOnExit(crate::states::AppState::Playing),
         ));
     }
 
@@ -139,7 +141,7 @@ pub fn spawn_arena(
         Mesh2d(meshes.rect_lava.clone()),
         MeshMaterial2d(materials.lava_back.clone()),
         Transform::from_xyz(0.0, LAVA_Y - 30.0, Z_LAVA_BACK),
-        StateScoped(crate::states::AppState::Playing),
+        DespawnOnExit(crate::states::AppState::Playing),
     ));
 
     // Lava front layer
@@ -147,14 +149,14 @@ pub fn spawn_arena(
         Mesh2d(meshes.rect_lava.clone()),
         MeshMaterial2d(materials.lava_front.clone()),
         Transform::from_xyz(0.0, LAVA_Y - 20.0, Z_LAVA_FRONT),
-        StateScoped(crate::states::AppState::Playing),
+        DespawnOnExit(crate::states::AppState::Playing),
     ));
 }
 
 fn wing_animation_system(
     time: Res<Time>,
     parents: Query<&Velocity>,
-    mut wings: Query<(&Parent, &Wing, &mut Transform)>,
+    mut wings: Query<(&ChildOf, &Wing, &mut Transform)>,
 ) {
     for (parent, wing, mut transform) in &mut wings {
         let Ok(velocity) = parents.get(parent.get()) else {

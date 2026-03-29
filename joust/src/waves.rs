@@ -56,7 +56,7 @@ fn setup_wave_intro(
         },
         TextColor(Color::srgb(1.0, 0.9, 0.3)),
         Transform::from_xyz(0.0, 100.0, Z_WAVE_TEXT),
-        StateScoped(PlayState::WaveIntro),
+        DespawnOnExit(PlayState::WaveIntro),
     ));
 }
 
@@ -66,7 +66,7 @@ fn wave_intro_tick(
     mut next_state: ResMut<NextState<PlayState>>,
 ) {
     timer.0.tick(time.delta());
-    if timer.0.finished() {
+    if timer.0.is_finished() {
         next_state.set(PlayState::WaveActive);
     }
 }
@@ -95,7 +95,7 @@ fn wave_clear_tick(
     mut next_state: ResMut<NextState<PlayState>>,
 ) {
     timer.0.tick(time.delta());
-    if timer.0.finished() {
+    if timer.0.is_finished() {
         game_state.wave += 1;
         next_state.set(PlayState::WaveIntro);
     }

@@ -17,7 +17,7 @@ impl Plugin for EnemyPlugin {
                 Update,
                 enemy_ai_system
                     .in_set(GameSet::Ai)
-                    .run_if(in_state(PlayState::WaveActive)),
+                    .run_if(in_state(AppState::Playing)),
             );
     }
 }
@@ -78,8 +78,9 @@ pub fn spawn_enemy_at(
         Rider,
         Velocity::default(),
         facing,
-        FlapCooldown(Timer::from_seconds(FLAP_COOLDOWN, TimerMode::Once)),
+        FlapCooldown::ready(),
         PreviousPosition(position),
+        DespawnOnExit(AppState::Playing),
         AiTimers {
             flap: Timer::from_seconds(
                 AI_FLAP_INTERVAL_BASE + rng.random_range(0.0..AI_FLAP_RANDOMNESS),
@@ -161,7 +162,7 @@ fn enemy_ai_system(
                 vel.0.x = (vel.0.x + dir * accel * speed_mult * dt * 0.5)
                     .clamp(-max_speed * speed_mult, max_speed * speed_mult);
 
-                if timers.flap.just_finished() && cooldown.0.finished() {
+                if timers.flap.just_finished() && cooldown.0.is_finished() {
                     vel.0.y = (vel.0.y + FLAP_IMPULSE * 0.7).min(MAX_RISE_SPEED);
                     cooldown.0.reset();
                     if is_grounded {
@@ -183,8 +184,8 @@ fn enemy_ai_system(
 
                     // Flap to get above target
                     let should_flap = timers.flap.just_finished()
-                        || (pos.y < target.y + JOUST_POINT_Y + 20.0 && cooldown.0.finished());
-                    if should_flap && cooldown.0.finished() {
+                        || (pos.y < target.y + JOUST_POINT_Y + 20.0 && cooldown.0.is_finished());
+                    if should_flap && cooldown.0.is_finished() {
                         vel.0.y = (vel.0.y + FLAP_IMPULSE).min(MAX_RISE_SPEED);
                         cooldown.0.reset();
                         if is_grounded {

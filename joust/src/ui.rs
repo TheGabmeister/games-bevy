@@ -37,7 +37,7 @@ fn setup_start_screen(mut commands: Commands) {
                 row_gap: Val::Px(20.0),
                 ..default()
             },
-            StateScoped(AppState::StartScreen),
+            DespawnOnExit(AppState::StartScreen),
         ))
         .with_children(|parent| {
             parent.spawn((
@@ -95,7 +95,7 @@ fn setup_hud(mut commands: Commands, player_count: Res<PlayerCount>) {
                 top: Val::Px(0.0),
                 ..default()
             },
-            StateScoped(AppState::Playing),
+            DespawnOnExit(AppState::Playing),
         ))
         .with_children(|parent| {
             // P1 score
@@ -189,7 +189,7 @@ fn setup_game_over(mut commands: Commands, game_state: Res<GameState>) {
                 ..default()
             },
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.7)),
-            StateScoped(AppState::GameOver),
+            DespawnOnExit(AppState::GameOver),
         ))
         .with_children(|parent| {
             parent.spawn((

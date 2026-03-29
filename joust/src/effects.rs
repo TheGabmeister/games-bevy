@@ -11,21 +11,21 @@ impl Plugin for EffectsPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            (spawn_death_particles, update_particles)
-                .run_if(in_state(AppState::Playing)),
-        );
+            spawn_death_particles.run_if(in_state(AppState::Playing)),
+        )
+        .add_systems(Update, update_particles.run_if(in_state(AppState::Playing)));
     }
 }
 
 fn spawn_death_particles(
     mut commands: Commands,
-    mut kill_events: EventReader<JoustKillEvent>,
+    mut kill_reader: MessageReader<JoustKillMessage>,
     meshes: Res<SharedMeshes>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     let mut rng = rand::rng();
-    for event in kill_events.read() {
-        let color = if event.loser_tier.is_some() {
+    for msg in kill_reader.read() {
+        let color = if msg.loser_tier.is_some() {
             Color::srgb(1.0, 0.5, 0.2)
         } else {
             Color::srgb(0.5, 0.7, 1.0)
@@ -42,8 +42,8 @@ fn spawn_death_particles(
                 Mesh2d(meshes.circle_particle.clone()),
                 MeshMaterial2d(mat.clone()),
                 Transform::from_xyz(
-                    event.loser_position.x,
-                    event.loser_position.y,
+                    msg.loser_position.x,
+                    msg.loser_position.y,
                     crate::constants::Z_PARTICLES,
                 ),
                 Velocity(Vec2::new(vx, vy)),
@@ -69,7 +69,7 @@ fn update_particles(
         let frac = particle.lifetime.fraction();
         transform.scale = Vec3::splat(1.0 - frac);
 
-        if particle.lifetime.finished() {
+        if particle.lifetime.is_finished() {
             commands.entity(entity).despawn();
         }
     }

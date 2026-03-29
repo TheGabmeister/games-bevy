@@ -23,6 +23,15 @@ pub struct Grounded;
 #[derive(Component)]
 pub struct FlapCooldown(pub Timer);
 
+impl FlapCooldown {
+    /// Creates a cooldown that is immediately ready (first flap has no delay).
+    pub fn ready() -> Self {
+        let mut t = Timer::from_seconds(crate::constants::FLAP_COOLDOWN, TimerMode::Once);
+        t.finish();
+        Self(t)
+    }
+}
+
 #[derive(Component, Default)]
 pub struct PreviousPosition(pub Vec2);
 
@@ -123,35 +132,22 @@ pub struct Particle {
     pub lifetime: Timer,
 }
 
-// --- Events ---
+// --- Messages ---
 
-#[derive(Event)]
-pub struct JoustKillEvent {
-    pub winner: Entity,
+#[derive(Message)]
+pub struct JoustKillMessage {
     pub loser_position: Vec2,
     pub loser_tier: Option<EnemyTier>,
-    pub winner_player_id: Option<u8>,
 }
 
-#[derive(Event)]
-pub struct JoustBounceEvent {
-    pub entity_a: Entity,
-    pub entity_b: Entity,
-}
-
-#[derive(Event)]
-pub struct EggCollectedEvent {
-    pub player_id: u8,
-}
-
-#[derive(Event)]
-pub struct PlayerDiedEvent {
-    pub player_id: u8,
-    pub position: Vec2,
-}
-
-#[derive(Event)]
-pub struct ScoreEvent {
+#[derive(Message)]
+pub struct ScoreMessage {
     pub player_id: u8,
     pub points: u32,
+}
+
+#[derive(Message)]
+pub struct PlayerDiedMessage {
+    pub player_id: u8,
+    pub position: Vec2,
 }
