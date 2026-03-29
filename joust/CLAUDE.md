@@ -25,42 +25,78 @@ Dependencies compile at `opt-level = 3` while the main crate uses `opt-level = 1
 
 - **Bevy 0.18.1** (with `dynamic_linking` feature) — ECS game engine
 - **Rust Edition 2024**
+- **rand 0.9** — RNG for AI and effects
+
+## What This Is
+
+A playable Joust clone rendered with primitive meshes (no sprite assets). Features: flap-based movement, joust combat (higher rider wins), egg lifecycle (defeated enemies drop eggs that hatch into stronger tiers), lava kills, wave progression, 1–2 player support, HUD, start screen, and game-over flow.
 
 ## Architecture
 
-This is a template for 2D arcade-style Bevy games. When building out from the hello world starter, follow this modular layout:
+### Module Layout
 
-- **`main.rs`** — App setup, plugin registration, system scheduling with explicit ordering
-- **`constants.rs`** — All tunable values as named constants (window size, speeds, radii, scoring)
-- **`components.rs`** — Marker components for entity types + data components (Velocity, FacingDirection, etc.)
-- **`resources.rs`** — Shared game state (score, lives, wave progression)
-- **`states.rs`** — `AppState` enum driving a state machine (StartScreen → Playing → GameOver)
-- **Domain modules** — One module per gameplay domain (player, enemy, combat, ui, audio, etc.), each exposing a Plugin
+- **`main.rs`** — App setup, plugin registration, system set ordering, camera, arena spawn hook
+- **`constants.rs`** — All tunable values as named constants (window size, speeds, radii, scoring, platform layout, Z layers)
+- **`components.rs`** — Marker components, data components (Velocity, FacingDirection, etc.), and `Message` types
+- **`resources.rs`** — Shared game state (`GameState`), cached `SharedMeshes`/`SharedMaterials` handles, wave definitions (`WaveDef`)
+- **`states.rs`** — `AppState` enum, `PlayState` sub-state, `GameSet` system sets
+- **Domain modules** — One module per gameplay domain, each exposing a Plugin:
+  - `player.rs` — spawning, input, respawn
+  - `enemy.rs` — spawning, AI (wander/pursue)
+  - `physics.rs` — gravity, drag, velocity, platform collision, screen wrap
+  - `combat.rs` — joust resolution, egg collection/hatching, lava kills, scoring, game-over check
+  - `waves.rs` — game reset, wave intro/clear transitions
+  - `ui.rs` — start screen, HUD, game-over overlay
+  - `rendering.rs` — shared mesh/material setup, rider visual hierarchy, wing/facing/egg animations
+  - `effects.rs` — death particles
 
-### State Machine Pattern
+### State Machine
 
-Systems should be state-aware:
-- Gate gameplay systems with `.run_if(in_state(AppState::Playing))`
-- Use `OnEnter`/`OnExit` for spawn/cleanup symmetry
-- Prefer `StateScoped(AppState::Playing)` on entities that should auto-despawn when leaving a state — this eliminates most manual cleanup systems
-- Use `.after()` chains where frame ordering matters; for 10+ systems, group into `SystemSet`s (e.g., `MovementSet`, `CollisionSet`) and order at the set level
+Two-level state machine:
 
-### Events and Observers
+- **`AppState`**: `StartScreen` → `Playing` → `GameOver` (top-level)
+- **`PlayState`** (sub-state of `Playing`): `WaveIntro` → `WaveActive` → `WaveClear` → loops back to `WaveIntro`
 
-- Use `EventWriter<T>`/`EventReader<T>` to decouple systems (e.g., `CollisionEvent`, `ScoreEvent`). Prefer events over direct resource mutation when multiple systems need to react to the same thing.
-- Use `Observer` and `Trigger` for one-shot reactions to entity lifecycle or custom game events — these replace boilerplate `Added<T>`/`RemovedComponents<T>` query patterns.
+Most gameplay systems gate on `PlayState::WaveActive`. Some (invincibility tick, respawn, HUD updates) run across all of `AppState::Playing`.
 
-### Timers
+### System Set Ordering
 
-Use `Timer` with `Res<Time>` for cooldowns, spawn intervals, and delays — do not use frame-counting. Store timers in components (per-entity) or resources (global). Tick them with `timer.tick(time.delta())` each frame.
+Systems run in a strict chain defined in `main.rs`:
 
-### Coding Rules
+```
+GameSet::Input → GameSet::Ai → [ApplyDeferred] → GameSet::Physics → GameSet::Combat → [ApplyDeferred] → GameSet::Progression
+```
+
+`ApplyDeferred` flushes are inserted between Ai/Physics and Combat/Progression so later sets observe commands from earlier ones. Combat internally chains additional `ApplyDeferred` flushes between its sub-systems (joust → egg collection → egg hatch → lava kill → scoring → game over).
+
+### Message System
+
+Inter-system communication uses Bevy 0.18's buffered messages (not events):
+- `JoustKillMessage` — emitted on any kill (joust or lava), consumed by effects for death particles
+- `ScoreMessage` — point awards, consumed by score/extra-life handler
+- `PlayerDiedMessage` — life loss, consumed by life handler
+
+Messages are registered in `main.rs` with `add_message::<T>()` and accessed via `MessageWriter<T>`/`MessageReader<T>`.
+
+### Entity Cleanup
+
+Entities use `DespawnOnExit(AppState::Playing)` or `DespawnOnExit(PlayState::WaveIntro)` for automatic cleanup when leaving a state — no manual despawn systems needed.
+
+### Input Bindings
+
+- **Player 1**: A/D or Arrow Left/Right to move, W/Space/Arrow Up to flap
+- **Player 2**: J/L to move, I to flap
+- **Menus**: Space to start/restart, 2 to toggle player count
+
+## Coding Rules
 
 - New tunable values go in `constants.rs`, not inline magic numbers
 - New shared mutable game state goes in `resources.rs`
 - New ECS marker/data types go in `components.rs`
+- New messages must be registered in `main.rs` with `add_message::<T>()`
 - Prefer extending an existing domain plugin over registering ad hoc systems in `main.rs`
-- When spawning entities on `OnEnter`, define matching cleanup on `OnExit`
+- Assign new systems to the appropriate `GameSet` and gate with the correct state
+- When spawning entities for a state, attach `DespawnOnExit` for cleanup
 - Use marker components for entity classification (e.g., `#[derive(Component)] struct Player;`)
 
 ### Query Filters
@@ -72,7 +108,7 @@ Use Bevy's query filters for performance and correctness:
 
 ### Assets
 
-Asset paths are plain relative strings passed to `asset_server.load(...)` — keep them aligned with files under `assets/`. Store `Handle<T>` in a resource when an asset is used repeatedly to avoid redundant loads. 
+All current visuals are code-built primitive meshes. Mesh and material handles are cached in `SharedMeshes`/`SharedMaterials` resources (created at startup). If file assets are introduced later, keep paths as plain relative strings for `asset_server.load(...)` and store repeated handles in a resource.
 
 ## Bevy 0.18.1 API Notes
 
@@ -81,3 +117,6 @@ Asset paths are plain relative strings passed to `asset_server.load(...)` — ke
 - `ScalingMode` is in `bevy::camera::ScalingMode`, not `bevy::render::camera`.
 - Use `ApplyDeferred` (struct) not `apply_deferred` (no such function) for command flushing between systems.
 - 2D rendering uses `Camera2d`, `Mesh2d`, `MeshMaterial2d`, `Sprite`.
+- Use `DespawnOnExit(state)` for state-scoped entity cleanup.
+- Use `Message` derive + `MessageWriter<T>`/`MessageReader<T>` for buffered inter-system messaging (registered with `add_message::<T>()`).
+- `ChildOf` relationship is used to query parent from child (e.g., `wings.Query<(&ChildOf, ...)>` then `parents.get(parent.get())`).
