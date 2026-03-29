@@ -20,7 +20,7 @@ pub const MAX_FALL_SPEED: f32 = -600.0;
 pub const PLAYER_ACCELERATION: f32 = 1200.0;
 pub const PLAYER_DECELERATION: f32 = 1800.0;
 pub const PLAYER_MAX_SPEED: f32 = 250.0;
-pub const PLAYER_JUMP_FORCE: f32 = 600.0;
+pub const PLAYER_JUMP_FORCE: f32 = 900.0;
 pub const PLAYER_JUMP_CUT_MULTIPLIER: f32 = 0.4;
 
 // Player dimensions (small Mario)

@@ -462,7 +462,7 @@ fn build_world_1_1() -> LevelDefinition {
         },
     ];
 
-    let player_start = tile_to_world(4, GROUND_TILE_ROWS + 1);
+    let player_start = tile_to_world(4, GROUND_TILE_ROWS + 3);
 
     LevelDefinition {
         width,
