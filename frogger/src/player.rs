@@ -1,3 +1,5 @@
+use std::f32::consts::{FRAC_PI_2, PI};
+
 use bevy::prelude::*;
 
 use crate::components::*;
@@ -13,23 +15,68 @@ impl Plugin for PlayerPlugin {
     }
 }
 
-fn spawn_frog(mut commands: Commands) {
+fn spawn_frog(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
     let pos = grid_to_world(FROG_SPAWN_COL, FROG_SPAWN_ROW);
-    commands.spawn((
-        Frog,
-        GridPosition {
-            col: FROG_SPAWN_COL,
-            row: FROG_SPAWN_ROW,
-        },
-        HopState::default(),
-        GameplayEntity,
-        Sprite {
-            color: COLOR_FROG,
-            custom_size: Some(Vec2::new(FROG_SIZE, FROG_SIZE)),
-            ..default()
-        },
-        Transform::from_translation(pos.extend(10.0)),
-    ));
+
+    commands
+        .spawn((
+            Frog,
+            GridPosition {
+                col: FROG_SPAWN_COL,
+                row: FROG_SPAWN_ROW,
+            },
+            HopState::default(),
+            GameplayEntity,
+            Mesh2d(meshes.add(Circle::new(FROG_BODY_RADIUS))),
+            MeshMaterial2d(materials.add(ColorMaterial::from_color(COLOR_FROG))),
+            Transform::from_translation(pos.extend(10.0)),
+        ))
+        .with_children(|parent| {
+            // Left eye
+            parent.spawn((
+                Mesh2d(meshes.add(Circle::new(FROG_EYE_RADIUS))),
+                MeshMaterial2d(materials.add(ColorMaterial::from_color(COLOR_FROG_EYE))),
+                Transform::from_translation(Vec3::new(
+                    -FROG_EYE_OFFSET_X,
+                    FROG_EYE_OFFSET_Y,
+                    0.1,
+                )),
+            ));
+            // Left pupil
+            parent.spawn((
+                Mesh2d(meshes.add(Circle::new(FROG_PUPIL_RADIUS))),
+                MeshMaterial2d(materials.add(ColorMaterial::from_color(COLOR_FROG_PUPIL))),
+                Transform::from_translation(Vec3::new(
+                    -FROG_EYE_OFFSET_X,
+                    FROG_EYE_OFFSET_Y + FROG_PUPIL_OFFSET_Y,
+                    0.2,
+                )),
+            ));
+            // Right eye
+            parent.spawn((
+                Mesh2d(meshes.add(Circle::new(FROG_EYE_RADIUS))),
+                MeshMaterial2d(materials.add(ColorMaterial::from_color(COLOR_FROG_EYE))),
+                Transform::from_translation(Vec3::new(
+                    FROG_EYE_OFFSET_X,
+                    FROG_EYE_OFFSET_Y,
+                    0.1,
+                )),
+            ));
+            // Right pupil
+            parent.spawn((
+                Mesh2d(meshes.add(Circle::new(FROG_PUPIL_RADIUS))),
+                MeshMaterial2d(materials.add(ColorMaterial::from_color(COLOR_FROG_PUPIL))),
+                Transform::from_translation(Vec3::new(
+                    FROG_EYE_OFFSET_X,
+                    FROG_EYE_OFFSET_Y + FROG_PUPIL_OFFSET_Y,
+                    0.2,
+                )),
+            ));
+        });
 }
 
 pub fn frog_input(
@@ -63,7 +110,6 @@ pub fn frog_input(
         return;
     };
 
-    // Use visual position for column (handles riding drift on river)
     let effective_col = world_x_to_col(transform.translation.x);
     let new_col = effective_col + dc;
     let new_row = grid_pos.row + dr;
@@ -100,12 +146,26 @@ pub fn hop_animation(
     if hop.progress >= 1.0 {
         transform.translation.x = hop.to.x;
         transform.translation.y = hop.to.y;
+        transform.scale = Vec3::ONE;
         hop.active = false;
     } else {
-        let pos = hop.from.lerp(hop.to, hop.progress);
-        let arc = HOP_ARC_HEIGHT * (hop.progress * std::f32::consts::PI).sin();
+        let t = hop.progress;
+        let pos = hop.from.lerp(hop.to, t);
+        let arc = HOP_ARC_HEIGHT * (t * PI).sin();
         transform.translation.x = pos.x;
         transform.translation.y = pos.y + arc;
+
+        // Squash/stretch during hop
+        let stretch = 1.0 + 0.2 * (t * PI).sin();
+        let squash = 1.0 - 0.12 * (t * PI).sin();
+        transform.scale = Vec3::new(squash, stretch, 1.0);
+    }
+
+    // Face movement direction
+    let dir = (hop.to - hop.from).normalize_or_zero();
+    if dir != Vec2::ZERO {
+        let angle = dir.y.atan2(dir.x) - FRAC_PI_2;
+        transform.rotation = Quat::from_rotation_z(angle);
     }
 }
 

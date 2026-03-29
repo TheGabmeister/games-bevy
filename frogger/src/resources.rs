@@ -121,6 +121,13 @@ pub enum FrogEvent {
     BayFilled,
 }
 
+// Pending effects (cleared each frame by the effects system)
+#[derive(Resource, Default)]
+pub struct PendingEffects {
+    pub death_flashes: Vec<Vec2>,
+    pub score_popups: Vec<(u32, Vec2)>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

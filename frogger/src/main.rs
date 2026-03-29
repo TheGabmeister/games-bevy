@@ -1,6 +1,7 @@
 mod collision;
 mod components;
 mod constants;
+mod effects;
 mod gameplay;
 mod lanes;
 mod player;
@@ -34,12 +35,14 @@ fn main() {
         .init_resource::<FrogTimer>()
         .init_resource::<LevelState>()
         .init_resource::<FrogEvent>()
+        .init_resource::<PendingEffects>()
         .insert_resource(ClearColor(COLOR_BACKGROUND))
         .add_plugins((
             GameplayPlugin,
             player::PlayerPlugin,
             lanes::LanesPlugin,
             ui::UiPlugin,
+            effects::EffectsPlugin,
         ))
         .add_systems(Startup, setup)
         .run();

@@ -134,6 +134,7 @@ pub fn check_home_bay(
     mut game_data: ResMut<GameData>,
     timer: Res<FrogTimer>,
     mut frog_event: ResMut<FrogEvent>,
+    mut pending_effects: ResMut<PendingEffects>,
 ) {
     if *frog_event != FrogEvent::None {
         return;
@@ -151,7 +152,11 @@ pub fn check_home_bay(
         Some(idx) if !game_data.filled_bays[idx] => {
             game_data.filled_bays[idx] = true;
             let time_bonus = (timer.remaining_secs as u32) * SCORE_TIME_BONUS_PER_SEC;
-            game_data.add_score(SCORE_HOME_BAY + time_bonus);
+            let points = SCORE_HOME_BAY + time_bonus;
+            game_data.add_score(points);
+            pending_effects
+                .score_popups
+                .push((points, grid_to_world(grid_pos.col, grid_pos.row)));
             *frog_event = FrogEvent::BayFilled;
         }
         _ => {
@@ -182,6 +187,7 @@ pub fn handle_frog_event(
     mut timer: ResMut<FrogTimer>,
     mut next_state: ResMut<NextState<AppState>>,
     mut frog_query: Query<(&mut GridPosition, &mut HopState, &mut Transform), With<Frog>>,
+    mut pending_effects: ResMut<PendingEffects>,
 ) {
     let event = *frog_event;
     if event == FrogEvent::None {
@@ -189,15 +195,20 @@ pub fn handle_frog_event(
     }
     *frog_event = FrogEvent::None;
 
-    if event == FrogEvent::Death && game_data.lose_life() {
-        next_state.set(AppState::GameOver);
-        return;
-    }
-
-    // Respawn frog (both Death-with-lives and BayFilled)
+    // Get frog position before any changes
     let Ok((mut gp, mut hop, mut tf)) = frog_query.single_mut() else {
         return;
     };
+    let frog_pos = tf.translation.truncate();
+
+    if event == FrogEvent::Death {
+        pending_effects.death_flashes.push(frog_pos);
+        if game_data.lose_life() {
+            next_state.set(AppState::GameOver);
+            return;
+        }
+    }
+
     reset_frog(&mut gp, &mut hop, &mut tf, &mut timer, &mut game_data);
 }
 

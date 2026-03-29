@@ -79,6 +79,44 @@ pub const COLOR_TIMER_WARNING: Color = Color::srgb(0.95, 0.75, 0.2);
 pub const COLOR_TIMER_DANGER: Color = Color::srgb(0.95, 0.2, 0.2);
 pub const COLOR_TIMER_BACKGROUND: Color = Color::srgb(0.2, 0.2, 0.2);
 
+// Frog visual
+pub const FROG_BODY_RADIUS: f32 = FROG_SIZE / 2.0;
+pub const FROG_EYE_RADIUS: f32 = 5.0;
+pub const FROG_PUPIL_RADIUS: f32 = 2.5;
+pub const FROG_EYE_OFFSET_X: f32 = 8.0;
+pub const FROG_EYE_OFFSET_Y: f32 = 10.0;
+pub const FROG_PUPIL_OFFSET_Y: f32 = 1.5;
+
+// Vehicle visual
+pub const VEHICLE_HEADLIGHT_RADIUS: f32 = 3.0;
+pub const VEHICLE_CAB_COLORS: [Color; 5] = [
+    Color::srgb(0.7, 0.15, 0.15),
+    Color::srgb(0.7, 0.7, 0.15),
+    Color::srgb(0.15, 0.35, 0.7),
+    Color::srgb(0.7, 0.35, 0.08),
+    Color::srgb(0.7, 0.15, 0.7),
+];
+
+// Road markings
+pub const ROAD_MARKING_WIDTH: f32 = 16.0;
+pub const ROAD_MARKING_HEIGHT: f32 = 2.0;
+pub const ROAD_MARKING_SPACING: f32 = 40.0;
+
+// Effects
+pub const DEATH_FLASH_DURATION: f32 = 0.4;
+pub const DEATH_FLASH_SCALE: f32 = 2.5;
+pub const SCORE_POPUP_DURATION: f32 = 0.8;
+pub const SCORE_POPUP_SPEED: f32 = 60.0;
+
+// Visual colors
+pub const COLOR_FROG_EYE: Color = Color::WHITE;
+pub const COLOR_FROG_PUPIL: Color = Color::srgb(0.05, 0.05, 0.05);
+pub const COLOR_VEHICLE_WINDOW: Color = Color::srgb(0.6, 0.8, 0.95);
+pub const COLOR_VEHICLE_HEADLIGHT: Color = Color::srgb(1.0, 1.0, 0.7);
+pub const COLOR_ROAD_MARKING: Color = Color::srgba(1.0, 1.0, 1.0, 0.25);
+pub const COLOR_DEATH_FLASH: Color = Color::srgb(1.0, 0.3, 0.2);
+pub const COLOR_LOG_BARK: Color = Color::srgb(0.4, 0.2, 0.05);
+
 // --- Helpers ---
 
 pub fn grid_to_world(col: i32, row: i32) -> Vec2 {

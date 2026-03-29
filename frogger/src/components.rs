@@ -69,3 +69,10 @@ pub struct StatusText;
 
 #[derive(Component)]
 pub struct GameOverUI;
+
+// Effects
+#[derive(Component)]
+pub struct DeathFlash(pub f32);
+
+#[derive(Component)]
+pub struct ScorePopup(pub f32);
