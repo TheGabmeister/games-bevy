@@ -17,6 +17,7 @@ use bevy::{
     prelude::*,
 };
 
+use components::{JoustKillMessage, PlayerDiedMessage, ScoreMessage};
 use constants::*;
 use resources::*;
 use states::*;
@@ -37,6 +38,9 @@ fn main() {
         }))
         .init_state::<AppState>()
         .add_sub_state::<PlayState>()
+        .add_message::<JoustKillMessage>()
+        .add_message::<ScoreMessage>()
+        .add_message::<PlayerDiedMessage>()
         .configure_sets(
             Update,
             (
