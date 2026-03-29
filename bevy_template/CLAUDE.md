@@ -45,9 +45,12 @@ Systems should be state-aware:
 - Prefer `DespawnOnExit(AppState::Playing)` on entities that should auto-despawn when leaving a state — this eliminates most manual cleanup systems
 - Use `.after()` chains where frame ordering matters; for 10+ systems, group into `SystemSet`s (e.g., `MovementSet`, `CollisionSet`) and order at the set level
 
-### Events and Observers
+### Messages and Observers
 
-- `EventWriter<T>`, `EventReader<T>`, and `App::add_event::<T>()` are **not available**. Use a shared `Resource` with a `Vec` to pass data between systems instead of the event system.
+- `EventWriter<T>`, `EventReader<T>`, and `App::add_event::<T>()` were **renamed** in Bevy 0.17. Use the new names:
+  - `MessageWriter<M>` / `MessageReader<M>` for buffered inter-system messaging
+  - `App::add_message::<M>()` to register a message type
+  - Messages still auto-double-buffer and clean up — do **not** roll your own `Resource<Vec<T>>` workaround.
 - Use `Observer` and `Trigger` for one-shot reactions to entity lifecycle or custom game events — these replace boilerplate `Added<T>`/`RemovedComponents<T>` query patterns.
 
 ### Timers
@@ -82,7 +85,7 @@ Asset paths are plain relative strings passed to `asset_server.load(...)` — ke
 - `ScalingMode` is in `bevy::camera::ScalingMode`, not `bevy::render::camera`.
 - Use `ApplyDeferred` (struct) not `apply_deferred` (no such function) for command flushing between systems.
 - 2D rendering uses `Camera2d`, `Mesh2d`, `MeshMaterial2d`, `Sprite`.
-- `ChildBuilder` is **not in the prelude**. Avoid naming it as a type in function signatures. Instead, inline child-spawning logic inside `.with_children(|parent| { ... })` closures. Nested `.with_children` calls may fail type inference — flatten children under one parent instead.
+- `ChildBuilder` no longer exists — it was replaced by `ChildSpawnerCommands` (which **is** in the prelude). The `.with_children(|parent| { ... })` pattern still works; the closure parameter is now `&mut ChildSpawnerCommands`. Nested `.with_children` calls may fail type inference — flatten children under one parent instead.
 - `ColorMaterial::from_color(color)` works for creating `ColorMaterial` from a `Color`.
 - `Text2d::new("text")` works for world-space text (score popups, etc.), paired with `TextFont` and `TextColor`.
 - Primitive 2D shapes for `Mesh2d`: `Circle::new(radius)`, `Capsule2d::new(radius, middle_length)`, `RegularPolygon::new(circumradius, sides)`, `Ellipse::new(half_w, half_h)`. The capsule is vertical by default — rotate with `Quat::from_rotation_z(FRAC_PI_2)` for horizontal.
