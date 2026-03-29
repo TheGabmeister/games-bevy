@@ -8,13 +8,14 @@ The goal is to capture the feel and full gameplay loop of a small, polished Mari
 
 ## Current Repository Baseline
 
-As of now, the project is still a minimal Bevy starter:
+As of now, the project is in early scaffolding rather than a playable platformer:
 
-- `src/main.rs` contains the full app
-- `DefaultPlugins` are registered with no custom plugins yet
-- A `Camera2d` is spawned on startup
-- A centered `Hello, World!` UI text node is spawned on startup
-- No state machine, world generation, player controller, collisions, or HUD exist yet
+- Current source files include `main.rs`, `constants.rs`, `components.rs`, `resources.rs`, `states.rs`, and `messages.rs`
+- `DefaultPlugins` are registered with window configuration in place
+- A `Camera2d` is spawned at startup with bloom and tonemapping configured
+- `AppState` and `PlayState` are already defined and initialized
+- Shared game data and cross-system message types are already scaffolded
+- No world generation, player controller, collisions, HUD, menus, or gameplay loop exist yet
 - No `assets/` content is currently checked into the repository
 
 This spec describes the intended target, not the current implementation.
@@ -153,18 +154,15 @@ Suggested messages:
 ### Phase 1 - Core Scaffolding
 
 1. **Project structure and states**
-   - Create module files: `constants.rs`, `components.rs`, `resources.rs`, `states.rs`, and `messages.rs`
-   - Define app and play states
-   - Replace the starter `Hello, World!` setup with proper bootstrapping
-   - Set window title to `"Super Mario Bros"`
-   - Set a dark sky-blue clear color
-   - Add camera configuration and optional HDR/bloom setup
+   - The initial scaffolding modules already exist: `constants.rs`, `components.rs`, `resources.rs`, `states.rs`, and `messages.rs`
+   - The app and play states already exist and should be extended rather than replaced
+   - Window title, clear color, and camera bloom/tonemapping setup are already wired
+   - Continue Phase 1 by replacing bootstrap-only scaffolding with the first playable game systems
 
 2. **Constants and shared resources**
-   - Window dimensions, tile size, gravity, speed values
-   - Player dimensions, jump force, acceleration, max fall speed
-   - Color palette values
-   - Shared resources for score, coins, lives, timer, and current level status
+   - Window dimensions, tile size, gravity, speed values, and base palette are already scaffolded
+   - Shared resource and message foundations already exist and can be expanded as gameplay comes online
+   - Continue by validating that the current constants/resources stay aligned with actual gameplay usage
 
 ### Phase 2 - World and Level
 
@@ -380,6 +378,7 @@ Suggested messages:
 These items were implied before, but should be treated as part of the spec:
 
 - The repo starts from a minimal Bevy bootstrap, not an existing platformer framework
+- The repo now includes early state/resource/message scaffolding, but not a playable platformer yet
 - Level state must be rebuildable for respawn, not just enemies alone
 - Damage requires temporary invulnerability feedback
 - `100` coins award an extra life
