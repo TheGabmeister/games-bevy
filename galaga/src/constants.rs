@@ -1,9 +1,10 @@
 use bevy::prelude::*;
 
 // Window
-pub const WINDOW_WIDTH: f32 = 1280.0;
-pub const WINDOW_HEIGHT: f32 = 720.0;
+pub const WINDOW_WIDTH: f32 = 720.0;
+pub const WINDOW_HEIGHT: f32 = 960.0;
 pub const WINDOW_TITLE: &str = "Galaga";
+pub const GAMEPLAY_MUSIC_ASSET_PATH: &str = "music_spaceshooter.ogg";
 
 // Player
 pub const PLAYER_SPEED: f32 = 400.0;

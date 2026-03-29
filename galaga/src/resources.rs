@@ -43,3 +43,8 @@ pub struct StageClearTimer(pub Timer);
 pub struct FormationSway {
     pub time: f32,
 }
+
+#[derive(Resource, Default)]
+pub struct DiveSelectionCursor {
+    pub next_index: usize,
+}

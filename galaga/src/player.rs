@@ -25,8 +25,8 @@ impl Plugin for PlayerPlugin {
     }
 }
 
-fn spawn_player(mut commands: Commands) {
-    commands.spawn((
+fn spawn_player_entity(commands: &mut Commands, invulnerable: bool) {
+    let mut entity = commands.spawn((
         Player,
         Velocity::default(),
         Sprite {
@@ -36,6 +36,17 @@ fn spawn_player(mut commands: Commands) {
         },
         Transform::from_translation(Vec3::new(0.0, PLAYER_Y, 1.0)),
     ));
+
+    if invulnerable {
+        entity.insert(Invulnerable(Timer::from_seconds(
+            INVULNERABLE_DURATION,
+            TimerMode::Once,
+        )));
+    }
+}
+
+fn spawn_player(mut commands: Commands) {
+    spawn_player_entity(&mut commands, false);
 }
 
 fn player_input(
@@ -77,14 +88,14 @@ fn invulnerability_tick(
 ) {
     for (entity, mut invuln, mut sprite) in &mut query {
         invuln.0.tick(time.delta());
-        let alpha = if (invuln.0.elapsed_secs() * 10.0) as u32 % 2 == 0 {
+        let alpha = if ((invuln.0.elapsed_secs() * 10.0) as u32).is_multiple_of(2) {
             0.3
         } else {
             1.0
         };
         sprite.color = Color::srgba(0.2, 0.6, 1.0, alpha);
 
-        if invuln.0.finished() {
+        if invuln.0.just_finished() {
             sprite.color = Color::srgb(0.2, 0.6, 1.0);
             commands.entity(entity).remove::<Invulnerable>();
         }
@@ -106,18 +117,8 @@ fn respawn_player(
     };
 
     timer.0.tick(time.delta());
-    if timer.0.finished() {
-        commands.spawn((
-            Player,
-            Velocity::default(),
-            Invulnerable(Timer::from_seconds(INVULNERABLE_DURATION, TimerMode::Once)),
-            Sprite {
-                color: Color::srgb(0.2, 0.6, 1.0),
-                custom_size: Some(Vec2::new(PLAYER_WIDTH, PLAYER_HEIGHT)),
-                ..default()
-            },
-            Transform::from_translation(Vec3::new(0.0, PLAYER_Y, 1.0)),
-        ));
+    if timer.0.just_finished() {
+        spawn_player_entity(&mut commands, true);
         game_data.phase = WavePhase::Combat;
         commands.remove_resource::<RespawnTimer>();
     }
@@ -133,24 +134,14 @@ fn auto_respawn_player(
     if game_data.phase != WavePhase::Combat {
         return;
     }
-    if player_query.iter().count() > 0 {
+    if !player_query.is_empty() {
         return;
     }
     if game_data.lives == 0 {
         return;
     }
 
-    commands.spawn((
-        Player,
-        Velocity::default(),
-        Invulnerable(Timer::from_seconds(INVULNERABLE_DURATION, TimerMode::Once)),
-        Sprite {
-            color: Color::srgb(0.2, 0.6, 1.0),
-            custom_size: Some(Vec2::new(PLAYER_WIDTH, PLAYER_HEIGHT)),
-            ..default()
-        },
-        Transform::from_translation(Vec3::new(0.0, PLAYER_Y, 1.0)),
-    ));
+    spawn_player_entity(&mut commands, true);
 }
 
 fn cleanup_player(mut commands: Commands, query: Query<Entity, With<Player>>) {

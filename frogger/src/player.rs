@@ -1,78 +1,128 @@
 use bevy::prelude::*;
 
-use crate::components::{Player, Velocity};
-use crate::constants::{PLAYER_SIZE, PLAYER_SPEED, WINDOW_HEIGHT, WINDOW_WIDTH};
+use crate::components::*;
+use crate::constants::*;
+use crate::resources::*;
 use crate::states::AppState;
 
 pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(AppState::Playing), spawn_player)
-            .add_systems(OnExit(AppState::Playing), cleanup_player)
-            .add_systems(
-                Update,
-                (player_input, player_movement.after(player_input))
-                    .run_if(in_state(AppState::Playing)),
-            );
+        app.add_systems(OnEnter(AppState::Playing), spawn_frog);
     }
 }
 
-fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn spawn_frog(mut commands: Commands) {
+    let pos = grid_to_world(FROG_SPAWN_COL, FROG_SPAWN_ROW);
     commands.spawn((
-        Player,
-        Velocity::default(),
-        Sprite::from_image(asset_server.load("player_ship.png")),
-        Transform::from_translation(Vec3::new(0.0, -WINDOW_HEIGHT / 2.0 + 60.0, 0.0)),
+        Frog,
+        GridPosition {
+            col: FROG_SPAWN_COL,
+            row: FROG_SPAWN_ROW,
+        },
+        HopState::default(),
+        GameplayEntity,
+        Sprite {
+            color: COLOR_FROG,
+            custom_size: Some(Vec2::new(FROG_SIZE, FROG_SIZE)),
+            ..default()
+        },
+        Transform::from_translation(pos.extend(10.0)),
     ));
 }
 
-fn player_input(
+pub fn frog_input(
     keyboard: Res<ButtonInput<KeyCode>>,
-    mut query: Query<&mut Velocity, With<Player>>,
+    mut query: Query<(&mut GridPosition, &mut HopState, &Transform), With<Frog>>,
+    frog_event: Res<FrogEvent>,
+    level_state: Res<LevelState>,
 ) {
-    let Ok(mut velocity) = query.single_mut() else {
+    if *frog_event != FrogEvent::None || level_state.celebrating {
+        return;
+    }
+
+    let Ok((mut grid_pos, mut hop_state, transform)) = query.single_mut() else {
         return;
     };
-
-    let mut direction = Vec2::ZERO;
-
-    if keyboard.pressed(KeyCode::KeyW) || keyboard.pressed(KeyCode::ArrowUp) {
-        direction.y += 1.0;
-    }
-    if keyboard.pressed(KeyCode::KeyS) || keyboard.pressed(KeyCode::ArrowDown) {
-        direction.y -= 1.0;
-    }
-    if keyboard.pressed(KeyCode::KeyA) || keyboard.pressed(KeyCode::ArrowLeft) {
-        direction.x -= 1.0;
-    }
-    if keyboard.pressed(KeyCode::KeyD) || keyboard.pressed(KeyCode::ArrowRight) {
-        direction.x += 1.0;
+    if hop_state.active {
+        return;
     }
 
-    velocity.0 = direction.normalize_or_zero() * PLAYER_SPEED;
+    let (dc, dr) =
+        if keyboard.just_pressed(KeyCode::ArrowUp) || keyboard.just_pressed(KeyCode::KeyW) {
+            (0, 1)
+        } else if keyboard.just_pressed(KeyCode::ArrowDown) || keyboard.just_pressed(KeyCode::KeyS)
+        {
+            (0, -1)
+        } else if keyboard.just_pressed(KeyCode::ArrowLeft)
+            || keyboard.just_pressed(KeyCode::KeyA)
+        {
+            (-1, 0)
+        } else if keyboard.just_pressed(KeyCode::ArrowRight)
+            || keyboard.just_pressed(KeyCode::KeyD)
+        {
+            (1, 0)
+        } else {
+            return;
+        };
+
+    // Use visual position for column (handles riding drift on river)
+    let effective_col = world_x_to_col(transform.translation.x);
+    let new_col = effective_col + dc;
+    let new_row = grid_pos.row + dr;
+
+    if !(0..GRID_COLS).contains(&new_col) || !(0..=HOME_ROW).contains(&new_row) {
+        return;
+    }
+
+    let from = transform.translation.truncate();
+    let to = grid_to_world(new_col, new_row);
+
+    grid_pos.col = new_col;
+    grid_pos.row = new_row;
+
+    hop_state.active = true;
+    hop_state.from = from;
+    hop_state.to = to;
+    hop_state.progress = 0.0;
 }
 
-fn player_movement(
+pub fn hop_animation(
     time: Res<Time>,
-    mut query: Query<(&Velocity, &mut Transform), With<Player>>,
+    mut query: Query<(&mut Transform, &mut HopState), With<Frog>>,
 ) {
-    let Ok((velocity, mut transform)) = query.single_mut() else {
+    let Ok((mut transform, mut hop)) = query.single_mut() else {
         return;
     };
+    if !hop.active {
+        return;
+    }
 
-    transform.translation.x += velocity.0.x * time.delta_secs();
-    transform.translation.y += velocity.0.y * time.delta_secs();
+    hop.progress += time.delta_secs() / HOP_DURATION;
 
-    // Clamp to window bounds
-    let half_w = WINDOW_WIDTH / 2.0 - PLAYER_SIZE / 2.0;
-    let half_h = WINDOW_HEIGHT / 2.0 - PLAYER_SIZE / 2.0;
-    transform.translation.x = transform.translation.x.clamp(-half_w, half_w);
-    transform.translation.y = transform.translation.y.clamp(-half_h, half_h);
+    if hop.progress >= 1.0 {
+        transform.translation.x = hop.to.x;
+        transform.translation.y = hop.to.y;
+        hop.active = false;
+    } else {
+        let pos = hop.from.lerp(hop.to, hop.progress);
+        let arc = 6.0 * (hop.progress * std::f32::consts::PI).sin();
+        transform.translation.x = pos.x;
+        transform.translation.y = pos.y + arc;
+    }
 }
 
-fn cleanup_player(mut commands: Commands, query: Query<Entity, With<Player>>) {
-    for entity in &query {
-        commands.entity(entity).despawn();
+pub fn score_forward_hop(
+    mut game_data: ResMut<GameData>,
+    query: Query<&GridPosition, (With<Frog>, Changed<GridPosition>)>,
+) {
+    let Ok(grid_pos) = query.single() else {
+        return;
+    };
+    if grid_pos.row > game_data.max_row_this_life {
+        let gained = (grid_pos.row - game_data.max_row_this_life) as u32;
+        game_data.score += gained * SCORE_FORWARD_HOP;
+        game_data.max_row_this_life = grid_pos.row;
     }
 }

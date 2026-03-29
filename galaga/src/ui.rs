@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::components::{GameHudUI, GameOverUI, ScoreText, StartScreenUI};
+use crate::components::*;
 use crate::constants::*;
 use crate::resources::GameData;
 use crate::states::AppState;
@@ -22,7 +22,7 @@ impl Plugin for UiPlugin {
             .add_systems(OnExit(AppState::Playing), cleanup_game_hud)
             .add_systems(
                 Update,
-                update_score_display.run_if(in_state(AppState::Playing)),
+                update_hud.run_if(in_state(AppState::Playing)),
             )
             // Game Over
             .add_systems(OnEnter(AppState::GameOver), spawn_game_over)
@@ -97,6 +97,7 @@ fn spawn_game_hud(mut commands: Commands) {
             Node {
                 width: Val::Percent(100.0),
                 padding: UiRect::all(Val::Px(16.0)),
+                justify_content: JustifyContent::SpaceBetween,
                 ..default()
             },
         ))
@@ -104,6 +105,24 @@ fn spawn_game_hud(mut commands: Commands) {
             parent.spawn((
                 ScoreText,
                 Text::new("Score: 0"),
+                TextFont {
+                    font_size: FONT_SIZE_HUD,
+                    ..default()
+                },
+                TextColor(TEXT_COLOR),
+            ));
+            parent.spawn((
+                LivesText,
+                Text::new("Lives: 3"),
+                TextFont {
+                    font_size: FONT_SIZE_HUD,
+                    ..default()
+                },
+                TextColor(TEXT_COLOR),
+            ));
+            parent.spawn((
+                WaveText,
+                Text::new("Wave: 1"),
                 TextFont {
                     font_size: FONT_SIZE_HUD,
                     ..default()
@@ -119,18 +138,26 @@ fn cleanup_game_hud(mut commands: Commands, query: Query<Entity, With<GameHudUI>
     }
 }
 
-fn update_score_display(
+#[allow(clippy::type_complexity)]
+fn update_hud(
     game_data: Res<GameData>,
-    mut query: Query<&mut Text, With<ScoreText>>,
+    mut score_query: Query<&mut Text, (With<ScoreText>, Without<LivesText>, Without<WaveText>)>,
+    mut lives_query: Query<&mut Text, (With<LivesText>, Without<ScoreText>, Without<WaveText>)>,
+    mut wave_query: Query<&mut Text, (With<WaveText>, Without<ScoreText>, Without<LivesText>)>,
 ) {
     if !game_data.is_changed() {
         return;
     }
 
-    let Ok(mut text) = query.single_mut() else {
-        return;
-    };
-    **text = format!("Score: {}", game_data.score);
+    if let Ok(mut text) = score_query.single_mut() {
+        **text = format!("Score: {}", game_data.score);
+    }
+    if let Ok(mut text) = lives_query.single_mut() {
+        **text = format!("Lives: {}", game_data.lives);
+    }
+    if let Ok(mut text) = wave_query.single_mut() {
+        **text = format!("Wave: {}", game_data.wave);
+    }
 }
 
 // --- Game Over Screen ---
@@ -167,6 +194,14 @@ fn spawn_game_over(mut commands: Commands, game_data: Res<GameData>) {
                 TextColor(TEXT_COLOR),
             ));
             parent.spawn((
+                Text::new(format!("Wave Reached: {}", game_data.wave)),
+                TextFont {
+                    font_size: FONT_SIZE_BODY,
+                    ..default()
+                },
+                TextColor(TEXT_COLOR),
+            ));
+            parent.spawn((
                 Text::new("Press Space to Restart"),
                 TextFont {
                     font_size: FONT_SIZE_BODY,
@@ -189,7 +224,7 @@ fn restart_input(
     mut game_data: ResMut<GameData>,
 ) {
     if keyboard.just_pressed(KeyCode::Space) {
-        game_data.score = 0;
+        *game_data = GameData::default();
         next_state.set(AppState::StartScreen);
     }
 }
