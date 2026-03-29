@@ -53,6 +53,8 @@ Systems should be state-aware:
 ### Timers
 
 Use `Timer` with `Res<Time>` for cooldowns, spawn intervals, and delays — do not use frame-counting. Store timers in components (per-entity) or resources (global). Tick them with `timer.tick(time.delta())` each frame.
+- The check method is `timer.is_finished()`, **not** `timer.finished()` (`finished` is a private field).
+- `WindowResolution` is **not in the prelude** — import with `use bevy::window::WindowResolution;`.
 
 ### Coding Rules
 
