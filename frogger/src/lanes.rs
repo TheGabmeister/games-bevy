@@ -9,8 +9,11 @@ pub struct LanesPlugin;
 
 impl Plugin for LanesPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(AppState::Playing), (spawn_world, spawn_lane_objects))
-            .add_systems(OnExit(AppState::Playing), cleanup_gameplay);
+        app.add_systems(
+            OnEnter(AppState::Playing),
+            (spawn_world, spawn_lane_objects),
+        )
+        .add_systems(OnExit(AppState::Playing), cleanup_gameplay);
     }
 }
 
@@ -28,24 +31,104 @@ struct LaneConfig {
 
 const LANE_CONFIGS: &[LaneConfig] = &[
     // Road lanes
-    LaneConfig { row: 1, is_river: false, direction: 1.0, base_speed: 60.0, object_width_cells: 1, object_count: 4, color_index: 0 },
-    LaneConfig { row: 2, is_river: false, direction: -1.0, base_speed: 80.0, object_width_cells: 1, object_count: 3, color_index: 1 },
-    LaneConfig { row: 3, is_river: false, direction: 1.0, base_speed: 120.0, object_width_cells: 2, object_count: 2, color_index: 2 },
-    LaneConfig { row: 4, is_river: false, direction: -1.0, base_speed: 50.0, object_width_cells: 3, object_count: 2, color_index: 3 },
-    LaneConfig { row: 5, is_river: false, direction: 1.0, base_speed: 110.0, object_width_cells: 1, object_count: 3, color_index: 4 },
+    LaneConfig {
+        row: 1,
+        is_river: false,
+        direction: 1.0,
+        base_speed: 60.0,
+        object_width_cells: 1,
+        object_count: 4,
+        color_index: 0,
+    },
+    LaneConfig {
+        row: 2,
+        is_river: false,
+        direction: -1.0,
+        base_speed: 80.0,
+        object_width_cells: 1,
+        object_count: 3,
+        color_index: 1,
+    },
+    LaneConfig {
+        row: 3,
+        is_river: false,
+        direction: 1.0,
+        base_speed: 120.0,
+        object_width_cells: 2,
+        object_count: 2,
+        color_index: 2,
+    },
+    LaneConfig {
+        row: 4,
+        is_river: false,
+        direction: -1.0,
+        base_speed: 50.0,
+        object_width_cells: 3,
+        object_count: 2,
+        color_index: 3,
+    },
+    LaneConfig {
+        row: 5,
+        is_river: false,
+        direction: 1.0,
+        base_speed: 110.0,
+        object_width_cells: 1,
+        object_count: 3,
+        color_index: 4,
+    },
     // River lanes
-    LaneConfig { row: 7, is_river: true, direction: -1.0, base_speed: 55.0, object_width_cells: 4, object_count: 2, color_index: 0 },
-    LaneConfig { row: 8, is_river: true, direction: 1.0, base_speed: 45.0, object_width_cells: 3, object_count: 3, color_index: 0 },
-    LaneConfig { row: 9, is_river: true, direction: -1.0, base_speed: 80.0, object_width_cells: 4, object_count: 2, color_index: 0 },
-    LaneConfig { row: 10, is_river: true, direction: 1.0, base_speed: 55.0, object_width_cells: 2, object_count: 4, color_index: 0 },
-    LaneConfig { row: 11, is_river: true, direction: -1.0, base_speed: 65.0, object_width_cells: 3, object_count: 2, color_index: 0 },
+    LaneConfig {
+        row: 7,
+        is_river: true,
+        direction: -1.0,
+        base_speed: 55.0,
+        object_width_cells: 4,
+        object_count: 2,
+        color_index: 0,
+    },
+    LaneConfig {
+        row: 8,
+        is_river: true,
+        direction: 1.0,
+        base_speed: 45.0,
+        object_width_cells: 3,
+        object_count: 3,
+        color_index: 0,
+    },
+    LaneConfig {
+        row: 9,
+        is_river: true,
+        direction: -1.0,
+        base_speed: 80.0,
+        object_width_cells: 4,
+        object_count: 2,
+        color_index: 0,
+    },
+    LaneConfig {
+        row: 10,
+        is_river: true,
+        direction: 1.0,
+        base_speed: 55.0,
+        object_width_cells: 2,
+        object_count: 4,
+        color_index: 0,
+    },
+    LaneConfig {
+        row: 11,
+        is_river: true,
+        direction: -1.0,
+        base_speed: 65.0,
+        object_width_cells: 3,
+        object_count: 2,
+        color_index: 0,
+    },
 ];
 
 // --- Spawning ---
 
 fn spawn_world(mut commands: Commands) {
     // Background rows
-    for row in 0..13 {
+    for row in 0..PLAYFIELD_ROWS {
         let y = row_to_world_y(row);
         let color = match row {
             0 | 6 => COLOR_SAFE_ZONE,
@@ -135,8 +218,7 @@ pub fn move_lane_objects(
     let virtual_width = wrap_right - wrap_left;
 
     for (velocity, mut transform) in &mut query {
-        transform.translation.x +=
-            velocity.0.x * level_state.speed_multiplier * time.delta_secs();
+        transform.translation.x += velocity.0.x * level_state.speed_multiplier * time.delta_secs();
 
         if transform.translation.x > wrap_right {
             transform.translation.x -= virtual_width;

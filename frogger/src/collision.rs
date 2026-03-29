@@ -5,11 +5,24 @@ use crate::constants::*;
 use crate::resources::*;
 use crate::states::AppState;
 
+type PlatformRideQuery<'w, 's> = Query<
+    'w,
+    's,
+    (&'static Transform, &'static Velocity, &'static ObjectWidth),
+    (With<Platform>, Without<Frog>),
+>;
+
+type PlatformSupportQuery<'w, 's> =
+    Query<'w, 's, (&'static Transform, &'static ObjectWidth), (With<Platform>, Without<Frog>)>;
+
+type VehicleQuery<'w, 's> =
+    Query<'w, 's, (&'static Transform, &'static ObjectWidth), (With<Vehicle>, Without<Frog>)>;
+
 pub fn ride_platforms(
     time: Res<Time>,
     level_state: Res<LevelState>,
     mut frog_query: Query<(&GridPosition, &HopState, &mut Transform), With<Frog>>,
-    platform_query: Query<(&Transform, &Velocity, &ObjectWidth), (With<Platform>, Without<Frog>)>,
+    platform_query: PlatformRideQuery,
 ) {
     let Ok((grid_pos, hop_state, mut frog_tf)) = frog_query.single_mut() else {
         return;
@@ -40,7 +53,7 @@ pub fn ride_platforms(
 
 pub fn check_vehicle_collision(
     frog_query: Query<&Transform, With<Frog>>,
-    vehicle_query: Query<(&Transform, &ObjectWidth), (With<Vehicle>, Without<Frog>)>,
+    vehicle_query: VehicleQuery,
     mut frog_event: ResMut<FrogEvent>,
 ) {
     if *frog_event != FrogEvent::None {
@@ -65,7 +78,7 @@ pub fn check_vehicle_collision(
 
 pub fn check_water_support(
     frog_query: Query<(&GridPosition, &HopState, &Transform), With<Frog>>,
-    platform_query: Query<(&Transform, &ObjectWidth), (With<Platform>, Without<Frog>)>,
+    platform_query: PlatformSupportQuery,
     mut frog_event: ResMut<FrogEvent>,
 ) {
     if *frog_event != FrogEvent::None {
@@ -138,7 +151,7 @@ pub fn check_home_bay(
         Some(idx) if !game_data.filled_bays[idx] => {
             game_data.filled_bays[idx] = true;
             let time_bonus = (timer.remaining_secs as u32) * SCORE_TIME_BONUS_PER_SEC;
-            game_data.score += SCORE_HOME_BAY + time_bonus;
+            game_data.add_score(SCORE_HOME_BAY + time_bonus);
             *frog_event = FrogEvent::BayFilled;
         }
         _ => {
@@ -176,36 +189,59 @@ pub fn handle_frog_event(
     }
     *frog_event = FrogEvent::None;
 
-    if event == FrogEvent::Death {
-        game_data.lives = game_data.lives.saturating_sub(1);
-        if game_data.lives == 0 {
-            game_data.high_score = game_data.high_score.max(game_data.score);
-            next_state.set(AppState::GameOver);
-            return;
-        }
+    if event == FrogEvent::Death && game_data.lose_life() {
+        next_state.set(AppState::GameOver);
+        return;
     }
 
     // Respawn frog (both Death-with-lives and BayFilled)
     let Ok((mut gp, mut hop, mut tf)) = frog_query.single_mut() else {
         return;
     };
-    gp.col = FROG_SPAWN_COL;
-    gp.row = FROG_SPAWN_ROW;
-    hop.active = false;
-    let pos = grid_to_world(FROG_SPAWN_COL, FROG_SPAWN_ROW);
-    tf.translation.x = pos.x;
-    tf.translation.y = pos.y;
-    timer.remaining_secs = LIFE_TIMER_SECS;
-    game_data.max_row_this_life = 0;
+    reset_frog(&mut gp, &mut hop, &mut tf, &mut timer, &mut game_data);
 }
 
-pub fn check_level_clear(mut game_data: ResMut<GameData>, mut level_state: ResMut<LevelState>) {
-    if !game_data.filled_bays.iter().all(|&b| b) {
+pub fn check_level_clear(game_data: Res<GameData>, mut level_state: ResMut<LevelState>) {
+    if level_state.celebrating || !game_data.filled_bays.iter().all(|&filled| filled) {
         return;
     }
-    game_data.score += SCORE_LEVEL_CLEAR;
-    game_data.level += 1;
-    game_data.filled_bays = [false; 5];
-    level_state.speed_multiplier =
-        (level_state.speed_multiplier + SPEED_INCREMENT).min(MAX_SPEED_MULTIPLIER);
+    level_state.start_level_clear();
+}
+
+pub fn advance_level_clear(
+    time: Res<Time>,
+    mut game_data: ResMut<GameData>,
+    mut level_state: ResMut<LevelState>,
+) {
+    if !level_state.celebrating {
+        return;
+    }
+
+    level_state.celebration_timer.tick(time.delta());
+    if !level_state.celebration_timer.just_finished() {
+        return;
+    }
+
+    game_data.complete_level();
+    level_state.advance_speed();
+    level_state.finish_level_clear();
+}
+
+fn reset_frog(
+    grid_position: &mut GridPosition,
+    hop_state: &mut HopState,
+    transform: &mut Transform,
+    timer: &mut FrogTimer,
+    game_data: &mut GameData,
+) {
+    grid_position.col = FROG_SPAWN_COL;
+    grid_position.row = FROG_SPAWN_ROW;
+    hop_state.active = false;
+
+    let pos = grid_to_world(FROG_SPAWN_COL, FROG_SPAWN_ROW);
+    transform.translation.x = pos.x;
+    transform.translation.y = pos.y;
+
+    timer.reset();
+    game_data.reset_life_progress();
 }

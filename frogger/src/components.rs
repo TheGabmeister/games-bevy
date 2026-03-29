@@ -53,6 +53,9 @@ pub struct GameHudUI;
 pub struct ScoreText;
 
 #[derive(Component)]
+pub struct HighScoreText;
+
+#[derive(Component)]
 pub struct LivesText;
 
 #[derive(Component)]
@@ -60,6 +63,9 @@ pub struct LevelText;
 
 #[derive(Component)]
 pub struct TimerBar;
+
+#[derive(Component)]
+pub struct StatusText;
 
 #[derive(Component)]
 pub struct GameOverUI;

@@ -1,6 +1,7 @@
 mod collision;
 mod components;
 mod constants;
+mod gameplay;
 mod lanes;
 mod player;
 mod resources;
@@ -10,6 +11,7 @@ mod ui;
 use bevy::prelude::*;
 
 use constants::*;
+use gameplay::GameplayPlugin;
 use resources::*;
 use states::AppState;
 
@@ -33,34 +35,12 @@ fn main() {
         .init_resource::<LevelState>()
         .init_resource::<FrogEvent>()
         .insert_resource(ClearColor(COLOR_BACKGROUND))
-        .add_plugins((player::PlayerPlugin, lanes::LanesPlugin, ui::UiPlugin))
-        // All gameplay systems with explicit ordering
-        .add_systems(
-            Update,
-            (
-                player::frog_input,
-                player::hop_animation.after(player::frog_input),
-                lanes::move_lane_objects,
-                collision::ride_platforms
-                    .after(player::hop_animation)
-                    .after(lanes::move_lane_objects),
-                collision::check_vehicle_collision.after(collision::ride_platforms),
-                collision::check_water_support.after(collision::ride_platforms),
-                collision::check_bounds.after(collision::ride_platforms),
-                collision::check_home_bay.after(collision::ride_platforms),
-                collision::tick_timer,
-                collision::handle_frog_event
-                    .after(collision::check_vehicle_collision)
-                    .after(collision::check_water_support)
-                    .after(collision::check_bounds)
-                    .after(collision::check_home_bay)
-                    .after(collision::tick_timer),
-                collision::check_level_clear.after(collision::handle_frog_event),
-                lanes::update_bay_visuals.after(collision::handle_frog_event),
-                player::score_forward_hop.after(collision::handle_frog_event),
-            )
-                .run_if(in_state(AppState::Playing)),
-        )
+        .add_plugins((
+            GameplayPlugin,
+            player::PlayerPlugin,
+            lanes::LanesPlugin,
+            ui::UiPlugin,
+        ))
         .add_systems(Startup, setup)
         .run();
 }

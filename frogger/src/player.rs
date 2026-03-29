@@ -49,23 +49,19 @@ pub fn frog_input(
         return;
     }
 
-    let (dc, dr) =
-        if keyboard.just_pressed(KeyCode::ArrowUp) || keyboard.just_pressed(KeyCode::KeyW) {
-            (0, 1)
-        } else if keyboard.just_pressed(KeyCode::ArrowDown) || keyboard.just_pressed(KeyCode::KeyS)
-        {
-            (0, -1)
-        } else if keyboard.just_pressed(KeyCode::ArrowLeft)
-            || keyboard.just_pressed(KeyCode::KeyA)
-        {
-            (-1, 0)
-        } else if keyboard.just_pressed(KeyCode::ArrowRight)
-            || keyboard.just_pressed(KeyCode::KeyD)
-        {
-            (1, 0)
-        } else {
-            return;
-        };
+    let (dc, dr) = if keyboard.just_pressed(KeyCode::ArrowUp)
+        || keyboard.just_pressed(KeyCode::KeyW)
+    {
+        (0, 1)
+    } else if keyboard.just_pressed(KeyCode::ArrowDown) || keyboard.just_pressed(KeyCode::KeyS) {
+        (0, -1)
+    } else if keyboard.just_pressed(KeyCode::ArrowLeft) || keyboard.just_pressed(KeyCode::KeyA) {
+        (-1, 0)
+    } else if keyboard.just_pressed(KeyCode::ArrowRight) || keyboard.just_pressed(KeyCode::KeyD) {
+        (1, 0)
+    } else {
+        return;
+    };
 
     // Use visual position for column (handles riding drift on river)
     let effective_col = world_x_to_col(transform.translation.x);
@@ -107,7 +103,7 @@ pub fn hop_animation(
         hop.active = false;
     } else {
         let pos = hop.from.lerp(hop.to, hop.progress);
-        let arc = 6.0 * (hop.progress * std::f32::consts::PI).sin();
+        let arc = HOP_ARC_HEIGHT * (hop.progress * std::f32::consts::PI).sin();
         transform.translation.x = pos.x;
         transform.translation.y = pos.y + arc;
     }
@@ -122,7 +118,7 @@ pub fn score_forward_hop(
     };
     if grid_pos.row > game_data.max_row_this_life {
         let gained = (grid_pos.row - game_data.max_row_this_life) as u32;
-        game_data.score += gained * SCORE_FORWARD_HOP;
+        game_data.add_score(gained * SCORE_FORWARD_HOP);
         game_data.max_row_this_life = grid_pos.row;
     }
 }

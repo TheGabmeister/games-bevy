@@ -2,7 +2,7 @@
 
 Status: Draft, revised on 2026-03-29
 
-This document defines the target game for this repository and records the current implementation baseline. The project name and intended destination are Frogger, but the checked-in code is still a small Bevy shooter template. This spec is written to remove that ambiguity and give us a practical path from the current codebase to the intended game.
+This document defines the target game for this repository and records the current implementation baseline. The repository now contains a playable Frogger MVP, so this spec focuses on documenting the implemented core loop, the remaining polish opportunities, and the architecture conventions we want to preserve.
 
 ## 1. Product Summary
 
@@ -24,27 +24,29 @@ Core design goals:
 
 ## 2. Current Repository Baseline
 
-As of 2026-03-29, the repository does not yet implement Frogger. It currently contains a simple 2D shooter template with these behaviors:
+As of 2026-03-29, the repository already implements the main Frogger play loop with primitive visuals and no required assets.
+
+Current implemented behaviors:
 
 - `StartScreen -> Playing -> GameOver -> StartScreen` state flow.
-- A player ship that moves freely with `WASD` or arrow keys.
-- Three static enemies spawned near the top of the screen.
-- `Space` fires lasers upward.
-- Destroying an enemy adds `100` points.
-- Clearing all enemies transitions to `GameOver`.
-- Looping gameplay music starts in `Playing` and stops on exit.
+- Portrait window at `720 x 960`.
+- Grid-based frog movement with one-cell hops on `WASD` or arrow keys.
+- Five traffic lanes, five river lanes, five home bays, score, lives, and per-life timer.
+- Successful bay fills award score and respawn the frog.
+- Filling all five bays advances the level and increases lane speed.
+- The game runs without external image or audio assets.
 
-Current code facts that the old spec did not reflect:
+Current code facts:
 
-- The window is currently `1280 x 720`, not portrait.
-- Gameplay uses sprites and audio asset paths.
-- There is no `assets/` directory in the current checkout.
-- There are no Frogger systems yet: no lanes, logs, turtles, home bays, timer, or lives.
+- The playfield is built from colored Bevy sprites and Bevy UI nodes.
+- The game uses `src/lanes.rs` for world and lane objects and `src/collision.rs` for rule resolution.
+- High score is currently in-memory only.
+- Core gameplay is single-screen and deterministic, with no save system or content streaming.
 
 Implication:
 
-- The next meaningful milestone is a game conversion, not a polish pass.
-- The spec must distinguish current baseline from target scope.
+- The project is in a playable MVP state.
+- The next meaningful milestone is polish, tests, and targeted gameplay refinement rather than a template conversion.
 
 ## 3. Scope Definition
 
@@ -74,6 +76,8 @@ The following are desirable but not required for MVP:
 - Animated turtles that dive.
 - Bonus fly and lady-frog mechanics.
 - Ambient menu background animation.
+- Shorter feedback loops for level-clear and death moments.
+- Small automated tests around scoring, helpers, and progression math.
 
 ### 3.3 Explicit Non-Goals For The First Pass
 
@@ -90,7 +94,7 @@ Do not require these for the first playable Frogger version:
 - Language: Rust 2024 edition.
 - Engine: Bevy 0.18.1.
 - Architecture: plugin-based modules with state-gated systems.
-- Validation: `cargo check` should pass during active implementation.
+- Validation: `cargo check` should pass during active implementation and `cargo clippy` should stay clean for routine refactors.
 - Runtime dependency goal: core gameplay should work without image or audio assets.
 
 Asset policy for the Frogger conversion:
@@ -115,9 +119,9 @@ The intended run loop is:
 
 ## 6. World Layout
 
-### 6.1 Target Window
+### 6.1 Window
 
-Target gameplay window:
+Implemented gameplay window:
 
 - Width: `720`
 - Height: `960`
@@ -130,7 +134,7 @@ Rationale:
 
 Note:
 
-- This is a target-state requirement. The current code still uses `1280 x 720`.
+- The current code already uses this portrait layout.
 
 ### 6.2 Grid
 
@@ -341,9 +345,10 @@ struct LevelState {
 }
 ```
 
-Current mismatch:
+Current status:
 
-- The repo currently stores only `score` in `GameData`.
+- The repo stores score, high score, lives, level, filled bays, and furthest-row progress in `GameData`.
+- `FrogTimer` tracks the remaining life timer and `LevelState` tracks speed scaling plus level-clear pacing.
 
 ### 10.2 Core Components
 
@@ -378,34 +383,34 @@ struct ShakeCamera;
 Current checked-in modules:
 
 - `src/main.rs`
+- `src/gameplay.rs`
 - `src/states.rs`
 - `src/constants.rs`
 - `src/components.rs`
 - `src/resources.rs`
 - `src/player.rs`
-- `src/enemy.rs`
-- `src/combat.rs`
+- `src/lanes.rs`
+- `src/collision.rs`
 - `src/ui.rs`
-- `src/audio.rs`
 
 ### 11.2 Recommended Target Ownership
 
 The target design should still stay close to the current modular style:
 
 - `main.rs`: app bootstrap, camera, plugin registration
+- `gameplay.rs`: ordered gameplay scheduling for the `Playing` state
 - `states.rs`: top-level app states
 - `constants.rs`: gameplay and UI tuning values
 - `components.rs`: ECS marker and data components
 - `resources.rs`: score, lives, level, timer, bay state
 - `player.rs`: frog spawn, hop input, hop animation, respawn helpers
-- `enemy.rs` or `lanes.rs`: road and river lane spawning
-- `combat.rs` or `collision.rs`: collisions, drowning, bay resolution, level clear checks
+- `lanes.rs`: road and river lane spawning plus home-bay visuals
+- `collision.rs`: collisions, drowning, bay resolution, level clear checks
 - `ui.rs`: title screen, HUD, game-over screen
-- `audio.rs`: optional audio lifecycle
 
 Implementation note:
 
-- If we want minimal churn, it is acceptable to evolve `enemy.rs` into lane spawning and `combat.rs` into collision and game-rule handling before any rename.
+- The repository has already taken the minimal-churn path by adding lane and collision modules directly, without reviving the old shooter-template names.
 
 ### 11.3 System Scheduling
 
@@ -466,13 +471,13 @@ If retained:
 
 The previous version of this document had several problems:
 
-- It described a game that does not exist in the repository.
-- It implied a primitive-only implementation while the code used image and audio assets.
-- It omitted the current shooter-template baseline.
-- It referred to modules such as `lanes.rs`, `hazards.rs`, `collision.rs`, and `effects.rs` that are not present.
+- It described a game state that no longer matched the repository.
+- It omitted the fact that the current code already implements Frogger gameplay with primitive visuals.
+- It referred to a shooter-template baseline that has already been replaced.
+- It referred to missing modules and stale migration concerns.
 - It mixed current implementation details with aspirational future ideas.
 - It contained text-encoding corruption, making symbols and arrows hard to read.
-- It specified many polish-heavy systems before documenting the MVP conversion path.
+- It specified many polish-heavy systems before documenting the current playable baseline.
 
 This revision fixes those issues by separating:
 
@@ -485,29 +490,20 @@ This revision fixes those issues by separating:
 
 Recommended implementation sequence:
 
-### Phase 0: Baseline Cleanup
+### Phase 1: Stabilize And Document
 
-- Update window title and constants away from the shooter template.
-- Remove hard dependency on missing art and audio assets.
-- Keep the existing state machine intact.
+- Keep the current playable loop intact.
+- Sync the spec with the actual module layout and implemented behaviors.
+- Add lightweight tests for helper math and progression state.
 
-### Phase 1: Core Frog Loop
+### Phase 2: Gameplay Polish
 
-- Replace free movement with grid hopping.
-- Replace enemies and lasers with lane spawning.
-- Add road collision and river support checks.
-- Add lives and timer.
+- Improve level-clear presentation.
+- Add clearer HUD and status feedback.
+- Tune lane spacing and collision feel based on playtesting.
 
-### Phase 2: Progression
+### Phase 3: Optional Enhancements
 
-- Add home bays.
-- Add scoring for forward progress and successful landings.
-- Add level clear and speed scaling.
-- Add complete HUD.
-
-### Phase 3: Polish
-
-- Add visual feedback.
 - Add optional audio.
 - Add bonus entities and diving turtles.
 - Add menu/background polish.
@@ -529,6 +525,10 @@ The Frogger MVP is complete when all of the following are true:
 - Restart from `GameOver` returns to `StartScreen`.
 - The game runs without requiring missing image or audio assets.
 
+Current status:
+
+- The repository meets these MVP criteria in code, though it still benefits from more testing and polish.
+
 ## 16. Testing Checklist
 
 Manual checks:
@@ -547,22 +547,23 @@ Manual checks:
 Nice-to-have automated tests:
 
 - Grid-to-world and world-to-grid conversion helpers.
-- Bay index resolution from world `x`.
 - Furthest-row scoring logic.
 - Speed multiplier cap logic.
 
+Current coverage target:
+
+- Helper math and speed-cap tests are a good first target because they validate logic that is easy to regress and cheap to run.
+
 ## 17. Open Decisions
 
-These items should be resolved during implementation, not left ambiguous:
+These items still matter for polish planning:
 
 - Whether turtles are MVP or post-MVP.
-- Whether audio remains in the project during conversion.
-- Whether `enemy.rs` and `combat.rs` will be renamed or evolved in place.
+- Whether optional audio should be added at all.
 - Whether high score persists only in memory or to disk.
 
 Until those are decided, the default should be:
 
 - logs only for MVP river platforms
 - silent gameplay is acceptable
-- minimal file renames
 - in-memory high score only
