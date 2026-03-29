@@ -29,36 +29,57 @@ Dependencies compile at `opt-level = 3` while the main crate uses `opt-level = 1
 
 ## Architecture
 
-The entire game lives in `src/main.rs` (~1700 lines, Phase 1 of the SPEC's growth path). It is organized into clearly delimited sections by comments:
+The game is split into domain-specific modules with Bevy plugins:
 
-1. **Constants** — all tunable values (speeds, radii, cooldowns, counts) at the top
-2. **States** — `AppState` (StartScreen → Playing → GameOver) and `PlayState` sub-state (WaveIntro → WaveActive, plus PlayerDeath, Paused)
-3. **Components** — marker components (`Player`, `Enemy`, `Grunt`, `Killable`, `DamagesPlayer`, `Confined`, `WaveEntity`) and data components (`Velocity`, `CollisionRadius`, `Lifetime`, etc.)
-4. **Resources** — `GameState` (score/lives/wave), `GameAssets` (shared mesh/material handles), `WaveState` (timers), `ScreenShake`
-5. **Wave Definition** — `wave_definition(wave)` returns enemy counts and speed multiplier per wave
-6. **System functions** — grouped by domain: startup, start screen, playing setup, wave management, player systems, enemy AI systems, projectile systems, movement, combat, death, pause, effects (particles/popups/shake), HUD, game over
+```
+src/
+  main.rs          — app setup, camera, plugin registration, system set ordering
+  constants.rs     — all tunable values (speeds, radii, cooldowns, counts)
+  states.rs        — AppState, PlayState, GameSet system sets
+  components.rs    — all ECS marker and data components
+  resources.rs     — GameAssets, GameState, WaveState, ScreenShake, high score I/O, setup_assets
+  arena.rs         — ArenaPlugin: borders, velocity, confinement, lifetime despawn
+  player.rs        — PlayerPlugin: movement, aim, fire, invincibility, respawn
+  enemy.rs         — EnemyPlugin: all enemy AI, spawner logic, projectile steering
+  human.rs         — HumanPlugin: human wander behavior
+  combat.rs        — CombatPlugin: collision detection, damage resolution, wave clear
+  waves.rs         — WavePlugin: wave definitions, spawn orchestration, state transitions
+  effects.rs       — EffectsPlugin: particles, score popups, screen shake
+  ui.rs            — UiPlugin: start screen, HUD, pause, wave overlay, game over
+```
 
 ### Key Patterns
 
+- **Plugin-per-domain**: Each gameplay domain is a Bevy plugin that registers its own systems.
+- **System sets for ordering**: `GameSet::Input → Movement → Confinement → Combat → Resolution` chained during `WaveActive`. Always-on systems (effects, HUD) run with `run_if(in_state(AppState::Playing))`.
 - **Marker-driven collision**: `DamagesPlayer` marks anything that kills the player. `Killable` marks enemies that count toward wave clear. `Confined` marks entities clamped to arena bounds. `WaveEntity` marks entities despawned between waves.
 - **Shared asset resource**: All meshes and materials are created once in `setup_assets` and stored in `GameAssets`. Entity spawning clones handles from this resource.
 - **Player spawn reuse**: `spawn_player_entity()` is a helper called from both initial spawn and respawn-after-death.
-- **Score helper**: `award_score()` handles score increment + extra life threshold check in one place.
+- **Score helper**: `GameState::award_score()` handles score increment + extra life threshold check in one place.
 - **Wave scaling**: `wave_definition()` computes enemy counts programmatically rather than using a data table.
 - **Collision**: Circle-circle overlap (`distance_squared < (r1+r2)^2`) for all gameplay collision. No physics engine.
-- **High score persistence**: Saved to `highscore.txt` next to the executable.
+- **High score persistence**: Saved to `highscore.txt` next to the executable, written once on game over (not every frame).
 
 ### State Machine
 
-- Gate gameplay systems with `.run_if(in_state(PlayState::WaveActive))`
+```
+AppState: StartScreen → Playing → GameOver
+PlayState (sub-state of Playing): WaveIntro → WaveActive → WaveClear → WaveIntro...
+                                              ↕ Paused
+                                              → PlayerDeath → WaveActive / WaveClear / GameOver
+```
+
+- Gate gameplay systems via `GameSet` (inherits `run_if(in_state(PlayState::WaveActive))`)
 - Use `OnEnter`/`OnExit` for spawn/cleanup symmetry
 - Use `DespawnOnExit(AppState::Playing)` on gameplay entities for automatic cleanup
 - Use `DespawnOnExit(PlayState::WaveIntro)` for wave overlay UI
-- `WaveEntity` is used for per-wave cleanup (enemies, projectiles, humans, electrodes) via explicit despawn in `despawn_wave_entities`
+- `WaveEntity` is used for per-wave cleanup via explicit despawn in `despawn_wave_entities`
 
-### Future Module Split (Phase 2)
+### Cross-Module Dependencies
 
-When the file grows too large, extract into: `states.rs`, `constants.rs`, `components.rs`, `resources.rs`, then domain plugins (`player.rs`, `enemy.rs`, `combat.rs`, `effects.rs`, `ui.rs`). See SPEC.md Section 4.
+- `combat.rs` imports from `effects.rs` (spawn_particles, spawn_score_popup) and `waves.rs` (wave_definition)
+- `enemy.rs` imports from `waves.rs` (wave_definition)
+- All domain modules import from `constants.rs`, `components.rs`, `resources.rs`, `states.rs`
 
 ## Bevy 0.18.1 API Notes
 
