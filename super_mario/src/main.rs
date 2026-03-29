@@ -7,13 +7,15 @@ use bevy::{
 
 mod components;
 mod constants;
+mod level;
 mod messages;
 mod resources;
 mod states;
 
 use constants::*;
+use level::LevelPlugin;
 use messages::*;
-use resources::GameData;
+use resources::{GameData, LevelState};
 use states::*;
 
 fn main() {
@@ -32,6 +34,7 @@ fn main() {
         .add_sub_state::<PlayState>()
         // Resources
         .init_resource::<GameData>()
+        .init_resource::<LevelState>()
         // Messages
         .add_message::<AddScore>()
         .add_message::<PlayerDamaged>()
@@ -41,6 +44,7 @@ fn main() {
         .add_message::<LevelCompleted>()
         .add_message::<SpawnParticles>()
         .add_message::<CameraShakeRequested>()
+        .add_plugins(LevelPlugin)
         // Startup
         .add_systems(Startup, setup_camera)
         .run();

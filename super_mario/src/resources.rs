@@ -12,6 +12,16 @@ pub struct GameData {
     pub world_label: String,
 }
 
+#[derive(Resource, Default)]
+pub struct LevelState {
+    pub width_tiles: usize,
+    pub height_tiles: usize,
+    pub player_start: Vec2,
+    pub camera_min_x: f32,
+    pub camera_max_x: f32,
+    pub camera_y: f32,
+}
+
 impl Default for GameData {
     fn default() -> Self {
         Self {

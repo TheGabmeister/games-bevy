@@ -8,6 +8,9 @@ pub const WINDOW_HEIGHT: f32 = 600.0;
 
 // Tile
 pub const TILE_SIZE: f32 = 32.0;
+pub const LEVEL_HEIGHT_TILES: usize = 15;
+pub const GROUND_TILE_ROWS: usize = 2;
+pub const CAMERA_FOLLOW_LERP: f32 = 8.0;
 
 // Physics
 pub const GRAVITY: f32 = -1800.0;
