@@ -54,11 +54,8 @@ pub fn ride_platforms(
 pub fn check_vehicle_collision(
     frog_query: Query<&Transform, With<Frog>>,
     vehicle_query: VehicleQuery,
-    mut frog_event: ResMut<FrogEvent>,
+    mut death_writer: MessageWriter<FrogDeath>,
 ) {
-    if *frog_event != FrogEvent::None {
-        return;
-    }
     let Ok(frog_tf) = frog_query.single() else {
         return;
     };
@@ -70,7 +67,7 @@ pub fn check_vehicle_collision(
         if (fp.x - vp.x).abs() < obj_width.0 / 2.0 + frog_half
             && (fp.y - vp.y).abs() < CELL_SIZE * 0.4 + frog_half
         {
-            *frog_event = FrogEvent::Death;
+            death_writer.write(FrogDeath);
             return;
         }
     }
@@ -79,11 +76,8 @@ pub fn check_vehicle_collision(
 pub fn check_water_support(
     frog_query: Query<(&GridPosition, &HopState, &Transform), With<Frog>>,
     platform_query: PlatformSupportQuery,
-    mut frog_event: ResMut<FrogEvent>,
+    mut death_writer: MessageWriter<FrogDeath>,
 ) {
-    if *frog_event != FrogEvent::None {
-        return;
-    }
     let Ok((grid_pos, hop_state, frog_tf)) = frog_query.single() else {
         return;
     };
@@ -108,16 +102,13 @@ pub fn check_water_support(
         }
     }
 
-    *frog_event = FrogEvent::Death;
+    death_writer.write(FrogDeath);
 }
 
 pub fn check_bounds(
     frog_query: Query<(&HopState, &Transform), With<Frog>>,
-    mut frog_event: ResMut<FrogEvent>,
+    mut death_writer: MessageWriter<FrogDeath>,
 ) {
-    if *frog_event != FrogEvent::None {
-        return;
-    }
     let Ok((hop_state, frog_tf)) = frog_query.single() else {
         return;
     };
@@ -125,7 +116,7 @@ pub fn check_bounds(
         return;
     }
     if frog_tf.translation.x.abs() > PLAYFIELD_WIDTH / 2.0 + CELL_SIZE {
-        *frog_event = FrogEvent::Death;
+        death_writer.write(FrogDeath);
     }
 }
 
@@ -133,12 +124,10 @@ pub fn check_home_bay(
     frog_query: Query<(&GridPosition, &HopState), With<Frog>>,
     mut game_data: ResMut<GameData>,
     timer: Res<FrogTimer>,
-    mut frog_event: ResMut<FrogEvent>,
-    mut pending_effects: ResMut<PendingEffects>,
+    mut bay_writer: MessageWriter<FrogBayFilled>,
+    mut death_writer: MessageWriter<FrogDeath>,
+    mut popup_writer: MessageWriter<SpawnScorePopup>,
 ) {
-    if *frog_event != FrogEvent::None {
-        return;
-    }
     let Ok((grid_pos, hop_state)) = frog_query.single() else {
         return;
     };
@@ -154,13 +143,14 @@ pub fn check_home_bay(
             let time_bonus = (timer.remaining_secs as u32) * SCORE_TIME_BONUS_PER_SEC;
             let points = SCORE_HOME_BAY + time_bonus;
             game_data.add_score(points);
-            pending_effects
-                .score_popups
-                .push((points, grid_to_world(grid_pos.col, grid_pos.row)));
-            *frog_event = FrogEvent::BayFilled;
+            popup_writer.write(SpawnScorePopup {
+                points,
+                pos: grid_to_world(grid_pos.col, grid_pos.row),
+            });
+            bay_writer.write(FrogBayFilled);
         }
         _ => {
-            *frog_event = FrogEvent::Death;
+            death_writer.write(FrogDeath);
         }
     }
 }
@@ -168,41 +158,44 @@ pub fn check_home_bay(
 pub fn tick_timer(
     time: Res<Time>,
     mut timer: ResMut<FrogTimer>,
-    mut frog_event: ResMut<FrogEvent>,
+    mut death_writer: MessageWriter<FrogDeath>,
     level_state: Res<LevelState>,
 ) {
-    if *frog_event != FrogEvent::None || level_state.celebrating {
+    if level_state.celebrating {
         return;
     }
     timer.remaining_secs -= time.delta_secs();
     if timer.remaining_secs <= 0.0 {
         timer.remaining_secs = 0.0;
-        *frog_event = FrogEvent::Death;
+        death_writer.write(FrogDeath);
     }
 }
 
 pub fn handle_frog_event(
-    mut frog_event: ResMut<FrogEvent>,
+    mut death_reader: MessageReader<FrogDeath>,
+    mut bay_reader: MessageReader<FrogBayFilled>,
+    mut death_flash_writer: MessageWriter<SpawnDeathFlash>,
     mut game_data: ResMut<GameData>,
     mut timer: ResMut<FrogTimer>,
     mut next_state: ResMut<NextState<AppState>>,
     mut frog_query: Query<(&mut GridPosition, &mut HopState, &mut Transform), With<Frog>>,
-    mut pending_effects: ResMut<PendingEffects>,
 ) {
-    let event = *frog_event;
-    if event == FrogEvent::None {
+    // Drain all messages — multiple checks may fire in one frame
+    let has_bay = bay_reader.read().count() > 0;
+    let has_death = death_reader.read().count() > 0;
+
+    if !has_bay && !has_death {
         return;
     }
-    *frog_event = FrogEvent::None;
 
-    // Get frog position before any changes
     let Ok((mut gp, mut hop, mut tf)) = frog_query.single_mut() else {
         return;
     };
-    let frog_pos = tf.translation.truncate();
 
-    if event == FrogEvent::Death {
-        pending_effects.death_flashes.push(frog_pos);
+    // Bay fill takes priority over death (scoring already handled in check_home_bay)
+    if !has_bay && has_death {
+        let frog_pos = tf.translation.truncate();
+        death_flash_writer.write(SpawnDeathFlash { pos: frog_pos });
         if game_data.lose_life() {
             next_state.set(AppState::GameOver);
             return;

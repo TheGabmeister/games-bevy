@@ -82,10 +82,9 @@ fn spawn_frog(
 pub fn frog_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut query: Query<(&mut GridPosition, &mut HopState, &Transform), With<Frog>>,
-    frog_event: Res<FrogEvent>,
     level_state: Res<LevelState>,
 ) {
-    if *frog_event != FrogEvent::None || level_state.celebrating {
+    if level_state.celebrating {
         return;
     }
 

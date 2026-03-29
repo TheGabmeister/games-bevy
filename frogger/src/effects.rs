@@ -23,31 +23,32 @@ impl Plugin for EffectsPlugin {
 
 fn spawn_pending_effects(
     mut commands: Commands,
-    mut pending: ResMut<PendingEffects>,
+    mut death_flash_reader: MessageReader<SpawnDeathFlash>,
+    mut popup_reader: MessageReader<SpawnScorePopup>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    for pos in pending.death_flashes.drain(..) {
+    for flash in death_flash_reader.read() {
         commands.spawn((
             GameplayEntity,
             DeathFlash(0.0),
             Mesh2d(meshes.add(Circle::new(FROG_BODY_RADIUS))),
             MeshMaterial2d(materials.add(ColorMaterial::from_color(COLOR_DEATH_FLASH))),
-            Transform::from_translation(pos.extend(15.0)),
+            Transform::from_translation(flash.pos.extend(15.0)),
         ));
     }
 
-    for (points, pos) in pending.score_popups.drain(..) {
+    for popup in popup_reader.read() {
         commands.spawn((
             GameplayEntity,
             ScorePopup(0.0),
-            Text2d::new(format!("+{points}")),
+            Text2d::new(format!("+{}", popup.points)),
             TextFont {
                 font_size: 20.0,
                 ..default()
             },
             TextColor(COLOR_HIGHLIGHT_TEXT),
-            Transform::from_translation(pos.extend(20.0)),
+            Transform::from_translation(popup.pos.extend(20.0)),
         ));
     }
 }

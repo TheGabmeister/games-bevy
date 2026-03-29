@@ -34,8 +34,10 @@ fn main() {
         .init_resource::<GameData>()
         .init_resource::<FrogTimer>()
         .init_resource::<LevelState>()
-        .init_resource::<FrogEvent>()
-        .init_resource::<PendingEffects>()
+        .add_message::<FrogDeath>()
+        .add_message::<FrogBayFilled>()
+        .add_message::<SpawnDeathFlash>()
+        .add_message::<SpawnScorePopup>()
         .insert_resource(ClearColor(COLOR_BACKGROUND))
         .add_plugins((
             GameplayPlugin,

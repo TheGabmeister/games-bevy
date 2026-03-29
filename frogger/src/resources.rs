@@ -113,19 +113,22 @@ impl LevelState {
     }
 }
 
-#[derive(Resource, Default, PartialEq, Clone, Copy)]
-pub enum FrogEvent {
-    #[default]
-    None,
-    Death,
-    BayFilled,
+// Messages (Bevy 0.18 message system replaces the old EventWriter/EventReader API)
+#[derive(Message)]
+pub struct FrogDeath;
+
+#[derive(Message)]
+pub struct FrogBayFilled;
+
+#[derive(Message)]
+pub struct SpawnDeathFlash {
+    pub pos: Vec2,
 }
 
-// Pending effects (cleared each frame by the effects system)
-#[derive(Resource, Default)]
-pub struct PendingEffects {
-    pub death_flashes: Vec<Vec2>,
-    pub score_popups: Vec<(u32, Vec2)>,
+#[derive(Message)]
+pub struct SpawnScorePopup {
+    pub points: u32,
+    pub pos: Vec2,
 }
 
 #[cfg(test)]

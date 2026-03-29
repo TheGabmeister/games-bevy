@@ -103,13 +103,11 @@ fn start_game_input(
     mut game_data: ResMut<GameData>,
     mut timer: ResMut<FrogTimer>,
     mut level_state: ResMut<LevelState>,
-    mut frog_event: ResMut<FrogEvent>,
 ) {
     if keyboard.just_pressed(KeyCode::Space) || keyboard.just_pressed(KeyCode::Enter) {
         game_data.reset_for_new_run();
         timer.reset();
         level_state.reset_for_new_run();
-        *frog_event = FrogEvent::None;
         next_state.set(AppState::Playing);
     }
 }
