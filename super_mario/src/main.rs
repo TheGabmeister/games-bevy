@@ -9,12 +9,14 @@ mod components;
 mod constants;
 mod level;
 mod messages;
+mod player;
 mod resources;
 mod states;
 
 use constants::*;
 use level::LevelPlugin;
 use messages::*;
+use player::PlayerPlugin;
 use resources::{GameData, LevelState};
 use states::*;
 
@@ -44,7 +46,7 @@ fn main() {
         .add_message::<LevelCompleted>()
         .add_message::<SpawnParticles>()
         .add_message::<CameraShakeRequested>()
-        .add_plugins(LevelPlugin)
+        .add_plugins((LevelPlugin, PlayerPlugin))
         // Startup
         .add_systems(Startup, setup_camera)
         .run();

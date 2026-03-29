@@ -75,6 +75,7 @@ pub const COLOR_PIPE_GREEN_DARK: Color = Color::srgb(0.12, 0.48, 0.15);
 pub const COLOR_MARIO_RED: Color = Color::srgb(0.90, 0.15, 0.12);
 pub const COLOR_MARIO_SKIN: Color = Color::srgb(0.95, 0.75, 0.55);
 pub const COLOR_MARIO_BROWN: Color = Color::srgb(0.55, 0.30, 0.10);
+pub const COLOR_MARIO_BLUE: Color = Color::srgb(0.18, 0.34, 0.78);
 pub const COLOR_GOOMBA: Color = Color::srgb(0.60, 0.35, 0.15);
 pub const COLOR_KOOPA_GREEN: Color = Color::srgb(0.20, 0.72, 0.25);
 pub const COLOR_COIN_GOLD: Color = Color::srgb(1.0, 0.85, 0.15);
