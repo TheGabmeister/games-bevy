@@ -133,9 +133,9 @@ The implementation should eventually separate into these responsibilities:
 - HUD, menus, and score/timer presentation
 - Visual effects and transient entities
 
-Cross-domain communication should use events where practical.
+Cross-domain communication should use messages where practical.
 
-Suggested events:
+Suggested messages:
 
 - `AddScore`
 - `SpawnParticles`
@@ -153,7 +153,7 @@ Suggested events:
 ### Phase 1 - Core Scaffolding
 
 1. **Project structure and states**
-   - Create module files: `constants.rs`, `components.rs`, `resources.rs`, `states.rs`, and `events.rs`
+   - Create module files: `constants.rs`, `components.rs`, `resources.rs`, `states.rs`, and `messages.rs`
    - Define app and play states
    - Replace the starter `Hello, World!` setup with proper bootstrapping
    - Set window title to `"Super Mario Bros"`
@@ -282,7 +282,7 @@ Suggested events:
     - HUD fixed to the screen, not world space
     - Use text formatting close to classic Mario readability
 
-21. **Score events and feedback**
+21. **Score messages and feedback**
     - Coins and enemy defeats award points
     - Consecutive stomps can escalate score rewards
     - `100` coins should award `1UP`
@@ -355,7 +355,7 @@ Suggested events:
     - Used for bricks, stomps, coins, dust, and celebratory effects
 
 33. **Screen shake**
-    - Small, decaying shake on impactful events
+    - Small, decaying shake on impactful moments
     - Should not interfere with gameplay readability
 
 34. **Background parallax**
@@ -425,7 +425,7 @@ src/
 |-- components.rs      # ECS components and markers
 |-- resources.rs       # Score, lives, timer, level state
 |-- states.rs          # AppState, PlayState
-|-- events.rs          # Cross-system gameplay events
+|-- messages.rs        # Cross-system gameplay messages
 |-- player/
 |   |-- mod.rs         # PlayerPlugin
 |   |-- movement.rs    # Input, gravity, collision
