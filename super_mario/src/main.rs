@@ -1,20 +1,61 @@
-use bevy::prelude::*;
+use bevy::{
+    core_pipeline::tonemapping::{DebandDither, Tonemapping},
+    post_process::bloom::Bloom,
+    prelude::*,
+    window::WindowResolution,
+};
+
+mod components;
+mod constants;
+mod events;
+mod resources;
+mod states;
+
+use constants::*;
+use events::*;
+use resources::GameData;
+use states::*;
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
-        .add_systems(Startup, setup)
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: "Super Mario Bros".to_string(),
+                resolution: WindowResolution::new(WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32),
+                resizable: false,
+                ..default()
+            }),
+            ..default()
+        }))
+        // States
+        .init_state::<AppState>()
+        .add_sub_state::<PlayState>()
+        // Resources
+        .insert_resource(ClearColor(COLOR_SKY))
+        .init_resource::<GameData>()
+        // Event queues
+        .init_resource::<AddScoreEvents>()
+        .init_resource::<PlayerDamagedEvents>()
+        .init_resource::<PlayerDiedEvents>()
+        .init_resource::<BlockHitEvents>()
+        .init_resource::<EnemyStompedEvents>()
+        .init_resource::<LevelCompletedEvents>()
+        .init_resource::<SpawnParticlesEvents>()
+        .init_resource::<CameraShakeEvents>()
+        // Startup
+        .add_systems(Startup, setup_camera)
         .run();
 }
 
-fn setup(mut commands: Commands) {
-    commands.spawn(Camera2d);
+fn setup_camera(mut commands: Commands) {
     commands.spawn((
-        Text::new("Hello, World!"),
-        Node {
-            align_self: AlignSelf::Center,
-            justify_self: JustifySelf::Center,
+        Camera2d,
+        Camera {
+            clear_color: ClearColorConfig::Custom(COLOR_SKY),
             ..default()
         },
+        Tonemapping::TonyMcMapface,
+        Bloom::NATURAL,
+        DebandDither::Enabled,
     ));
 }
