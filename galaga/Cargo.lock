@@ -2243,13 +2243,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "donkey_kong"
-version = "0.1.0"
-dependencies = [
- "bevy",
-]
-
-[[package]]
 name = "downcast-rs"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2537,6 +2530,13 @@ dependencies = [
  "futures-task",
  "pin-project-lite",
  "slab",
+]
+
+[[package]]
+name = "galaga"
+version = "0.1.0"
+dependencies = [
+ "bevy",
 ]
 
 [[package]]

@@ -5,8 +5,5 @@ pub enum AppState {
     #[default]
     StartScreen,
     Playing,
-    Dying,
-    WaveTally,
     GameOver,
-    WinScreen,
 }
