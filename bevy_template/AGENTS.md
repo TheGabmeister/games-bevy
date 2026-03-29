@@ -12,7 +12,8 @@ Guidance for coding agents working in `c:\dev\games-bevy\bevy_template`.
 
 - Rust edition `2024`
 - Bevy `0.18.1`
-- Simple 2D arcade/shooter template using Bevy ECS, state-driven UI, and asset-backed sprites/audio
+- `bevy` is enabled with the `dynamic_linking` feature
+- Current app state: minimal Bevy starter, not yet a full arcade/shooter implementation
 
 ## Build And Validation
 
@@ -31,96 +32,88 @@ Validation expectations:
 - Run `cargo clippy` when changing patterns that may affect API usage or code quality broadly.
 - If you cannot run validation, say so explicitly.
 
-## Dev Profile
+## Build Configuration
 
+- Target output is redirected by `.cargo/config.toml` to `D:/cargo-target-dir`.
 - The crate uses `opt-level = 1` in dev.
 - Dependencies use `opt-level = 3` in dev.
 - Keep iteration-friendly workflows in mind; prefer targeted changes over broad rewrites.
 
-## Project Layout
+## Current Project Layout
 
-- `src/main.rs`: app bootstrap, window configuration, plugin registration, camera setup
-- `src/states.rs`: `AppState` state machine
-- `src/constants.rs`: window, gameplay, and UI tuning values
-- `src/components.rs`: marker and data components
-- `src/resources.rs`: shared game-wide resources such as score
-- `src/player.rs`: player spawn, input, movement, cleanup
-- `src/enemy.rs`: enemy spawn and cleanup
-- `src/combat.rs`: shooting, laser movement, collision, win condition
-- `src/ui.rs`: start screen, HUD, game over screen, state transitions from UI input
-- `src/audio.rs`: music lifecycle during gameplay
-- `assets/`: sprite and audio assets loaded through `AssetServer`
+- `src/main.rs`: current app bootstrap and all gameplay/UI code that exists today
+- `assets/`: space-shooter themed sprite and audio assets available for future gameplay work
+- `.cargo/config.toml`: shared cargo target-dir configuration
 
-## Current Game Flow
+## Current Runtime Behavior
 
-The current state machine is:
+The current app is a starter scene:
 
-`StartScreen -> Playing -> GameOver -> StartScreen`
+- `DefaultPlugins` are registered with no custom plugin split yet.
+- A `Camera2d` is spawned at startup.
+- A centered `Hello, World!` UI text node is spawned at startup.
+- There is no state machine, gameplay loop, audio lifecycle, or asset loading wired up yet.
 
-Important behavior tied to state transitions:
+When making changes, align your work with what actually exists in the repo rather than assuming the larger game architecture is already implemented.
 
-- `StartScreen`: title/menu UI exists, `Space` starts the run
-- `Playing`: player, enemies, HUD, and looping music are spawned
-- `GameOver`: final score UI exists, `Space` resets score and returns to `StartScreen`
+## Architecture Guidance For Future Expansion
 
-When adding features, decide first whether they are:
+If the user grows this starter into the intended arcade/shooter template, prefer this structure:
 
-- state-specific systems gated with `run_if(in_state(...))`
-- enter/exit lifecycle systems attached to `OnEnter(...)` or `OnExit(...)`
-- persistent resources that survive state changes
+- `src/main.rs`: app setup, plugin registration, high-level wiring
+- `src/constants.rs`: tunable values such as window size, speeds, cooldowns, UI sizing
+- `src/components.rs`: marker and data ECS components
+- `src/resources.rs`: shared mutable game-wide state
+- `src/states.rs`: `AppState` enum and state-related helpers
+- Domain modules such as `src/player.rs`, `src/enemy.rs`, `src/combat.rs`, `src/ui.rs`, and `src/audio.rs`
 
-## Bevy Conventions Used Here
+Prefer small domain plugins over growing `main.rs` indefinitely once the game has more than a handful of systems.
 
-- Prefer small domain plugins over a large `main.rs`
-- Use marker components for entity categories like `Player`, `Enemy`, `Laser`, and UI roots
-- Use resources for cross-system shared state like `GameData`
-- Use `OnEnter` and `OnExit` for spawn/cleanup symmetry
-- Use explicit system ordering with `.after(...)` where frame ordering matters
-- Keep gameplay systems gated behind `AppState::Playing` unless they intentionally span menus
+## Bevy Conventions To Follow
+
+- Use `OnEnter` and `OnExit` for spawn/cleanup symmetry once states are introduced.
+- Gate gameplay systems with `run_if(in_state(...))` once an `AppState` exists.
+- Use resources for cross-system shared state.
+- Use marker components for entity categories.
+- Use explicit system ordering with `.after(...)` where frame ordering matters.
 
 ## Coding Rules For This Repo
 
-- Put new tunable values in `src/constants.rs` instead of scattering magic numbers.
-- Add new shared mutable game state to `src/resources.rs`.
-- Add marker/data ECS types to `src/components.rs` unless a component is tightly local and clearly better kept nearby.
-- Keep module boundaries aligned to gameplay domains.
-- Prefer extending an existing plugin in the relevant module over registering ad hoc systems from `main.rs`.
-- When spawning entities on `OnEnter`, also define the matching cleanup path on `OnExit` if the entities should not persist.
-- Preserve the current simple architecture unless the task requires a broader refactor.
+- Make the smallest coherent change that solves the task.
+- Do not rewrite working structure just to make it "cleaner".
+- Keep module boundaries aligned to gameplay domains once modules are introduced.
+- Put new tunable values in `src/constants.rs` instead of scattering magic numbers once that module exists.
+- Add new shared mutable game state to `src/resources.rs` once that module exists.
+- Add shared marker/data ECS types to `src/components.rs` once that module exists.
+- Prefer extending an existing domain plugin over registering many ad hoc systems from `main.rs`.
+- When spawning entities tied to a state, define the matching cleanup path on `OnExit` if they should not persist.
 
 ## UI And Asset Notes
 
-- UI currently uses Bevy UI nodes and text directly, without a custom theme system.
-- Text sizes and basic text color live in `src/constants.rs`.
-- Asset paths are plain relative strings passed to `asset_server.load(...)`; keep them aligned with files under `assets/`.
-- Reuse existing sprites/audio naming patterns when adding related assets.
+- UI currently uses Bevy's component-based UI directly.
+- Asset paths should remain plain relative strings passed to `asset_server.load(...)`.
+- Keep asset references aligned with files under `assets/`.
+- Reuse the existing space-shooter asset naming pattern when adding related content.
 
 ## Bevy 0.18.1 Notes
 
 - `despawn()` is recursive by default; do not use removed older APIs like `despawn_recursive()`.
 - `WindowResolution::new(width, height)` expects `u32`.
-- The codebase uses Bevy's current component-style UI and `Camera2d`.
-
-## Working Style
-
-- Make the smallest coherent change that solves the task.
-- Do not rewrite working gameplay structure just to make it "cleaner".
-- Preserve user changes that are unrelated to the task.
-- If you find conflicting local edits in the same area you need to touch, stop and surface the conflict.
+- `ScalingMode` is in `bevy::camera::ScalingMode`.
+- Use `ApplyDeferred` rather than a nonexistent `apply_deferred` helper function.
+- 2D rendering uses current Bevy APIs such as `Camera2d`, `Sprite`, `Mesh2d`, and `MeshMaterial2d`.
 
 ## Preferred Change Pattern
 
-1. Inspect the relevant module boundaries and state interactions.
-2. Implement the change in the owning module.
-3. Update constants/components/resources if the change introduces shared concepts.
+1. Inspect the current code and local module boundaries before making assumptions.
+2. Implement the change in the owning file or module.
+3. Extract constants/resources/components only when the code has grown enough to justify it.
 4. Run validation, usually `cargo check`.
 5. Summarize what changed and any remaining risks.
 
 ## Good First Places To Look
 
-- Input or movement bug: `src/player.rs`
-- Enemy count/spawn behavior: `src/enemy.rs` and `src/constants.rs`
-- Projectile or scoring logic: `src/combat.rs`
-- Menu/HUD/game over behavior: `src/ui.rs`
-- Music lifecycle: `src/audio.rs`
-- App boot or plugin wiring: `src/main.rs`
+- App boot or current behavior: `src/main.rs`
+- Build output location: `.cargo/config.toml`
+- Dependency/runtime configuration: `Cargo.toml`
+- Available art/audio for future gameplay work: `assets/`

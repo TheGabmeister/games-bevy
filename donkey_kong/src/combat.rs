@@ -17,10 +17,10 @@ impl Plugin for CombatPlugin {
                 hammer_vs_hazards.after(check_hammer_pickup),
                 player_vs_hazards.after(hammer_vs_hazards),
                 jump_over_scoring.after(player_vs_hazards),
-                check_goal.after(jump_over_scoring),
-                tick_bonus_timer.after(check_goal),
-                bonus_items_system.after(tick_bonus_timer),
+                bonus_items_system.after(jump_over_scoring),
                 check_extra_life.after(bonus_items_system),
+                tick_bonus_timer.after(check_extra_life),
+                check_goal.after(tick_bonus_timer),
             )
                 .run_if(in_state(AppState::Playing)),
         );
@@ -282,17 +282,7 @@ fn bonus_items_system(
             BonusItemStatus::Pending => {
                 if elapsed >= spawn_time {
                     wave_rt.bonus_items[i] = BonusItemStatus::Active;
-                    commands.spawn((
-                        StageEntity,
-                        BonusItemEntity(i),
-                        Mesh2d(game_meshes.bonus_item.clone()),
-                        MeshMaterial2d(game_mats.bonus_item.clone()),
-                        Transform::from_xyz(
-                            stage.bonus_item_position.x,
-                            stage.bonus_item_position.y,
-                            4.0,
-                        ),
-                    ));
+                    spawn_bonus_item(&mut commands, &game_meshes, &game_mats, &stage, i);
                 }
             }
             BonusItemStatus::Active => {

@@ -18,7 +18,7 @@ pub struct OilDrumEntity;
 pub struct GirderEntity;
 
 #[derive(Component)]
-pub struct LadderEntity(pub usize);
+pub struct LadderEntity;
 
 #[derive(Component)]
 pub struct GoalZoneEntity;
@@ -26,6 +26,10 @@ pub struct GoalZoneEntity;
 /// All gameplay entities carry this for bulk cleanup.
 #[derive(Component)]
 pub struct StageEntity;
+
+/// Entities cleared when restarting an attempt or advancing to the next wave.
+#[derive(Component)]
+pub struct AttemptEntity;
 
 // --- Player State ---
 
@@ -123,7 +127,7 @@ pub struct Fireball {
 // --- Pickups ---
 
 #[derive(Component)]
-pub struct HammerPickup(pub usize);
+pub struct HammerPickup;
 
 #[derive(Component)]
 pub struct BonusItemEntity(pub usize);
@@ -159,3 +163,6 @@ pub struct WinScreenUI;
 
 #[derive(Component)]
 pub struct WaveTallyUI;
+
+#[derive(Component)]
+pub struct DeathOverlayUI;

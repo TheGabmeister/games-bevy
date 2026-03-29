@@ -63,6 +63,7 @@ fn dk_throw(
                 };
 
                 commands.spawn((
+                    AttemptEntity,
                     Barrel {
                         is_blue,
                         is_wild,
@@ -149,6 +150,7 @@ fn move_barrels(
                                 let fb_y = girder_surface_y(&stage.girders[0], stage.oil_drum_x)
                                     + FIREBALL_RADIUS;
                                 commands.spawn((
+                                    AttemptEntity,
                                     Fireball {
                                         state: FireballMoveState::Patrolling,
                                         direction: 1.0, // start moving right

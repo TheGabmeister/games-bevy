@@ -1,604 +1,478 @@
-# Galaga — Modernized 2D Clone Specification
+# Galaga Project Specification
 
-A faithful-in-spirit 2D reimagining of the 1981 arcade classic, built with Bevy 0.18.1 using only primitive shapes and post-processing effects. No sprites, no textures, no audio.
+## 1. Document Status
 
----
+This document defines a practical specification for turning this repository from a small Bevy shooter template into a Galaga-inspired fixed-screen arcade game.
 
-## 1. Visual Design (Primitive Shapes Only)
+It is intentionally grounded in the current codebase:
 
-### 1.1 Entity Shapes
+- Rust edition `2024`
+- Bevy `0.18.1`
+- State flow: `StartScreen -> Playing -> GameOver -> StartScreen`
+- Current architecture: small domain plugins under `src/`
+- Current rendering/audio approach: asset-backed sprites and audio loaded through `AssetServer`
 
-| Entity | Shape | Color (HDR for bloom) | Notes |
-|---|---|---|---|
-| **Player ship** | Chevron (two triangles forming an arrow pointing up) | Cyan glow `linear_rgb(0.0, 3.0, 3.0)` | ~30px wide, ~36px tall |
-| **Bee (basic enemy)** | Hexagon | Yellow glow `linear_rgb(3.0, 3.0, 0.0)` | 6-sided, ~24px radius |
-| **Butterfly (mid enemy)** | Diamond (rotated square) with two small triangles as "wings" | Red-pink glow `linear_rgb(3.0, 0.5, 0.5)` | Parent entity + 2 wing children |
-| **Boss Galaga** | Large octagon with inner circle | Green glow `linear_rgb(0.5, 3.0, 0.5)` | ~36px radius, 2-hit HP |
-| **Player bullet** | Tall narrow rectangle | White-cyan `linear_rgb(2.0, 4.0, 4.0)` | 4px wide, 14px tall |
-| **Enemy bullet** | Small circle | Orange-red `linear_rgb(4.0, 1.0, 0.2)` | 5px radius |
-| **Tractor beam** | Trapezoid (narrow at top, wide at bottom) with alpha pulse | Green-white `linear_rgba(0.5, 3.0, 0.5, 0.4)` | Semi-transparent, oscillating alpha |
-| **Captured ship** | Same chevron as player | Dimmed red tint | Sits above boss in formation |
-| **Explosion particles** | Small squares and circles | Match destroyed entity's color, fading | 10-16 per explosion |
-| **Star (background)** | 1-3px circles | White at various dim intensities | 3 parallax layers |
-| **Exhaust flame** | Small triangle below player | Orange-yellow, flicker via scale oscillation | Cosmetic child entity |
+This spec replaces the previous draft, which mixed future ideas with implementation details that do not match the repository. In particular, the old draft conflicted with the actual project in these ways:
 
-### 1.2 Post-Processing & Effects
+- It described a primitive-shape, no-texture, no-audio game, while the code uses sprites and audio plugins.
+- It referenced modules and resources that do not exist yet as if they were already part of the project.
+- It assumed portrait-oriented constants and a different window title than the current repository.
+- It treated stretch goals such as tractor beams and challenge stages as baseline requirements for the first implementation pass.
 
-- **Bloom**: `BloomSettings` on the camera with HDR enabled. This is the single highest-impact visual. All gameplay entities use HDR color values > 1.0 so they glow against the black background.
-- **Particle explosions**: On entity death, spawn 10-16 small shape entities with randomized outward velocity, rotation, shrinking scale, and alpha fade over ~0.5s, then despawn.
-- **Engine exhaust**: Small flickering triangle beneath the player ship. Oscillate scale Y between 0.6-1.0 using a sine wave on elapsed time.
-- **Bullet trails**: Each bullet spawns fading afterimage entities every 2-3 frames that shrink and fade over ~0.15s.
-- **Screen shake**: On player death, offset the camera by random small amounts (+-4px) for ~0.3s, decaying to zero.
-- **Formation breathing glow**: Enemies in formation subtly pulse brightness via a shared sine wave modulating their color intensity.
-- **Starfield parallax**: Three layers of randomly placed dots scrolling downward at different speeds (slow/medium/fast). Wrap around when off-screen.
-- **Tractor beam animation**: Trapezoid shape with alpha oscillating via sine wave. Expands downward over ~0.5s on activation.
+The goal of this version is to be useful during development, not just aspirational.
 
-### 1.3 Z-Ordering (back to front)
+## 2. Current Baseline
 
-| Layer | Z |
-|---|---|
-| Background stars | 0.0 |
-| Tractor beam | 5.0 |
-| Enemies | 10.0 |
-| Captured ship | 10.0 |
-| Player | 15.0 |
-| Bullets (player & enemy) | 20.0 |
-| Explosion particles | 25.0 |
-| UI | N/A (Bevy UI overlay) |
+The repository currently implements a simple arcade template rather than Galaga:
 
----
+- `src/main.rs`: boots Bevy, configures a single `Camera2d`, registers plugins
+- `src/states.rs`: defines `AppState::{StartScreen, Playing, GameOver}`
+- `src/resources.rs`: contains `GameData { score }`
+- `src/player.rs`: spawns one player ship, supports four-direction movement, clamps to the window
+- `src/enemy.rs`: spawns three static enemies in a row
+- `src/combat.rs`: fires one laser per `Space` press, moves lasers upward, destroys enemies on contact, advances to `GameOver` when all enemies are gone
+- `src/ui.rs`: start screen, score HUD, game over screen
+- `src/audio.rs`: loops gameplay music while in `Playing`
 
-## 2. Game Mechanics
+Current constants in `src/constants.rs`:
 
-### 2.1 Player
+- Window: `1280x720`
+- Title: `"Bevy 2D Template"`
+- Player speed: `300.0`
+- Enemy count: `3`
+- Enemy score: `100`
 
-- **Movement**: Horizontal only (left/right). Locked to bottom ~60px of the screen. Arrow keys and A/D.
-- **Shooting**: Space bar fires a bullet upward from ship's nose. **Maximum 2 player bullets on screen at once.** Pressing Space while 2 bullets exist does nothing. This is critical to authentic Galaga feel — it forces the player to aim rather than spam.
-- **Lives**: Start with 3 lives. Displayed as small ship icons in the bottom-left HUD.
-- **Respawn**: On death, 1.5s delay, then new ship fades in at center-bottom with 2s of invincibility (ship blinks).
-- **Dual fighter**: If the player rescues a captured ship (see 2.4), two ships fly side-by-side with synchronized movement. Doubles the width (~60px total). Each Space press fires 2 bullets (1 from each ship), but the 2-bullet-on-screen limit still applies per salvo (so 2 shots = 4 bullets briefly, then must wait). When hit in dual mode, lose one ship (revert to single), no life lost.
+Current implementation gaps relative to a Galaga game:
 
-### 2.2 Enemy Types
+- Player movement is four-directional instead of horizontal-only.
+- Enemies are static and never attack.
+- There is no lives system, no waves, and no formation logic.
+- Reaching zero enemies currently transitions to `GameOver` instead of a new wave or stage-clear flow.
+- Asset paths are hardcoded in code, but the repository currently does not include the referenced asset files.
 
-| Type | HP | Formation Score | Dive Score | Behavior |
-|---|---|---|---|---|
-| **Bee** | 1 | 50 | 100 | Basic dive attacks |
-| **Butterfly** | 1 | 80 | 160 | Wider, looping dive patterns |
-| **Boss Galaga** | 2 | 150 | 400 | Can perform tractor beam attack; escorts 2 bees on dive |
+## 3. Product Goal
 
-- **Hit feedback**: On first hit of a 2-HP boss, flash the entity white for 1 frame and change its inner circle color to indicate damage.
+Build a compact Galaga-inspired arcade game while preserving the repo's simple plugin-based structure.
 
-### 2.3 Enemy Formation
+Primary goals:
 
-- **Grid layout**: 5 columns x 4 rows at the top of the screen (narrower than the full window to leave dodge room). Row composition from top:
-  - Row 0: 4 Boss Galaga (centered, skip edge columns)
-  - Row 1: 8 Butterflies
-  - Row 2: 8 Bees
-  - Row 3: 8 Bees (not present in wave 1; added from wave 2+)
-- **Breathing**: The entire formation oscillates horizontally using a sine wave. Amplitude: ~40px, period: ~3s. All in-formation enemies move with the grid origin.
-- **Slot tracking**: Each enemy has an assigned `FormationSlot { row: u8, col: u8 }`. The world position of a slot = formation_origin + slot_offset. When an enemy is diving, its slot remains reserved. When it returns, it interpolates back to the slot's current world position.
+- Fixed-screen shooting with a single player ship at the bottom of the screen
+- Enemy formation at the top of the playfield
+- Waves of enemies that can break formation and dive toward the player
+- Score-based progression across repeated waves
+- Clear start, gameplay, and game-over screens
+- Use of Bevy 0.18.1 idioms already present in the project
 
-### 2.4 Tractor Beam & Ship Capture
+Secondary goals:
 
-This is the signature Galaga mechanic and the hardest to implement correctly.
+- Better HUD information such as lives and wave number
+- Distinct enemy roles
+- Audio feedback for shooting, destruction, and music
 
-**Sequence:**
-1. A Boss Galaga initiates a tractor beam dive — it flies down toward the player.
-2. When it reaches a Y position ~120px above the player, it stops and activates a trapezoid tractor beam extending downward.
-3. If the player's ship overlaps the beam for ~1.5s (or is within the beam's X range and below a Y threshold), the ship is "captured": the player loses control, the ship floats upward and docks above the boss.
-4. The boss returns to formation with the captured ship displayed directly above it.
-5. The player loses a life and respawns. On the next encounter, if the player destroys that specific boss, the captured ship is released and flies down to join the player, forming a dual fighter.
+Stretch goals:
 
-**Edge cases:**
-- If the captured ship was the player's last life: game over. No rescue opportunity.
-- If the boss is destroyed by someone else (future multiplayer?) or during the tractor beam animation before capture completes: beam cancels, no capture.
-- If the boss dives with a captured ship and both the boss AND the captured ship are hit: the captured ship is destroyed (no rescue), player gets score for boss.
-- If the player is already in dual-fighter mode when a boss tries to tractor beam: the beam can still capture one of the two ships, reverting to single fighter. The captured ship docks above the boss as normal.
+- Boss capture mechanic
+- Dual-fighter recovery
+- Challenge stages
 
-**Simplification decision**: Implement the full mechanic. It's the soul of Galaga. A Galaga without tractor beam is just a generic space shooter.
+## 4. Scope Definition
 
-### 2.5 Enemy Attack Patterns (Dive Bombing)
+### 4.1 First Playable Milestone
 
-This is the second-hardest technical challenge.
+The first milestone should produce a recognizably Galaga-like loop without overextending the codebase:
 
-- **Dive selection**: A timer fires every ~2-4s (decreasing with wave number). It selects 1-2 enemies from the formation to begin a dive. Boss Galaga dives with 2 bee escorts.
-- **Dive paths**: Enemies follow **cubic Bezier curves** from their formation slot downward, curving left or right, then looping below the screen and re-entering from the top to return to their slot.
-  - Define 6-8 predefined dive path templates (mirrored left/right variants).
-  - Each path is a sequence of 2-3 cubic Bezier segments.
-  - The enemy advances along the path using a parametric `t` value incremented by `speed * delta_time / arc_length_estimate`.
-- **Shooting during dive**: Enemies fire 1-2 bullets during their dive, aimed toward the player's current X position (with slight inaccuracy for fairness).
-- **Off-screen wrapping**: If an enemy goes below the bottom of the screen during a dive, it re-enters from the top and curves back toward its formation slot.
-- **Return to formation**: After completing the dive path, the enemy interpolates back to its formation slot position over ~0.5s.
+- Horizontal-only player movement
+- Player bullets with a simple fire-rate or bullet-count limit
+- Formation-based enemy layout
+- Repeating waves
+- Basic enemy dive attacks
+- Player lives and respawn flow
+- Proper stage clear instead of immediate game over
+- HUD showing score, lives, and wave
 
-### 2.6 Wave Entry Choreography
+This milestone should not require tractor beams, captured ships, challenge stages, or a full path-scripting engine.
 
-At the start of each wave, enemies don't just appear — they **fly in** along scripted paths.
+### 4.2 Deferred Features
 
-- **Entry groups**: Enemies enter in 4-6 groups of 4-8, with ~1s gaps between groups.
-- **Entry paths**: Each group follows a curved entry path from off-screen (top, top-left, top-right) and peels off one-by-one into their formation slots.
-- **Implementation**: A `WaveScript` resource holds a timeline of `(delay, group, entry_path)` tuples. A system advances the timeline and spawns groups at the right time. Each enemy in a group has a staggered delay (0.1s apart) before following the same path.
-- **Wave doesn't "start" until all enemies are in formation**: No dive attacks during entry choreography.
+These features are valuable but should be deferred until the core loop is solid:
 
-### 2.7 Challenge Stages
+- Tractor beam capture
+- Dual fighter mode
+- Challenge stages
+- Persistent high score saved to disk
+- Complex scripted enemy choreography across many wave variants
+- Custom rendering with meshes, bloom, or particle-heavy effects
 
-Every 3rd wave (waves 3, 6, 9, ...) is a **challenge stage**:
-- Enemies fly across the screen in decorative patterns but **do not attack or shoot**.
-- The player **cannot die** during challenge stages.
-- Scoring: 100 points per enemy hit. Bonus at the end: "PERFECT" bonus of 10,000 if all enemies destroyed, otherwise "Number Hit: X" with no bonus.
-- After the stage, proceed to the next normal wave.
+## 5. Gameplay Specification
 
-### 2.8 Wave Progression & Difficulty Scaling
+### 5.1 State Flow
 
-| Parameter | Wave 1 | Wave 5 | Wave 10+ |
-|---|---|---|---|
-| Dive interval | 3.5s | 2.0s | 1.0s |
-| Enemy bullet speed | 200 | 280 | 380 |
-| Simultaneous divers | 1 | 2 | 3 |
-| Boss tractor beam chance | 10% | 20% | 30% |
-| Enemy bullets per dive | 1 | 1-2 | 2-3 |
-| Formation rows | 3 | 4 | 4 |
+The project should continue using the existing top-level state machine:
 
-Scaling is linear interpolation between these anchor points, clamped at wave 10.
+`StartScreen -> Playing -> GameOver -> StartScreen`
 
----
-
-## 3. State Machine
-
-```
-StartScreen --> Playing --> GameOver --> StartScreen
-                  |             ^
-                  |             |
-                  +--> Paused --+  (optional, stretch)
-                  |
-                  +--> WaveIntro --> Playing (sub-state for entry choreography)
-```
-
-### 3.1 AppState Enum
+Within `Playing`, finer-grained gameplay flow should be tracked with a resource rather than a new app state. Recommended phase enum:
 
 ```rust
-enum AppState {
-    StartScreen,
-    Playing,       // Active gameplay (includes WaveIntro as a sub-phase via resource, not a separate state)
-    GameOver,
+enum WavePhase {
+    Spawning,
+    Combat,
+    Respawning,
+    StageClear,
 }
 ```
 
-Wave intro vs. active combat is tracked via a `WavePhase` resource (`Entering` | `Combat`), not a separate AppState. This avoids complex state transition cleanup — enemies and the player all exist during both phases.
+Reasoning:
 
-### 3.2 GameData Resource
+- It avoids repeated teardown and respawn of unrelated systems.
+- It matches the existing architecture that already uses a single gameplay state.
+- It keeps UI and gameplay plugins simpler than adding many new app states.
+
+### 5.2 Player
+
+Required behavior:
+
+- Movement is horizontal-only
+- Inputs: `Left/A` and `Right/D`
+- Player remains near the bottom of the screen
+- `Space` fires upward
+- Player begins a run with 3 lives
+- On hit, the player loses one life and respawns after a short delay if lives remain
+- Temporary invulnerability after respawn is recommended for fairness
+
+Implementation notes:
+
+- Remove vertical movement from `src/player.rs`
+- Keep bounds clamping based on the active playable width
+- Add lives to `GameData`
+- Do not despawn the whole game state on each death; only the player entity should cycle
+
+Recommended initial values:
+
+- `PLAYER_SPEED = 300.0` to `400.0`
+- Respawn delay: `1.0` to `1.5` seconds
+- Initial invulnerability: about `1.0` second
+
+### 5.3 Player Firing
+
+Required behavior:
+
+- `Space` fires a laser upward from the player's ship
+- Laser travels upward and despawns when leaving the screen
+- At least one anti-spam control should be present
+
+Recommended approach for milestone 1:
+
+- Limit player bullets on screen to `2`, or
+- Add a short cooldown timer between shots
+
+Either approach is acceptable. A two-bullet cap is closer to Galaga and fits the current architecture well.
+
+### 5.4 Enemies
+
+Required behavior:
+
+- Enemies spawn in a formation near the top of the screen
+- Formation persists while individual enemies leave and rejoin it
+- At intervals, one or more enemies break formation and dive toward the player
+- Destroyed enemies award score
+
+Minimum enemy roster for milestone 1:
+
+- One standard enemy type worth `100` points
+- Optional second type with more score or a slightly different dive pattern
+
+Stretch roster:
+
+- Standard enemy
+- Mid-tier enemy
+- Boss enemy with extra health
+
+### 5.5 Formation
+
+Required behavior:
+
+- Enemies should no longer spawn as only three static units
+- Formation should represent a grid with deterministic slot positions
+- Empty slots remain empty after an enemy is destroyed
+- A diving enemy keeps ownership of its slot until it is destroyed
+
+Reasonable starting layout:
+
+- 3 to 5 columns
+- 2 to 4 rows
+- Top-third of the screen reserved for the formation
+
+Optional polish:
+
+- Gentle horizontal sway of the full formation
+
+### 5.6 Enemy Attacks
+
+Required behavior for the first milestone:
+
+- Diving enemies move on readable curved or angled paths toward the lower part of the screen
+- Some dives may fire a bullet downward
+- Surviving diving enemies return to formation
+
+Implementation guidance:
+
+- Start with hand-authored path patterns or simple curve math
+- Do not introduce a full Bezier library until the simpler approach proves insufficient
+- Keep attack selection timer-driven and deterministic enough to debug
+
+### 5.7 Collisions and Damage
+
+Required collision pairs:
+
+- Player laser vs enemy
+- Enemy bullet vs player
+- Diving enemy body vs player
+
+Expected results:
+
+- Laser hit destroys a standard enemy and awards score
+- Enemy bullet hit removes one player life unless invulnerable
+- Body collision also costs the player a life and usually destroys the diving enemy
+
+Implementation guidance:
+
+- Circle-distance collision is sufficient for this project
+- Keep collision handling centralized in `src/combat.rs` where practical
+- Avoid duplicate hit processing within the same frame
+
+### 5.8 Waves and Progression
+
+Required behavior:
+
+- When all active enemies are destroyed, the game should advance to the next wave instead of ending immediately
+- Each new wave respawns a new formation
+- Difficulty should increase gradually
+
+Recommended scaling knobs:
+
+- More enemies
+- Faster dive selection
+- Faster bullets
+- More simultaneous divers
+
+Wave tracking should live in `GameData`.
+
+### 5.9 Win and Loss Conditions
+
+Loss condition:
+
+- The run ends when the player has no lives remaining and no respawn is pending
+
+Non-loss condition:
+
+- Clearing a wave does not end the run
+
+Game over screen should show:
+
+- Final score
+- Wave reached
+- Restart prompt
+
+## 6. UI Specification
+
+### 6.1 Start Screen
+
+Must include:
+
+- Game title
+- Prompt to start with `Space`
+
+Should include:
+
+- A clearer project title than `"Bevy 2D Template"`
+
+Recommended title strings:
+
+- `"Galaga Clone"`
+- `"Galaga Prototype"`
+- `"Galaga"`
+
+### 6.2 In-Game HUD
+
+Must include:
+
+- Score
+- Lives
+- Wave number
+
+Nice to have:
+
+- High score for the current session
+
+### 6.3 Game Over Screen
+
+Must include:
+
+- "Game Over"
+- Final score
+- Wave reached
+- Restart prompt
+
+## 7. Technical Design
+
+### 7.1 Keep The Existing Module Ownership
+
+The current project layout is small and workable. Extend it before creating new modules.
+
+Current modules and intended ownership:
+
+- `src/main.rs`: bootstrapping only
+- `src/states.rs`: top-level state enum
+- `src/constants.rs`: shared tuning values
+- `src/resources.rs`: score, lives, wave, timers, gameplay phase
+- `src/components.rs`: shared marker and data components
+- `src/player.rs`: player spawn, input, movement, respawn
+- `src/enemy.rs`: enemy spawn, formation assignment, dive selection
+- `src/combat.rs`: shooting, bullet motion, collisions, scoring, stage-clear detection
+- `src/ui.rs`: start screen, HUD, game over screen
+- `src/audio.rs`: background music and sound effect lifecycle
+
+Do not add new modules until an existing module becomes clearly overloaded. For example:
+
+- A separate `formation.rs` file is optional, not mandatory
+- A separate `paths.rs` file is optional, not mandatory
+
+### 7.2 Resources To Add
+
+Recommended `GameData` expansion:
 
 ```rust
 struct GameData {
     score: u32,
-    high_score: u32,
-    lives: u32,
     wave: u32,
-    wave_phase: WavePhase,
-    respawn_timer: Option<Timer>,
-    invincibility_timer: Option<Timer>,
-    screen_shake: Option<ScreenShake>,
+    lives: u32,
+    phase: WavePhase,
 }
 ```
 
----
+Optional follow-up resources:
 
-## 4. Module Architecture
+- `ShotCooldown`
+- `RespawnState`
+- `EnemyAttackTimer`
 
-```
-src/
-  main.rs           — App builder, plugin registration, camera setup (with BloomSettings)
-  components.rs     — All marker + data components
-  constants.rs      — All tuning constants
-  resources.rs      — GameData, WaveScript, FormationState, DivePathLibrary
-  states.rs         — AppState enum, WavePhase enum
-  player.rs         — PlayerPlugin: movement, shooting, respawn, invincibility blink, dual fighter sync
-  formation.rs      — FormationPlugin: grid management, breathing oscillation, slot tracking
-  enemy.rs          — EnemyPlugin: enemy types, dive AI, entry choreography, tractor beam
-  combat.rs         — CombatPlugin: bullet movement, collision detection, scoring, win/loss checks
-  effects.rs        — EffectsPlugin: explosions, screen shake, bullet trails, exhaust flame
-  background.rs     — BackgroundPlugin: starfield parallax layers
-  ui.rs             — UiPlugin: start screen, HUD (score, high score, lives, wave), game over, challenge stage results
-  paths.rs          — Cubic Bezier path definitions, path-following utility, dive path library
-```
+### 7.3 Components To Add
 
----
+Recommended additions to `src/components.rs`:
 
-## 5. Technical Implementation Details
+- `PlayerBullet`
+- `EnemyBullet`
+- `FormationSlot`
+- `DivingEnemy`
+- `RespawningPlayer` or equivalent timer-bearing component
 
-### 5.1 Shape Rendering with Mesh2d
+Use shared components only when they need to be referenced across modules.
 
-Every gameplay entity uses `Mesh2d` + `MeshMaterial2d<ColorMaterial>`. Mesh handles must be **created once and shared** to avoid duplicating GPU resources.
+### 7.4 Assets
 
-```rust
-// In a setup system or resource initialization:
-#[derive(Resource)]
-struct GameMeshes {
-    player_ship: Mesh2d,      // Custom triangle mesh
-    bee: Mesh2d,              // RegularPolygon(6, 24.0)
-    butterfly_body: Mesh2d,   // Rotated square
-    butterfly_wing: Mesh2d,   // Small triangle
-    boss: Mesh2d,             // RegularPolygon(8, 36.0)
-    boss_inner: Mesh2d,       // Circle(18.0)
-    player_bullet: Mesh2d,    // Rectangle(4.0, 14.0)
-    enemy_bullet: Mesh2d,     // Circle(5.0)
-    particle: Mesh2d,         // Circle(3.0) or Rectangle(3.0, 3.0)
-    star: Mesh2d,             // Circle(1.5)
-    exhaust: Mesh2d,          // Small triangle
-}
-```
+The current code references these asset paths:
 
-**Concern**: Bevy's `Mesh2d` requires a `Handle<Mesh>` added to the asset server. The `GameMeshes` resource should store `Handle<Mesh>` values created via `meshes.add(...)` in a startup system that runs before any entity spawning.
+- `player_ship.png`
+- `enemy_ufo_green.png`
+- `player_laser.png`
+- `music_spaceshooter.ogg`
+- `sfx_laser1.ogg`
 
-**Tradeoff**: Could use `Sprite` with a 1x1 white pixel and scaling, which is simpler but doesn't give us actual geometric shapes (everything would be rectangles). Mesh2d is the correct choice for geometric primitives.
+At the time of writing, the `assets/` directory is not present in the repository. That means a clean run from this checkout will fail to display expected visuals or audio correctly.
 
-### 5.2 Bloom Setup
+This must be resolved in one of two ways:
 
-```rust
-commands.spawn((
-    Camera2d,
-    Camera {
-        hdr: true,
-        ..default()
-    },
-    Tonemapping::TonyMcMapface,
-    BloomSettings {
-        intensity: 0.3,
-        low_frequency_boost: 0.6,
-        ..default()
-    },
-));
+1. Add the required assets under `assets/`
+2. Replace asset usage with generated visuals and remove missing asset dependencies
+
+Because the current code is already sprite-and-audio based, option 1 is the more direct path for this repository.
+
+### 7.5 Window And Presentation
+
+The current project uses:
+
+- `WINDOW_WIDTH = 1280.0`
+- `WINDOW_HEIGHT = 720.0`
+
+This is acceptable for a prototype. A portrait-oriented playfield can be considered later, but it should not be assumed by the spec until constants and UI are actually changed.
+
+### 7.6 Validation
+
+Expected validation commands from the repo root:
+
+```powershell
+cargo check
+cargo clippy
 ```
 
-**Concern**: Bloom affects ALL rendered entities including UI text. UI text with HDR values will glow. Solution: keep UI text colors at SDR values (0.0-1.0 range) so bloom doesn't affect them significantly, or accept the slight glow as an aesthetic choice.
-
-### 5.3 Cubic Bezier Path Following
+Use `cargo check` for most gameplay changes. Use `cargo clippy` when broader API usage changes or refactors land.
 
-```rust
-struct BezierSegment {
-    p0: Vec2, p1: Vec2, p2: Vec2, p3: Vec2,
-}
+## 8. Known Design Corrections From The Previous Draft
 
-struct DivePath {
-    segments: Vec<BezierSegment>,
-    total_arc_length: f32,  // Pre-computed approximate arc length
-}
+These corrections are now intentional parts of the spec:
 
-#[derive(Component)]
-struct PathFollower {
-    path_index: usize,       // Which DivePath from the library
-    segment_index: usize,    // Current segment within the path
-    t: f32,                  // 0.0..1.0 within current segment
-    speed: f32,              // World units per second
-}
-```
+- The game is asset-backed unless and until the codebase is explicitly migrated away from assets.
+- Audio is in scope because the repository already has an audio plugin.
+- The top-level app state remains three states; wave flow belongs in resources.
+- Challenge stages and tractor beam capture are stretch goals, not milestone-1 requirements.
+- New modules are optional and should be introduced only when needed.
+- Stage clear should lead to the next wave, not to `GameOver`.
+- The spec no longer assumes portrait orientation or bloom-based rendering as hard requirements.
 
-**Hard part**: Uniform-speed traversal along a Bezier curve. Naive `t += speed * dt` produces non-uniform speed because Bezier parameterization is not arc-length. Solutions:
-1. **Pre-compute a lookup table** of arc-length-to-t mappings per segment (sample ~20 points, build cumulative distance table, binary search at runtime). Best balance of accuracy and performance.
-2. **Approximate with velocity magnitude correction**: Compute `|dB/dt|` at current t, adjust dt. Cheaper but less accurate.
-3. **Just use naive t advancement**: Accept non-uniform speed. Enemies will accelerate through tight curves and slow on straight sections. Actually looks somewhat natural for dive-bombing.
+## 9. Delivery Plan
 
-**Decision**: Use option 3 (naive t) for initial implementation. The non-uniform speed actually creates a pleasing acceleration/deceleration effect on curves. If it looks wrong, upgrade to option 1.
+### Phase 1: Make The Current Template Behave Like A Fixed-Screen Shooter
 
-### 5.4 Formation System
+- Rename the window title to match the project
+- Restrict player movement to horizontal-only
+- Add lives and wave tracking
+- Change win handling from `GameOver` to stage clear plus next wave
+- Expand HUD to show score, lives, wave
 
-```rust
-#[derive(Resource)]
-struct FormationState {
-    origin: Vec2,            // Center of formation, oscillates horizontally
-    phase: f32,              // Sine wave phase for breathing
-    slots: HashMap<(u8, u8), Option<Entity>>,  // (row, col) -> entity or empty
-}
-```
+### Phase 2: Add Galaga Structure
 
-**Hard part**: An enemy's "home position" is **moving** (because the formation breathes). When an enemy finishes its dive and returns, it must interpolate toward a moving target. Solution: each frame, compute the slot's current world position and lerp toward it. Don't cache the target.
+- Replace the three-static-enemy setup with a formation grid
+- Add enemy dive behavior
+- Add enemy bullets
+- Add player death and respawn flow
 
-**Edge case**: If all enemies in a row are diving simultaneously, the formation still breathes. When they return, they might collide if the formation has shifted significantly. In practice, the oscillation amplitude is small enough this isn't an issue.
+### Phase 3: Add Variety And Polish
 
-### 5.5 Collision Detection
+- Add multiple waves with difficulty scaling
+- Add a second enemy type or tougher enemy
+- Improve audio feedback
+- Improve UI presentation
 
-All collision uses **circle-circle** intersection (distance < sum of radii). Even for non-circular shapes, the gameplay hitbox is circular for fairness.
+### Phase 4: Stretch Features
 
-| Collision pair | Result |
-|---|---|
-| Player bullet vs Enemy | Enemy takes 1 damage, bullet despawned |
-| Enemy bullet vs Player | Player dies (unless invincible), bullet despawned |
-| Diving enemy vs Player | Both die |
-| Tractor beam vs Player | Begin capture sequence |
-| Player bullet vs Captured ship | Ship destroyed (no rescue) |
+- Boss enemy behavior
+- Tractor beam and capture flow
+- Dual fighter mode
+- Challenge stages
 
-**Concern — collision ordering**: Multiple collisions in the same frame (e.g., bullet hits boss AND captured ship). Process in this order:
-1. Player bullets vs enemies (check boss before captured ship — if boss dies, captured ship is freed)
-2. Enemy bullets vs player
-3. Body-to-body (diving enemy vs player)
-4. Tractor beam vs player
+## 10. Acceptance Criteria
 
-Use `HashSet<Entity>` to track already-processed entities within a frame to prevent double-processing (already in template).
+The first true Galaga milestone is complete when all of the following are true:
 
-**Concern — deferred despawns**: `commands.entity(e).despawn()` is deferred to end-of-stage. If system A despawns an entity and system B runs after it in the same frame, the entity still exists in queries. This is fine as long as we use the `HashSet` approach to skip already-hit entities. But it means an entity could be "hit" twice if two systems both check it. Solution: run all collision logic in **one system** with explicit ordering of checks within that system, not split across systems.
+- The player moves only left and right
+- The player has multiple lives
+- Clearing a wave starts another wave instead of ending the run
+- Enemies exist in a visible formation
+- Some enemies leave formation and attack
+- The player can be hit by bullets or diving enemies
+- The HUD shows score, lives, and wave
+- `GameOver` occurs only when the player runs out of lives
+- The spec, code, and actual assets in the repo no longer contradict one another
 
-### 5.6 Particle System (Lightweight)
+## 11. Out Of Scope For This Document
 
-No Bevy built-in particle system. Roll our own:
+This document does not prescribe:
 
-```rust
-#[derive(Component)]
-struct Particle {
-    velocity: Vec2,
-    lifetime: Timer,
-    initial_scale: f32,
-}
-```
+- Exact sprite art direction
+- Exact sound design
+- Save-file format
+- Mobile support
+- Multiplayer
 
-A single `update_particles` system: advance timer, move by velocity, shrink scale linearly toward 0, reduce alpha. Despawn when timer finishes.
-
-Spawn function: takes position, base color, count. For each particle, randomize direction (360 degrees), speed (50-150), lifetime (0.3-0.6s), and slight color variation.
-
-**Performance concern**: At peak, maybe 50-100 particle entities exist simultaneously (a few explosions overlapping). This is trivially fine for Bevy's ECS.
-
-### 5.7 Bullet Limiting
-
-```rust
-fn player_shoot(
-    bullet_query: Query<&PlayerBullet>,
-    // ...
-) {
-    if bullet_query.iter().count() >= MAX_PLAYER_BULLETS {
-        return;
-    }
-    // spawn bullet
-}
-```
-
-`MAX_PLAYER_BULLETS = 2`. Simple query count check. In dual-fighter mode, each press spawns 2 bullets (one per ship), and both count toward the limit. So effectively: single fighter gets 2 shots, dual fighter gets 1 salvo of 2 (which is 2 bullets = the limit). The player must wait for both to hit/exit before firing again. This matches original Galaga.
-
-### 5.8 Screen Shake
-
-```rust
-struct ScreenShake {
-    timer: Timer,
-    intensity: f32,  // Max pixel offset, decays over duration
-}
-```
-
-System: if `screen_shake` is Some, offset the camera's `Transform.translation` by `(random_x, random_y) * intensity * (1.0 - timer.fraction())`. When timer finishes, reset camera to (0, 0) and clear the resource.
-
-**Concern**: Camera offset affects ALL rendering including UI. Bevy UI is screen-space and unaffected by Camera2d transform, so this is fine — only gameplay entities shake, UI stays stable.
-
----
-
-## 6. UI/UX Design
-
-### 6.1 Start Screen
-
-```
-         ╔═══════════════════════╗
-         ║       G A L A G A     ║   (large, glowing cyan text)
-         ╚═══════════════════════╝
-
-             ▲  (player ship shape, animated bob)
-
-          Press SPACE to Start       (pulsing opacity)
-
-           High Score: 12500         (persisted in resource, not to disk)
-```
-
-- Title text uses large font with HDR color for bloom glow.
-- A decorative player ship shape bobs up and down below the title.
-- "Press SPACE" text pulses opacity via sine wave.
-- Starfield background is active on all screens.
-
-### 6.2 In-Game HUD
-
-```
-  Score: 1250          HIGH SCORE: 12500          Wave 3
-
-  [bottom-left: ▲ ▲ ▲ life icons]
-```
-
-- Top bar with score (left), high score (center), wave number (right).
-- Bottom-left: remaining lives as small ship silhouettes (not counting the active ship).
-- All HUD text in SDR white to avoid excessive bloom.
-
-### 6.3 Game Over Screen
-
-```
-             GAME OVER                (red glow)
-
-          Final Score: 8500
-          High Score: 12500
-
-        Press SPACE to Continue       (pulsing)
-```
-
-### 6.4 Challenge Stage Results (shown after challenge stage ends)
-
-```
-          CHALLENGING STAGE
-
-          Number of hits: 36
-
-             PERFECT!               (if 40/40, gold glow)
-             Bonus: 10000
-
-        (auto-advances after 3s)
-```
-
-### 6.5 Wave Intro Banner
-
-When a new wave starts, briefly display "STAGE X" centered on screen for 2s, then fade out. Wave entry choreography begins after 1s of the banner.
-
----
-
-## 7. Edge Cases & Hard Problems
-
-### 7.1 Entity Lifecycle Conflicts
-
-- **Boss destroyed while tractor beam is active**: Cancel beam animation, free player if capture was in progress (player regains control at their current dragged position).
-- **Boss destroyed while holding captured ship**: The captured ship should be released — it flies down and joins the player as a dual fighter, even though the boss was killed during a dive (not necessarily a tractor beam dive).
-- **Player killed during capture animation**: If the player still has lives, the capture completes (ship is lost) AND a life is consumed. New ship respawns. If it was the last life, game over.
-- **All enemies destroyed during entry choreography**: Shouldn't happen (enemies are invulnerable during entry? No — in original Galaga, you CAN shoot them during entry). If all are killed, immediately trigger wave complete and advance.
-
-### 7.2 Dual Fighter Edge Cases
-
-- **Dual fighter width vs window bounds**: Two ships side-by-side are ~60px wide. Clamp logic must use the combined width, not single ship width. The center of the pair is the controlled position.
-- **Which ship fires?**: Both fire simultaneously, one bullet from each ship's nose position.
-- **Hit detection on dual fighter**: Each ship has its own collision circle. A single enemy bullet can only hit one.
-- **Losing the dual fighter**: The hit ship explodes, the remaining ship slides to center position. No life lost — the destroyed ship was the "bonus" captured ship. If the ORIGINAL ship is hit (left ship by convention), you lose a life and the captured ship becomes your new active ship. Actually, in original Galaga, either ship destroyed just reverts to single — no life lost. Go with this simpler model.
-- **Can a dual fighter be captured again?**: Yes. Tractor beam captures one ship, reverting to single. The captured ship can later be rescued for a second dual fighter.
-
-### 7.3 Simultaneous Events
-
-- **Player bullet hits boss at the same frame player collides with diving enemy**: Process bullet collisions first. Boss takes damage. Then body collision kills player. Both happen. Player gets score, then dies.
-- **Two player bullets hit the same 2-HP boss in one frame**: Both should register. Boss takes 2 damage and dies. This is correct — both bullets were in flight.
-- **Player dies and kills last enemy in the same frame**: Player death takes priority. Don't trigger wave complete. The dead enemy is gone, but the player must respawn (if lives remain) and then the wave-complete check runs on next frame and finds zero enemies.
-
-### 7.4 Performance Considerations
-
-- **Entity count**: At peak — ~40 formation enemies + player + ~10 bullets + ~50 particles + ~200 stars = ~300 entities. Trivial for Bevy.
-- **Mesh handle sharing**: If each entity gets its own mesh, that's 300 mesh allocations. Use shared handles from `GameMeshes` resource.
-- **Particle cleanup**: Ensure particle despawn system runs every frame. Leaked particles accumulate.
-
----
-
-## 8. Input Mapping
-
-| Key | Action | Context |
-|---|---|---|
-| Left / A | Move left | Playing |
-| Right / D | Move right | Playing |
-| Space | Shoot | Playing |
-| Space | Start game | StartScreen |
-| Space | Restart | GameOver |
-| Escape | Quit game (optional) | Any |
-
-**Concern**: Player movement is horizontal-only in Galaga (unlike the template which allows 4-directional). Must remove up/down movement.
-
----
-
-## 9. Tradeoffs & Decisions
-
-### 9.1 Bezier Paths vs. Simpler Movement
-
-**Decision**: Use cubic Bezier curves.
-
-Galaga's identity IS the swooping enemy patterns. Sine-wave approximations look wrong. The implementation cost is ~100 lines for the path system + ~50 lines of path data definitions. Worth it.
-
-### 9.2 Tractor Beam: Full Mechanic vs. Simplified Boss
-
-**Decision**: Implement full tractor beam + dual fighter.
-
-Without it, this is just "Space Invaders with curves." The tractor beam creates the central risk/reward tension that defines Galaga: do you intentionally sacrifice a ship to get the dual fighter?
-
-### 9.3 Challenge Stages: Include or Defer
-
-**Decision**: Include in initial build.
-
-They're mechanically simple (enemies follow fixed paths, no combat logic, just scoring). The only cost is defining 2-3 decorative flight patterns. They provide pacing variety between intense combat waves.
-
-### 9.4 High Score Persistence
-
-**Decision**: In-memory only (resets on app close).
-
-File I/O adds platform-specific complexity and error handling for minimal benefit in a demo game. High score persists across restarts within a session via the `GameData` resource.
-
-### 9.5 Collision Shapes: Circle vs. Polygon
-
-**Decision**: All circle collisions.
-
-The visual shapes are polygons, but gameplay hitboxes are circles. This is standard for arcade games — circle collision is cheap (`distance < r1 + r2`) and feels fair. Polygon-accurate collision would create "unfair" deaths on corners that the player can't visually predict.
-
-### 9.6 Separate Collision System vs. Split Across Plugins
-
-**Decision**: Single unified collision system in `combat.rs`.
-
-Splitting collision across `player.rs`, `enemy.rs`, etc. creates ordering nightmares (entity despawned in one system but queried in another). One system with explicit check ordering is safer.
-
-### 9.7 Wave Script: Data-Driven vs. Hardcoded
-
-**Decision**: Hardcoded wave scripts for waves 1-3 entry patterns, then procedurally vary for later waves.
-
-Full data-driven scripting (JSON/RON files) is overengineered for this scope. 3-4 handcrafted entry patterns, mirrored and shuffled for variety, is sufficient. Later waves reuse patterns with increased enemy counts and speed.
-
----
-
-## 10. Implementation Order (Suggested Phases)
-
-### Phase 1: Core Rendering & Movement
-1. Camera with bloom, starfield background
-2. Player ship as mesh, horizontal movement, window clamping
-3. Mesh resource system (`GameMeshes`)
-4. Basic enemy formation (static grid, no breathing yet)
-
-### Phase 2: Combat Basics
-5. Player shooting with 2-bullet limit
-6. Bullet-enemy collision, scoring, enemy despawn
-7. Explosion particle effects
-8. Enemy despawn → wave complete check → next wave
-
-### Phase 3: Enemy AI
-9. Formation breathing oscillation
-10. Dive path system (Bezier curves, path library)
-11. Enemy dive selection timer, dive execution, return-to-formation
-12. Enemy shooting during dives
-
-### Phase 4: Full Galaga Mechanics
-13. Boss Galaga (2 HP, escorts on dive)
-14. Tractor beam attack + ship capture
-15. Dual fighter mechanic
-16. Wave entry choreography
-
-### Phase 5: Polish & Game Loop
-17. Lives system, respawn with invincibility blink
-18. Challenge stages
-19. Wave progression, difficulty scaling
-20. Screen shake, bullet trails, exhaust flame
-21. UI: complete HUD, wave banner, challenge results
-22. Start screen and game over screen polish
-
----
-
-## 11. Constants Reference
-
-```
-WINDOW_WIDTH:            800
-WINDOW_HEIGHT:           1000    (portrait orientation, like original arcade)
-WINDOW_TITLE:            "Galaga"
-
-PLAYER_SPEED:            350.0
-PLAYER_Y:               -420.0   (near bottom)
-PLAYER_HITBOX_RADIUS:    14.0
-MAX_PLAYER_BULLETS:      2
-
-FORMATION_CENTER_Y:      280.0
-FORMATION_COL_SPACING:   48.0
-FORMATION_ROW_SPACING:   44.0
-FORMATION_BREATHE_AMP:   40.0
-FORMATION_BREATHE_PERIOD: 3.0
-
-BEE_HITBOX_RADIUS:       12.0
-BUTTERFLY_HITBOX_RADIUS:  14.0
-BOSS_HITBOX_RADIUS:       18.0
-
-PLAYER_BULLET_SPEED:     600.0
-ENEMY_BULLET_SPEED_BASE: 200.0
-
-DIVE_INTERVAL_BASE:      3.5     (seconds, wave 1)
-DIVE_INTERVAL_MIN:       1.0     (seconds, wave 10+)
-
-RESPAWN_DELAY:           1.5     (seconds)
-INVINCIBILITY_DURATION:  2.0     (seconds)
-
-PARTICLE_COUNT:          12
-PARTICLE_LIFETIME:       0.5     (seconds)
-
-STAR_COUNT_LAYER_1:      60
-STAR_COUNT_LAYER_2:      40
-STAR_COUNT_LAYER_3:      20
-STAR_SCROLL_SPEED_1:     15.0
-STAR_SCROLL_SPEED_2:     30.0
-STAR_SCROLL_SPEED_3:     50.0
-
-BLOOM_INTENSITY:         0.3
-```
-
-**Note on window dimensions**: Original Galaga is portrait (taller than wide). 800x1000 preserves this feel and gives vertical room for formation + dive space + player area. This is a departure from the template's 1280x720.
+Those can be specified later if they become real project goals.

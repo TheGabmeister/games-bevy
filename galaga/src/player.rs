@@ -1,7 +1,8 @@
 use bevy::prelude::*;
 
-use crate::components::{Player, Velocity};
-use crate::constants::{PLAYER_SIZE, PLAYER_SPEED, WINDOW_HEIGHT, WINDOW_WIDTH};
+use crate::components::{Invulnerable, Player, Velocity};
+use crate::constants::*;
+use crate::resources::{GameData, RespawnTimer, WavePhase};
 use crate::states::AppState;
 
 pub struct PlayerPlugin;
@@ -12,18 +13,28 @@ impl Plugin for PlayerPlugin {
             .add_systems(OnExit(AppState::Playing), cleanup_player)
             .add_systems(
                 Update,
-                (player_input, player_movement.after(player_input))
+                (
+                    player_input,
+                    player_movement.after(player_input),
+                    invulnerability_tick,
+                    respawn_player,
+                    auto_respawn_player,
+                )
                     .run_if(in_state(AppState::Playing)),
             );
     }
 }
 
-fn spawn_player(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn spawn_player(mut commands: Commands) {
     commands.spawn((
         Player,
         Velocity::default(),
-        Sprite::from_image(asset_server.load("player_ship.png")),
-        Transform::from_translation(Vec3::new(0.0, -WINDOW_HEIGHT / 2.0 + 60.0, 0.0)),
+        Sprite {
+            color: Color::srgb(0.2, 0.6, 1.0),
+            custom_size: Some(Vec2::new(PLAYER_WIDTH, PLAYER_HEIGHT)),
+            ..default()
+        },
+        Transform::from_translation(Vec3::new(0.0, PLAYER_Y, 1.0)),
     ));
 }
 
@@ -35,22 +46,15 @@ fn player_input(
         return;
     };
 
-    let mut direction = Vec2::ZERO;
-
-    if keyboard.pressed(KeyCode::KeyW) || keyboard.pressed(KeyCode::ArrowUp) {
-        direction.y += 1.0;
-    }
-    if keyboard.pressed(KeyCode::KeyS) || keyboard.pressed(KeyCode::ArrowDown) {
-        direction.y -= 1.0;
-    }
+    let mut direction = 0.0;
     if keyboard.pressed(KeyCode::KeyA) || keyboard.pressed(KeyCode::ArrowLeft) {
-        direction.x -= 1.0;
+        direction -= 1.0;
     }
     if keyboard.pressed(KeyCode::KeyD) || keyboard.pressed(KeyCode::ArrowRight) {
-        direction.x += 1.0;
+        direction += 1.0;
     }
 
-    velocity.0 = direction.normalize_or_zero() * PLAYER_SPEED;
+    velocity.0 = Vec2::new(direction * PLAYER_SPEED, 0.0);
 }
 
 fn player_movement(
@@ -62,17 +66,96 @@ fn player_movement(
     };
 
     transform.translation.x += velocity.0.x * time.delta_secs();
-    transform.translation.y += velocity.0.y * time.delta_secs();
-
-    // Clamp to window bounds
-    let half_w = WINDOW_WIDTH / 2.0 - PLAYER_SIZE / 2.0;
-    let half_h = WINDOW_HEIGHT / 2.0 - PLAYER_SIZE / 2.0;
+    let half_w = WINDOW_WIDTH / 2.0 - PLAYER_WIDTH / 2.0;
     transform.translation.x = transform.translation.x.clamp(-half_w, half_w);
-    transform.translation.y = transform.translation.y.clamp(-half_h, half_h);
+}
+
+fn invulnerability_tick(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut query: Query<(Entity, &mut Invulnerable, &mut Sprite), With<Player>>,
+) {
+    for (entity, mut invuln, mut sprite) in &mut query {
+        invuln.0.tick(time.delta());
+        let alpha = if (invuln.0.elapsed_secs() * 10.0) as u32 % 2 == 0 {
+            0.3
+        } else {
+            1.0
+        };
+        sprite.color = Color::srgba(0.2, 0.6, 1.0, alpha);
+
+        if invuln.0.finished() {
+            sprite.color = Color::srgb(0.2, 0.6, 1.0);
+            commands.entity(entity).remove::<Invulnerable>();
+        }
+    }
+}
+
+fn respawn_player(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut game_data: ResMut<GameData>,
+    respawn_timer: Option<ResMut<RespawnTimer>>,
+) {
+    if game_data.phase != WavePhase::Respawning {
+        return;
+    }
+
+    let Some(mut timer) = respawn_timer else {
+        return;
+    };
+
+    timer.0.tick(time.delta());
+    if timer.0.finished() {
+        commands.spawn((
+            Player,
+            Velocity::default(),
+            Invulnerable(Timer::from_seconds(INVULNERABLE_DURATION, TimerMode::Once)),
+            Sprite {
+                color: Color::srgb(0.2, 0.6, 1.0),
+                custom_size: Some(Vec2::new(PLAYER_WIDTH, PLAYER_HEIGHT)),
+                ..default()
+            },
+            Transform::from_translation(Vec3::new(0.0, PLAYER_Y, 1.0)),
+        ));
+        game_data.phase = WavePhase::Combat;
+        commands.remove_resource::<RespawnTimer>();
+    }
+}
+
+/// Handles the edge case where the player is dead after a stage clear.
+/// When a new wave starts (phase transitions to Combat) and no player exists, spawn one.
+fn auto_respawn_player(
+    mut commands: Commands,
+    game_data: Res<GameData>,
+    player_query: Query<&Player>,
+) {
+    if game_data.phase != WavePhase::Combat {
+        return;
+    }
+    if player_query.iter().count() > 0 {
+        return;
+    }
+    if game_data.lives == 0 {
+        return;
+    }
+
+    commands.spawn((
+        Player,
+        Velocity::default(),
+        Invulnerable(Timer::from_seconds(INVULNERABLE_DURATION, TimerMode::Once)),
+        Sprite {
+            color: Color::srgb(0.2, 0.6, 1.0),
+            custom_size: Some(Vec2::new(PLAYER_WIDTH, PLAYER_HEIGHT)),
+            ..default()
+        },
+        Transform::from_translation(Vec3::new(0.0, PLAYER_Y, 1.0)),
+    ));
 }
 
 fn cleanup_player(mut commands: Commands, query: Query<Entity, With<Player>>) {
     for entity in &query {
         commands.entity(entity).despawn();
     }
+    commands.remove_resource::<RespawnTimer>();
 }

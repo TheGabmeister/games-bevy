@@ -11,10 +11,13 @@ impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
         app
             // Start Screen
-            .add_systems(OnEnter(AppState::StartScreen), spawn_start_screen)
+            .add_systems(
+                OnEnter(AppState::StartScreen),
+                (reset_title_state, spawn_start_screen).chain(),
+            )
             .add_systems(OnExit(AppState::StartScreen), cleanup::<StartScreenUI>)
             .add_systems(Update, start_input.run_if(in_state(AppState::StartScreen)))
-            // Playing HUD (spawned from main.rs with proper ordering)
+            // Playing HUD (spawned from the level lifecycle to keep state entry ordered)
             .add_systems(
                 Update,
                 update_hud.run_if(
@@ -24,7 +27,9 @@ impl Plugin for UiPlugin {
                 ),
             )
             // Dying
+            .add_systems(OnEnter(AppState::Dying), spawn_death_overlay)
             .add_systems(Update, death_sequence_system.run_if(in_state(AppState::Dying)))
+            .add_systems(OnExit(AppState::Dying), cleanup::<DeathOverlayUI>)
             // Wave Tally
             .add_systems(OnEnter(AppState::WaveTally), spawn_wave_tally)
             .add_systems(Update, wave_tally_system.run_if(in_state(AppState::WaveTally)))
@@ -50,20 +55,26 @@ fn cleanup<T: Component>(mut commands: Commands, query: Query<Entity, With<T>>) 
 
 fn cleanup_stage(
     mut commands: Commands,
-    q1: Query<Entity, With<StageEntity>>,
-    q2: Query<Entity, With<Player>>,
-    q3: Query<Entity, With<Barrel>>,
-    q4: Query<Entity, With<Fireball>>,
-    q5: Query<Entity, With<HammerPickup>>,
-    q6: Query<Entity, With<BonusItemEntity>>,
-    q7: Query<Entity, With<GameHudUI>>,
+    stage_q: Query<Entity, With<StageEntity>>,
+    attempt_q: Query<Entity, With<AttemptEntity>>,
+    hud_q: Query<Entity, With<GameHudUI>>,
 ) {
-    for entity in q1.iter().chain(q2.iter()).chain(q3.iter()).chain(q4.iter()).chain(q5.iter()).chain(q6.iter()).chain(q7.iter()) {
+    for entity in stage_q.iter().chain(attempt_q.iter()).chain(hud_q.iter()) {
         commands.entity(entity).despawn();
     }
 }
 
 // --- Start Screen ---
+
+fn reset_title_state(
+    mut commands: Commands,
+    mut run_data: ResMut<RunData>,
+    mut wave_rt: ResMut<WaveRuntime>,
+) {
+    *run_data = RunData::default();
+    *wave_rt = WaveRuntime::default();
+    commands.insert_resource(WaveConfig::from_wave(1));
+}
 
 fn spawn_start_screen(mut commands: Commands, session: Res<SessionData>) {
     commands
@@ -190,6 +201,39 @@ fn update_hud(
 }
 
 // --- Death Sequence ---
+
+fn spawn_death_overlay(mut commands: Commands, death: Res<DeathSequence>) {
+    commands
+        .spawn((
+            DeathOverlayUI,
+            Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Text::new(death_message(death.cause)),
+                TextFont {
+                    font_size: FONT_SIZE_BODY,
+                    ..default()
+                },
+                TextColor(TEXT_COLOR),
+            ));
+        });
+}
+
+fn death_message(cause: DeathCause) -> &'static str {
+    match cause {
+        DeathCause::Barrel => "Barrel hit!",
+        DeathCause::Fireball => "Fireball hit!",
+        DeathCause::Fall => "Bad fall!",
+        DeathCause::Timer => "Time up!",
+    }
+}
 
 fn death_sequence_system(
     time: Res<Time>,
