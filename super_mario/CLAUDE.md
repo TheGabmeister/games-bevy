@@ -41,26 +41,27 @@ Target output is redirected to `D:/cargo-target-dir` via `.cargo/config.toml`.
 
 ## Current Repository State
 
-The project is no longer a single-file hello-world starter, but it is still early scaffolding rather than a full game.
+The project is an early playable platformer slice (through Phase 4 of SPEC.md), not just scaffolding.
 
-Current files in `src/`:
+Source files in `src/`:
 
-- `main.rs`
-- `constants.rs`
-- `components.rs`
-- `messages.rs`
-- `resources.rs`
-- `states.rs`
+- `main.rs` — app bootstrap, window/camera setup, state/message/plugin registration
+- `constants.rs` — tunable values, physics, tile sizes, animation durations, and color palette
+- `components.rs` — shared ECS marker and data components (Player, Velocity, Grounded, block types, etc.)
+- `resources.rs` — `GameData` (score/coins/lives/timer) and `LevelState` (level bounds, player start, camera limits)
+- `states.rs` — `AppState` and `PlayState` enums
+- `messages.rs` — cross-system gameplay messages (AddScore, BlockHit, PlayerDied, etc.)
+- `level.rs` — `LevelPlugin`: data-driven World 1-1 layout, tile/pipe/flagpole/castle spawning, camera follow
+- `player.rs` — `PlayerPlugin`: player spawning, input, gravity, AABB collision resolution, facing direction
+- `blocks.rs` — `BlocksPlugin`: question/brick/hard block hit handling, bump animations, coin pops, score popups, debris, mushroom emergence
 
-Current implementation already includes:
+Current runtime behavior:
 
-- Window configuration
-- Camera setup with bloom and tonemapping
-- `AppState` and `PlayState`
-- Core resource initialization
-- Cross-system message definitions in `messages.rs`
-
-The actual platformer loop, world, player, enemies, HUD, and menus are still mostly to be built.
+- Boots directly into `AppState::Playing` (no start screen yet)
+- A World 1-1-inspired level renders from Rust data using primitive meshes
+- Mario moves, jumps, collides with solids, and drives a side-scrolling camera
+- Question blocks spawn coins or mushrooms; brick blocks break when Big Mario hits them
+- Still missing: start menu, HUD, enemies, power-up collection, death/lives, level completion, game over
 
 ## Architecture Direction
 
@@ -232,6 +233,9 @@ app.init_state::<AppState>().add_sub_state::<PlayState>();
 - State definitions: `src/states.rs`
 - Shared game data: `src/resources.rs`
 - Shared ECS types: `src/components.rs`
-- Cross-system communication types: `src/messages.rs`
+- Cross-system gameplay messages: `src/messages.rs`
+- Level layout and camera: `src/level.rs`
+- Player movement and collision: `src/player.rs`
+- Block interactions and animations: `src/blocks.rs`
+- Design spec and phase plan: `SPEC.md`
 - Build output location: `.cargo/config.toml`
-- Dependency configuration: `Cargo.toml`
