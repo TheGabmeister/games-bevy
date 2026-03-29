@@ -5,16 +5,11 @@ use bevy::prelude::*;
 #[derive(Component, Default)]
 pub struct Velocity(pub Vec2);
 
-#[derive(Component, Clone, Copy, PartialEq, Eq)]
+#[derive(Component, Clone, Copy, PartialEq, Eq, Default)]
 pub enum FacingDirection {
     Left,
+    #[default]
     Right,
-}
-
-impl Default for FacingDirection {
-    fn default() -> Self {
-        Self::Right
-    }
 }
 
 #[derive(Component)]

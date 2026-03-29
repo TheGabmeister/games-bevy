@@ -107,6 +107,7 @@ fn apply_velocity_system(
     }
 }
 
+#[allow(clippy::type_complexity)]
 fn platform_collision_system(
     mut commands: Commands,
     mut query: Query<(

@@ -79,7 +79,7 @@ fn invincibility_tick_system(
             commands.entity(entity).remove::<Invincible>();
             *vis = Visibility::Inherited;
         } else {
-            let blink_on = (inv.0.elapsed_secs() * 10.0) as u32 % 2 == 0;
+            let blink_on = ((inv.0.elapsed_secs() * 10.0) as u32).is_multiple_of(2);
             *vis = if blink_on {
                 Visibility::Inherited
             } else {
@@ -89,6 +89,7 @@ fn invincibility_tick_system(
     }
 }
 
+#[allow(clippy::type_complexity, clippy::too_many_arguments)]
 fn joust_combat_system(
     mut commands: Commands,
     riders: Query<
@@ -230,18 +231,18 @@ fn joust_combat_system(
             dx.signum()
         };
 
-        if bounced_entities.insert(bounce.a) {
-            if let Ok(mut velocity) = velocities.get_mut(bounce.a) {
-                velocity.0.x = -direction * BOUNCE_HORIZONTAL;
-                velocity.0.y = BOUNCE_VERTICAL;
-            }
+        if bounced_entities.insert(bounce.a)
+            && let Ok(mut velocity) = velocities.get_mut(bounce.a)
+        {
+            velocity.0.x = -direction * BOUNCE_HORIZONTAL;
+            velocity.0.y = BOUNCE_VERTICAL;
         }
 
-        if bounced_entities.insert(bounce.b) {
-            if let Ok(mut velocity) = velocities.get_mut(bounce.b) {
-                velocity.0.x = direction * BOUNCE_HORIZONTAL;
-                velocity.0.y = BOUNCE_VERTICAL;
-            }
+        if bounced_entities.insert(bounce.b)
+            && let Ok(mut velocity) = velocities.get_mut(bounce.b)
+        {
+            velocity.0.x = direction * BOUNCE_HORIZONTAL;
+            velocity.0.y = BOUNCE_VERTICAL;
         }
     }
 
@@ -310,6 +311,7 @@ fn egg_hatch_system(
     }
 }
 
+#[allow(clippy::type_complexity)]
 fn lava_kill_system(
     mut commands: Commands,
     query: Query<

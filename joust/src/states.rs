@@ -8,6 +8,7 @@ pub enum AppState {
     GameOver,
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(SubStates, Clone, Copy, Eq, PartialEq, Hash, Debug, Default)]
 #[source(AppState = AppState::Playing)]
 pub enum PlayState {

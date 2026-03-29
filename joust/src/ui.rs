@@ -170,6 +170,7 @@ fn setup_hud(mut commands: Commands, player_count: Res<PlayerCount>) {
         });
 }
 
+#[allow(clippy::type_complexity)]
 fn update_hud(
     game_state: Res<GameState>,
     mut score_texts: Query<(&ScoreText, &mut Text)>,

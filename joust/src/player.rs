@@ -56,6 +56,7 @@ fn spawn_players(
     }
 }
 
+#[allow(clippy::type_complexity)]
 fn player_input_system(
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,

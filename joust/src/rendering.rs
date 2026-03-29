@@ -179,6 +179,7 @@ fn wing_animation_system(
     }
 }
 
+#[allow(clippy::type_complexity)]
 fn facing_update_system(
     mut query: Query<(&FacingDirection, &mut Transform), (Changed<FacingDirection>, Without<Wing>)>,
 ) {

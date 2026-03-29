@@ -92,6 +92,7 @@ pub fn spawn_enemy_at(
     ));
 }
 
+#[allow(clippy::type_complexity)]
 fn enemy_ai_system(
     time: Res<Time>,
     mut commands: Commands,
