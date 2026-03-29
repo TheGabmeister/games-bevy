@@ -2,6 +2,7 @@ mod audio;
 mod combat;
 mod components;
 mod constants;
+mod effects;
 mod enemy;
 mod player;
 mod resources;
@@ -28,12 +29,14 @@ fn main() {
             }),
             ..default()
         }))
+        .insert_resource(ClearColor(Color::srgb(0.02, 0.02, 0.05)))
         .add_plugins((
             player::PlayerPlugin,
             ui::UiPlugin,
             audio::GameAudioPlugin,
             enemy::EnemyPlugin,
             combat::CombatPlugin,
+            effects::EffectsPlugin,
         ))
         .init_state::<AppState>()
         .init_resource::<GameData>()

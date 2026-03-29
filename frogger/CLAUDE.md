@@ -24,16 +24,21 @@ Dependencies compile at `opt-level = 3` while the main crate uses `opt-level = 1
 - **Bevy 0.18.1** — ECS game engine
 - **Rust Edition 2024**
 
-## Architecture Patterns
+## Architecture
 
-Preferred modular architecture:
+Module layout:
 
-- **`main.rs`** — App setup, plugin registration, system scheduling with explicit ordering
-- **`components.rs`** — Marker components for entity types + data components (Velocity, FacingDirection, WorldPosition, etc.)
-- **`constants.rs`** — All magic numbers as named constants (window size, speeds, radii, scoring)
-- **`resources.rs`** — Shared game state (score, lives, wave progression)
-- **`states.rs`** — `AppState` enum driving a state machine (StartScreen → Playing → GameOver pattern)
-- **Domain modules** — One module per system domain (player, enemies, collision, spawning, ui, etc.)
+- **`main.rs`** — App bootstrap, camera spawn, plugin and resource registration
+- **`states.rs`** — `AppState` enum: `StartScreen → Playing → GameOver`
+- **`constants.rs`** — All tuning values (window, grid, speeds, scoring, colors), plus `grid_to_world`/`world_x_to_col` helpers
+- **`components.rs`** — Marker components (`Frog`, `Vehicle`, `Platform`, `HomeBay`, `LaneObject`, `GameplayEntity`) and data components (`GridPosition`, `HopState`, `Velocity`, `ObjectWidth`, `DeathFlash`, `ScorePopup`), plus UI markers
+- **`resources.rs`** — `GameData` (score/lives/level/bays), `FrogTimer`, `LevelState` (speed multiplier, celebration timer), `FrogEvent`, `PendingEffects`
+- **`gameplay.rs`** — `GameplayPlugin` wiring all `Playing`-state systems with explicit `.after()` ordering
+- **`player.rs`** — Frog spawn (circle mesh with eyes), grid-locked hop input, hop animation with squash/stretch and rotation, forward-hop scoring
+- **`lanes.rs`** — World background/road markings/home bays spawn, lane object spawn (capsule logs, detailed vehicles), lane movement with wrapping, bay visual updates
+- **`collision.rs`** — Platform riding, vehicle collision, water support check, bounds check, home bay landing, timer tick, death/respawn handling, level clear logic
+- **`effects.rs`** — Death flash (expanding fading circle) and score popup (rising fading text) driven by `PendingEffects` resource
+- **`ui.rs`** — Start screen, HUD (score/high score/level/lives/timer bar/status text), game over screen
 
 ### Key Bevy Conventions
 

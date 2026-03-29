@@ -25,15 +25,29 @@ impl Plugin for PlayerPlugin {
     }
 }
 
-fn spawn_player_entity(commands: &mut Commands, invulnerable: bool) {
+fn player_mesh(meshes: &mut Assets<Mesh>) -> Handle<Mesh> {
+    meshes.add(Triangle2d::new(
+        Vec2::new(0.0, PLAYER_HEIGHT / 2.0),
+        Vec2::new(-PLAYER_WIDTH / 2.0, -PLAYER_HEIGHT / 2.0),
+        Vec2::new(PLAYER_WIDTH / 2.0, -PLAYER_HEIGHT / 2.0),
+    ))
+}
+
+fn player_material(materials: &mut Assets<ColorMaterial>) -> Handle<ColorMaterial> {
+    materials.add(Color::srgb(0.2, 0.6, 1.0))
+}
+
+fn spawn_player_entity(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<ColorMaterial>,
+    invulnerable: bool,
+) {
     let mut entity = commands.spawn((
         Player,
         Velocity::default(),
-        Sprite {
-            color: Color::srgb(0.2, 0.6, 1.0),
-            custom_size: Some(Vec2::new(PLAYER_WIDTH, PLAYER_HEIGHT)),
-            ..default()
-        },
+        Mesh2d(player_mesh(meshes)),
+        MeshMaterial2d(player_material(materials)),
         Transform::from_translation(Vec3::new(0.0, PLAYER_Y, 1.0)),
     ));
 
@@ -45,8 +59,12 @@ fn spawn_player_entity(commands: &mut Commands, invulnerable: bool) {
     }
 }
 
-fn spawn_player(mut commands: Commands) {
-    spawn_player_entity(&mut commands, false);
+fn spawn_player(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    spawn_player_entity(&mut commands, &mut meshes, &mut materials, false);
 }
 
 fn player_input(
@@ -84,19 +102,19 @@ fn player_movement(
 fn invulnerability_tick(
     mut commands: Commands,
     time: Res<Time>,
-    mut query: Query<(Entity, &mut Invulnerable, &mut Sprite), With<Player>>,
+    mut query: Query<(Entity, &mut Invulnerable, &mut Visibility), With<Player>>,
 ) {
-    for (entity, mut invuln, mut sprite) in &mut query {
+    for (entity, mut invuln, mut visibility) in &mut query {
         invuln.0.tick(time.delta());
-        let alpha = if ((invuln.0.elapsed_secs() * 10.0) as u32).is_multiple_of(2) {
-            0.3
+
+        *visibility = if ((invuln.0.elapsed_secs() * 10.0) as u32).is_multiple_of(2) {
+            Visibility::Hidden
         } else {
-            1.0
+            Visibility::Visible
         };
-        sprite.color = Color::srgba(0.2, 0.6, 1.0, alpha);
 
         if invuln.0.just_finished() {
-            sprite.color = Color::srgb(0.2, 0.6, 1.0);
+            *visibility = Visibility::Visible;
             commands.entity(entity).remove::<Invulnerable>();
         }
     }
@@ -106,6 +124,8 @@ fn respawn_player(
     mut commands: Commands,
     time: Res<Time>,
     mut game_data: ResMut<GameData>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
     respawn_timer: Option<ResMut<RespawnTimer>>,
 ) {
     if game_data.phase != WavePhase::Respawning {
@@ -118,17 +138,17 @@ fn respawn_player(
 
     timer.0.tick(time.delta());
     if timer.0.just_finished() {
-        spawn_player_entity(&mut commands, true);
+        spawn_player_entity(&mut commands, &mut meshes, &mut materials, true);
         game_data.phase = WavePhase::Combat;
         commands.remove_resource::<RespawnTimer>();
     }
 }
 
-/// Handles the edge case where the player is dead after a stage clear.
-/// When a new wave starts (phase transitions to Combat) and no player exists, spawn one.
 fn auto_respawn_player(
     mut commands: Commands,
     game_data: Res<GameData>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
     player_query: Query<&Player>,
 ) {
     if game_data.phase != WavePhase::Combat {
@@ -141,7 +161,7 @@ fn auto_respawn_player(
         return;
     }
 
-    spawn_player_entity(&mut commands, true);
+    spawn_player_entity(&mut commands, &mut meshes, &mut materials, true);
 }
 
 fn cleanup_player(mut commands: Commands, query: Query<Entity, With<Player>>) {

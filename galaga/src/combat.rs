@@ -4,7 +4,8 @@ use bevy::prelude::*;
 
 use crate::components::*;
 use crate::constants::*;
-use crate::enemy::score_for_row;
+use crate::effects::spawn_explosion;
+use crate::enemy::{enemy_color_for_row, score_for_row};
 use crate::resources::*;
 use crate::states::AppState;
 
@@ -109,9 +110,11 @@ fn laser_enemy_collision(
             if dist < LASER_COLLISION_RADIUS + ENEMY_COLLISION_RADIUS {
                 hit_lasers.insert(laser_entity);
                 hit_enemies.insert(enemy_entity);
+                let pos = enemy_transform.translation;
                 commands.entity(laser_entity).despawn();
                 commands.entity(enemy_entity).despawn();
                 game_data.score += score_for_row(slot.row);
+                spawn_explosion(&mut commands, pos, enemy_color_for_row(slot.row));
                 break;
             }
         }
@@ -150,6 +153,7 @@ fn enemy_bullet_player_collision(
                 &mut game_data,
                 &mut next_state,
                 player_entity,
+                player_transform.translation,
             );
             return;
         }
@@ -161,7 +165,7 @@ fn diving_enemy_player_collision(
     mut commands: Commands,
     mut game_data: ResMut<GameData>,
     mut next_state: ResMut<NextState<AppState>>,
-    enemy_query: Query<(Entity, &Transform), (With<Enemy>, With<DivingEnemy>)>,
+    enemy_query: Query<(Entity, &Transform, &FormationSlot), (With<Enemy>, With<DivingEnemy>)>,
     player_query: Query<(Entity, &Transform, Option<&Invulnerable>), With<Player>>,
 ) {
     if game_data.phase != WavePhase::Combat {
@@ -176,19 +180,22 @@ fn diving_enemy_player_collision(
         return;
     }
 
-    for (enemy_entity, enemy_transform) in &enemy_query {
+    for (enemy_entity, enemy_transform, slot) in &enemy_query {
         let dist = player_transform
             .translation
             .truncate()
             .distance(enemy_transform.translation.truncate());
 
         if dist < PLAYER_COLLISION_RADIUS + ENEMY_COLLISION_RADIUS {
+            let enemy_pos = enemy_transform.translation;
             commands.entity(enemy_entity).despawn();
+            spawn_explosion(&mut commands, enemy_pos, enemy_color_for_row(slot.row));
             handle_player_death(
                 &mut commands,
                 &mut game_data,
                 &mut next_state,
                 player_entity,
+                player_transform.translation,
             );
             return;
         }
@@ -200,10 +207,13 @@ fn handle_player_death(
     game_data: &mut ResMut<GameData>,
     next_state: &mut ResMut<NextState<AppState>>,
     player_entity: Entity,
+    position: Vec3,
 ) {
     commands.entity(player_entity).despawn();
     game_data.lives = game_data.lives.saturating_sub(1);
     game_data.phase = WavePhase::Respawning;
+
+    spawn_explosion(commands, position, Color::srgb(0.2, 0.6, 1.0));
 
     if game_data.lives == 0 {
         commands.remove_resource::<RespawnTimer>();
@@ -236,7 +246,6 @@ fn check_stage_clear(
             TimerMode::Once,
         )));
         commands.remove_resource::<RespawnTimer>();
-        // Clean up stray enemy bullets
         for entity in &bullet_query {
             commands.entity(entity).despawn();
         }

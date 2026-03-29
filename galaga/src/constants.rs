@@ -59,6 +59,20 @@ pub const ENEMY_BULLET_COLLISION_RADIUS: f32 = 4.0;
 // Timers
 pub const STAGE_CLEAR_DELAY: f32 = 2.0;
 
+// Starfield
+pub const STAR_COUNT: usize = 80;
+pub const STAR_SPEED_MIN: f32 = 15.0;
+pub const STAR_SPEED_MAX: f32 = 80.0;
+pub const STAR_SIZE_MIN: f32 = 0.5;
+pub const STAR_SIZE_MAX: f32 = 2.5;
+pub const STAR_BRIGHTNESS_MIN: f32 = 0.3;
+
+// Explosions
+pub const EXPLOSION_PARTICLE_COUNT: usize = 12;
+pub const EXPLOSION_PARTICLE_SPEED: f32 = 200.0;
+pub const EXPLOSION_PARTICLE_LIFETIME: f32 = 0.5;
+pub const EXPLOSION_PARTICLE_SIZE: f32 = 3.0;
+
 // UI
 pub const FONT_SIZE_TITLE: f32 = 60.0;
 pub const FONT_SIZE_BODY: f32 = 30.0;

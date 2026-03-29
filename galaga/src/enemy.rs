@@ -38,12 +38,29 @@ pub fn score_for_row(row: usize) -> u32 {
     }
 }
 
-fn enemy_color_for_row(row: usize) -> Color {
+pub fn enemy_color_for_row(row: usize) -> Color {
     match row {
         0 => Color::srgb(1.0, 0.2, 0.2),
         1 => Color::srgb(1.0, 0.8, 0.0),
         2 => Color::srgb(0.0, 0.8, 0.2),
         _ => Color::srgb(0.3, 0.7, 1.0),
+    }
+}
+
+fn enemy_mesh_for_row(row: usize, meshes: &mut Assets<Mesh>) -> Handle<Mesh> {
+    match row {
+        // Row 0 (red): wide diamond — boss-like
+        0 => meshes.add(Rhombus::new(ENEMY_SIZE * 1.0, ENEMY_SIZE * 0.7)),
+        // Row 1 (yellow): tall diamond
+        1 => meshes.add(Rhombus::new(ENEMY_SIZE * 0.7, ENEMY_SIZE * 0.9)),
+        // Row 2 (green): downward triangle
+        2 => meshes.add(Triangle2d::new(
+            Vec2::new(0.0, -ENEMY_SIZE * 0.45),
+            Vec2::new(-ENEMY_SIZE * 0.4, ENEMY_SIZE * 0.35),
+            Vec2::new(ENEMY_SIZE * 0.4, ENEMY_SIZE * 0.35),
+        )),
+        // Row 3+ (blue): hexagon
+        _ => meshes.add(RegularPolygon::new(ENEMY_SIZE * 0.4, 6)),
     }
 }
 
@@ -64,29 +81,45 @@ fn dive_interval_for_wave(wave: u32) -> f32 {
     (DIVE_INTERVAL_BASE - (wave as f32 - 1.0) * DIVE_INTERVAL_REDUCTION).max(DIVE_INTERVAL_MIN)
 }
 
-fn spawn_formation_entities(commands: &mut Commands, wave: u32) {
+fn spawn_formation_entities(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<ColorMaterial>,
+    wave: u32,
+) {
     let (cols, rows) = formation_dimensions_for_wave(wave);
     let col_start = (FORMATION_COLS - cols) / 2;
 
-    for row in 0..rows {
+    // Pre-create per-row mesh and material handles to share across columns
+    let row_assets: Vec<_> = (0..rows)
+        .map(|row| {
+            let mesh = enemy_mesh_for_row(row, meshes);
+            let material = materials.add(enemy_color_for_row(row));
+            (mesh, material)
+        })
+        .collect();
+
+    for (row, (mesh, material)) in row_assets.iter().enumerate().take(rows) {
         for col in col_start..(col_start + cols) {
             let pos = formation_base_position(col, row);
             commands.spawn((
                 Enemy,
                 FormationSlot { col, row },
-                Sprite {
-                    color: enemy_color_for_row(row),
-                    custom_size: Some(Vec2::new(ENEMY_SIZE, ENEMY_SIZE)),
-                    ..default()
-                },
+                Mesh2d(mesh.clone()),
+                MeshMaterial2d(material.clone()),
                 Transform::from_translation(Vec3::new(pos.x, pos.y, 0.0)),
             ));
         }
     }
 }
 
-fn init_enemies(mut commands: Commands, game_data: Res<GameData>) {
-    spawn_formation_entities(&mut commands, game_data.wave);
+fn init_enemies(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    game_data: Res<GameData>,
+) {
+    spawn_formation_entities(&mut commands, &mut meshes, &mut materials, game_data.wave);
 
     let dive_interval = dive_interval_for_wave(game_data.wave);
     commands.insert_resource(DiveTimer(Timer::from_seconds(
@@ -179,24 +212,20 @@ fn update_divers(
         diver.time += time.delta_secs();
 
         if !diver.returning {
-            // Dive down with sinusoidal curve
             transform.translation.y -= DIVE_SPEED * time.delta_secs();
             transform.translation.x = diver.start_x
                 + diver.curve_direction
                     * DIVE_CURVE_AMPLITUDE
                     * (diver.time * DIVE_CURVE_FREQUENCY).sin();
 
-            // Clamp X to screen
             let half_w = WINDOW_WIDTH / 2.0 - ENEMY_SIZE / 2.0;
             transform.translation.x = transform.translation.x.clamp(-half_w, half_w);
 
-            // Went below screen - start returning
             if transform.translation.y < -WINDOW_HEIGHT / 2.0 - ENEMY_SIZE {
                 diver.returning = true;
                 transform.translation.y = WINDOW_HEIGHT / 2.0 + ENEMY_SIZE;
             }
         } else {
-            // Return to formation slot
             let sway_offset = (sway.time * FORMATION_SWAY_SPEED).sin() * FORMATION_SWAY_AMOUNT;
             let target = formation_base_position(slot.col, slot.row);
             let target_pos = Vec3::new(target.x + sway_offset, target.y, 0.0);
@@ -230,7 +259,6 @@ fn diving_enemy_shoot(
         if diver.returning {
             continue;
         }
-        // Fire once at 0.5s into dive
         let prev = diver.time - dt;
         if prev < 0.5 && diver.time >= 0.5 {
             commands.spawn((
@@ -272,6 +300,8 @@ fn spawning_to_combat(
 fn check_spawn_new_wave(
     mut commands: Commands,
     mut game_data: ResMut<GameData>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
     time: Res<Time>,
     timer: Option<ResMut<StageClearTimer>>,
 ) {
@@ -287,7 +317,7 @@ fn check_spawn_new_wave(
         game_data.phase = WavePhase::Spawning;
         commands.remove_resource::<StageClearTimer>();
 
-        spawn_formation_entities(&mut commands, game_data.wave);
+        spawn_formation_entities(&mut commands, &mut meshes, &mut materials, game_data.wave);
 
         let dive_interval = dive_interval_for_wave(game_data.wave);
         commands.insert_resource(DiveTimer(Timer::from_seconds(

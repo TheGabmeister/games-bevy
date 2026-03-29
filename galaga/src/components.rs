@@ -35,6 +35,18 @@ pub struct PlayerBullet;
 #[derive(Component)]
 pub struct EnemyBullet;
 
+// Effects
+#[derive(Component)]
+pub struct Star {
+    pub speed: f32,
+}
+
+#[derive(Component)]
+pub struct ExplosionParticle {
+    pub velocity: Vec2,
+    pub lifetime: Timer,
+}
+
 // Audio
 #[derive(Component)]
 pub struct Music;
