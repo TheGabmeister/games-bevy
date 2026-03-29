@@ -48,6 +48,17 @@ fn main() {
             )
                 .chain(),
         )
+        .add_systems(
+            Update,
+            (
+                bevy::ecs::schedule::ApplyDeferred
+                    .after(GameSet::Ai)
+                    .before(GameSet::Physics),
+                bevy::ecs::schedule::ApplyDeferred
+                    .after(GameSet::Combat)
+                    .before(GameSet::Progression),
+            ),
+        )
         .init_resource::<GameState>()
         .init_resource::<RespawnTimers>()
         .init_resource::<PlayerCount>()

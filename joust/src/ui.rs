@@ -25,7 +25,10 @@ impl Plugin for UiPlugin {
 
 // --- Start Screen ---
 
-fn setup_start_screen(mut commands: Commands) {
+#[derive(Component)]
+struct PlayerCountText;
+
+fn setup_start_screen(mut commands: Commands, player_count: Res<PlayerCount>) {
     commands
         .spawn((
             Node {
@@ -48,18 +51,24 @@ fn setup_start_screen(mut commands: Commands) {
                 },
                 TextColor(Color::srgb(1.0, 0.85, 0.2)),
             ));
+            let mode_label = if player_count.0 == 1 {
+                "1 PLAYER"
+            } else {
+                "2 PLAYERS"
+            };
             parent.spawn((
-                Text::new("Press SPACE to start"),
+                Text::new(mode_label),
                 TextFont {
                     font_size: 28.0,
                     ..default()
                 },
-                TextColor(Color::srgb(0.7, 0.7, 0.7)),
+                TextColor(Color::srgb(0.9, 0.9, 0.9)),
+                PlayerCountText,
             ));
             parent.spawn((
-                Text::new("Press 2 for two players"),
+                Text::new("Press SPACE to start  /  Press 2 to toggle players"),
                 TextFont {
-                    font_size: 22.0,
+                    font_size: 20.0,
                     ..default()
                 },
                 TextColor(Color::srgb(0.5, 0.5, 0.5)),
@@ -71,9 +80,17 @@ fn start_screen_input(
     keys: Res<ButtonInput<KeyCode>>,
     mut next_state: ResMut<NextState<AppState>>,
     mut player_count: ResMut<PlayerCount>,
+    mut count_text: Query<&mut Text, With<PlayerCountText>>,
 ) {
     if keys.just_pressed(KeyCode::Digit2) {
         player_count.0 = if player_count.0 == 2 { 1 } else { 2 };
+        for mut text in &mut count_text {
+            **text = if player_count.0 == 1 {
+                "1 PLAYER".to_string()
+            } else {
+                "2 PLAYERS".to_string()
+            };
+        }
     }
     if keys.just_pressed(KeyCode::Space) {
         next_state.set(AppState::Playing);
@@ -159,6 +176,9 @@ fn update_hud(
     mut lives_texts: Query<(&LivesText, &mut Text), Without<ScoreText>>,
     mut wave_texts: Query<&mut Text, (With<WaveText>, Without<ScoreText>, Without<LivesText>)>,
 ) {
+    if !game_state.is_changed() {
+        return;
+    }
     for (st, mut text) in &mut score_texts {
         let prefix = if st.0 == 0 { "P1" } else { "P2" };
         **text = format!("{}: {}", prefix, game_state.scores[st.0 as usize]);
@@ -174,8 +194,9 @@ fn update_hud(
 
 // --- Game Over ---
 
-fn setup_game_over(mut commands: Commands, game_state: Res<GameState>) {
+fn setup_game_over(mut commands: Commands, mut game_state: ResMut<GameState>) {
     let final_score = game_state.scores[0].max(game_state.scores[1]);
+    game_state.high_score = game_state.high_score.max(final_score);
 
     commands
         .spawn((

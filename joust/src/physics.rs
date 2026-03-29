@@ -20,7 +20,7 @@ impl Plugin for PhysicsPlugin {
             )
                 .chain()
                 .in_set(GameSet::Physics)
-                .run_if(in_state(AppState::Playing)),
+                .run_if(in_state(PlayState::WaveActive)),
         );
     }
 }
@@ -138,7 +138,7 @@ fn platform_collision_system(
                 };
 
                 if on_x
-                    && prev_bottom >= plat_top - PLATFORM_SNAP_DISTANCE
+                    && prev_bottom >= plat_top
                     && curr_bottom <= plat_top + PLATFORM_SNAP_DISTANCE
                 {
                     transform.translation.y = plat_top + radius;

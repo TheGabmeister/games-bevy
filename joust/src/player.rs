@@ -15,7 +15,7 @@ impl Plugin for PlayerPlugin {
                 Update,
                 player_input_system
                     .in_set(GameSet::Input)
-                    .run_if(in_state(AppState::Playing)),
+                    .run_if(in_state(PlayState::WaveActive)),
             )
             .add_systems(
                 Update,
@@ -75,27 +75,32 @@ fn player_input_system(
         let accel = if is_grounded { GROUND_ACCEL } else { AIR_ACCEL };
         let max_speed = if is_grounded { MAX_GROUND_SPEED } else { MAX_AIR_SPEED };
 
-        let (left_key, right_key, flap_keys): (KeyCode, KeyCode, &[KeyCode]) = match player.id {
-            0 => (
-                KeyCode::KeyA,
-                KeyCode::KeyD,
-                &[KeyCode::KeyW, KeyCode::Space],
-            ),
-            _ => (KeyCode::KeyJ, KeyCode::KeyL, &[KeyCode::KeyI]),
-        };
+        let (left_keys, right_keys, flap_keys): (&[KeyCode], &[KeyCode], &[KeyCode]) =
+            match player.id {
+                0 => (
+                    &[KeyCode::KeyA, KeyCode::ArrowLeft],
+                    &[KeyCode::KeyD, KeyCode::ArrowRight],
+                    &[KeyCode::KeyW, KeyCode::Space, KeyCode::ArrowUp],
+                ),
+                _ => (
+                    &[KeyCode::KeyJ],
+                    &[KeyCode::KeyL],
+                    &[KeyCode::KeyI],
+                ),
+            };
 
         // Horizontal
-        if keys.pressed(left_key) {
+        if left_keys.iter().any(|k| keys.pressed(*k)) {
             vel.0.x = (vel.0.x - accel * time.delta_secs()).max(-max_speed);
             *facing = FacingDirection::Left;
         }
-        if keys.pressed(right_key) {
+        if right_keys.iter().any(|k| keys.pressed(*k)) {
             vel.0.x = (vel.0.x + accel * time.delta_secs()).min(max_speed);
             *facing = FacingDirection::Right;
         }
 
         // Flap
-        let flap_pressed = flap_keys.iter().any(|k| keys.pressed(*k));
+        let flap_pressed = flap_keys.iter().any(|k| keys.just_pressed(*k));
         if flap_pressed && cooldown.0.is_finished() {
             vel.0.y = (vel.0.y + FLAP_IMPULSE).min(MAX_RISE_SPEED);
             cooldown.0.reset();

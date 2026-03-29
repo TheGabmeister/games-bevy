@@ -17,7 +17,7 @@ impl Plugin for EnemyPlugin {
                 Update,
                 enemy_ai_system
                     .in_set(GameSet::Ai)
-                    .run_if(in_state(AppState::Playing)),
+                    .run_if(in_state(PlayState::WaveActive)),
             );
     }
 }

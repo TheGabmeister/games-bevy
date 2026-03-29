@@ -50,6 +50,7 @@ fn spawn_death_particles(
                 Particle {
                     lifetime: Timer::from_seconds(0.6, TimerMode::Once),
                 },
+                DespawnOnExit(AppState::Playing),
             ));
         }
     }

@@ -12,7 +12,7 @@ impl Plugin for RenderingPlugin {
         app.add_systems(Startup, setup_shared_assets)
             .add_systems(
                 Update,
-                (wing_animation_system, facing_update_system)
+                (wing_animation_system, facing_update_system, egg_animation_system)
                     .run_if(in_state(crate::states::AppState::Playing)),
             );
     }
@@ -24,6 +24,7 @@ fn setup_shared_assets(
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     let platform_meshes = PLATFORMS.map(|p| meshes.add(Rectangle::new(p.width, PLATFORM_THICKNESS)));
+    let lava_height = (LAVA_Y - ARENA_BOTTOM).abs() + 80.0;
 
     commands.insert_resource(SharedMeshes {
         rect_body: meshes.add(Rectangle::new(30.0, 18.0)),
@@ -33,7 +34,7 @@ fn setup_shared_assets(
         circle_egg: meshes.add(Circle::new(EGG_RADIUS)),
         circle_particle: meshes.add(Circle::new(3.0)),
         rect_platform: platform_meshes,
-        rect_lava: meshes.add(Rectangle::new(ARENA_WIDTH + WRAP_MARGIN * 2.0, 80.0)),
+        rect_lava: meshes.add(Rectangle::new(ARENA_WIDTH + WRAP_MARGIN * 2.0, lava_height)),
     });
 
     commands.insert_resource(SharedMaterials {
@@ -126,6 +127,8 @@ pub fn spawn_arena(
     meshes: &SharedMeshes,
     materials: &SharedMaterials,
 ) {
+    let lava_center_y = (LAVA_Y + ARENA_BOTTOM) * 0.5;
+
     // Platforms
     for (i, plat) in PLATFORMS.iter().enumerate() {
         commands.spawn((
@@ -140,7 +143,7 @@ pub fn spawn_arena(
     commands.spawn((
         Mesh2d(meshes.rect_lava.clone()),
         MeshMaterial2d(materials.lava_back.clone()),
-        Transform::from_xyz(0.0, LAVA_Y - 30.0, Z_LAVA_BACK),
+        Transform::from_xyz(0.0, lava_center_y - 10.0, Z_LAVA_BACK),
         DespawnOnExit(crate::states::AppState::Playing),
     ));
 
@@ -148,7 +151,7 @@ pub fn spawn_arena(
     commands.spawn((
         Mesh2d(meshes.rect_lava.clone()),
         MeshMaterial2d(materials.lava_front.clone()),
-        Transform::from_xyz(0.0, LAVA_Y - 20.0, Z_LAVA_FRONT),
+        Transform::from_xyz(0.0, lava_center_y, Z_LAVA_FRONT),
         DespawnOnExit(crate::states::AppState::Playing),
     ));
 }
@@ -183,6 +186,22 @@ fn facing_update_system(
         transform.scale.x = match facing {
             FacingDirection::Right => 1.0,
             FacingDirection::Left => -1.0,
+        };
+    }
+}
+
+fn egg_animation_system(
+    materials: Res<SharedMaterials>,
+    mut eggs: Query<(&Egg, &mut Transform, &mut MeshMaterial2d<ColorMaterial>)>,
+) {
+    for (egg, mut transform, mut material) in &mut eggs {
+        let progress = egg.hatch_timer.fraction();
+
+        transform.scale = Vec3::splat(1.0 + progress * 0.12);
+        material.0 = if progress > 0.7 && ((progress * 20.0) as i32 % 2 == 0) {
+            materials.egg_hatch.clone()
+        } else {
+            materials.egg.clone()
         };
     }
 }

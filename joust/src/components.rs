@@ -149,5 +149,4 @@ pub struct ScoreMessage {
 #[derive(Message)]
 pub struct PlayerDiedMessage {
     pub player_id: u8,
-    pub position: Vec2,
 }
