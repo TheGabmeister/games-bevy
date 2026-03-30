@@ -189,14 +189,14 @@ StartScreen → Playing → GameOver
 The tasks are ordered for incremental learning: each phase produces something visible and testable before the next begins.
 
 ### Phase 1: Window, Camera & Constants
-- [ ] Set up window size, title, and clear color
-- [ ] Spawn a 2D camera with bloom / HDR enabled
-- [ ] Create `constants.rs` with grid dimensions, cell size, colors, speeds
+- [x] Set up window size, title, and clear color
+- [x] Spawn a 2D camera with bloom / HDR enabled
+- [x] Create `constants.rs` with grid dimensions, cell size, colors, speeds
 
 ### Phase 2: Playfield Rendering
-- [ ] Create `board.rs` module with a `Board` resource (2D array of `Option<Color>`)
-- [ ] Render the empty playfield as a bordered rectangle
-- [ ] Render filled cells as colored rounded-rectangles with gaps
+- [x] Create `board.rs` module with a `Board` resource (2D array of `Option<Color>`)
+- [x] Render the empty playfield as a bordered rectangle
+- [x] Render filled cells as colored rounded-rectangles with gaps
 
 ### Phase 3: Tetromino Data & Spawning
 - [ ] Define the 7 tetromino shapes and their rotation states in `tetromino.rs`

@@ -5,8 +5,10 @@ use bevy::{
     window::WindowResolution,
 };
 
+mod board;
 mod constants;
 
+use board::BoardPlugin;
 use constants::*;
 
 fn main() {
@@ -20,6 +22,7 @@ fn main() {
             }),
             ..default()
         }))
+        .add_plugins(BoardPlugin)
         .insert_resource(ClearColor(CLEAR_COLOR))
         .add_systems(Startup, setup_camera)
         .run();
