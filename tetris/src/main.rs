@@ -7,12 +7,12 @@ use bevy::{
 
 mod board;
 mod constants;
-mod input;
+mod gameplay;
 mod tetromino;
 
 use board::BoardPlugin;
 use constants::*;
-use input::GameplayPlugin;
+use gameplay::GameplayPlugin;
 use tetromino::TetrominoPlugin;
 
 fn main() {
