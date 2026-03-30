@@ -82,6 +82,7 @@ Asset paths are plain relative strings passed to `asset_server.load(...)` — ke
 
 - `despawn()` is recursive by default — do **not** use `despawn_recursive()` (removed).
 - `WindowResolution::new(width, height)` takes `u32`, not `f32`. Cast with `as u32` if constants are `f32`.
+- `OrthographicProjection` is **not** a standalone `Component` — it is wrapped in `Projection` (an enum). To set a custom orthographic projection on a camera, build the struct and convert: `Projection::from(OrthographicProjection { scale: 0.33, ..OrthographicProjection::default_2d() })`. Spawn it alongside `Camera2d` to override the default.
 - `ScalingMode` is in `bevy::camera::ScalingMode`, not `bevy::render::camera`.
 - Use `ApplyDeferred` (struct) not `apply_deferred` (no such function) for command flushing between systems.
 - 2D rendering uses `Camera2d`, `Mesh2d`, `MeshMaterial2d`, `Sprite`.
