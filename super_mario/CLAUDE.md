@@ -28,14 +28,20 @@ Dependencies compile at `opt-level = 3` while the main crate uses `opt-level = 1
 
 ## Architecture
 
-Super Mario Bros clone. Placeholder geometry (colored rectangles), no sprite assets, no state machine yet.
+Super Mario Bros clone. Placeholder geometry (colored rectangles/ellipses), no sprite assets.
 
-### Current Structure
+### Module Structure
 
-- **`main.rs`** — App setup, all systems (no plugins yet). Systems run in an explicit `.chain()`: `player_input → apply_gravity → apply_velocity → tile_collision → camera_follow`
-- **`constants.rs`** — All tunable values (window, camera, player dimensions, physics, z-layers, level origin)
-- **`components.rs`** — `Player` marker, `Velocity`, `FacingDirection`, `Grounded`, `Tile` marker, `TileType` enum
-- **`level.rs`** — Level 1-1 grid (211×15 chars built programmatically), `LevelGrid` resource for collision lookups, coordinate conversion (`tile_to_world`, `world_to_col`, `world_to_row`)
+- **`main.rs`** — App setup, plugin registration, `GameplaySet` ordering (~50 lines)
+- **`player.rs`** — `PlayerPlugin` — input, gravity, velocity, tile collision, death animation
+- **`camera.rs`** — `CameraPlugin` — camera setup, reset on level enter, smooth follow
+- **`enemy.rs`** — `EnemyPlugin` — enemy activation, patrol AI, gravity, tile collision, stomp/death detection, score popups
+- **`ui.rs`** — `UiPlugin` — start screen, game over screen, HUD (score/coins/world/timer), pause overlay, countdown timer
+- **`level.rs`** — Level 1-1 grid (211×15 chars), `LevelGrid` resource, coordinate conversion, `spawn_level` system
+- **`states.rs`** — `AppState`, `PlayState` sub-state, `GameplaySet` enum
+- **`resources.rs`** — `GameData` (score, coins, lives, timer), `SpawnPoint`, `DeathAnimation`
+- **`components.rs`** — All ECS marker/data types (Player, Velocity, Grounded, Tile, Goomba, EnemyWalker, HUD markers, etc.)
+- **`constants.rs`** — All tunable values (window, camera, player, physics, enemies, z-layers)
 
 ### Coordinate System
 
@@ -43,7 +49,11 @@ The level grid uses row 0 = top, row 14 = bottom. World space has Y increasing u
 
 ### Tile Collision
 
-Collision uses the `LevelGrid` resource (char grid) for O(1) tile lookups — not entity queries. `is_solid()` checks the char directly. The `tile_collision` system converts Mario's AABB to grid neighborhood (~12 tiles), resolves overlaps by smallest-penetration-axis push-out, and uses a 1-pixel grounded probe below Mario's feet.
+Collision uses the `LevelGrid` resource (char grid) for O(1) tile lookups — not entity queries. `is_solid()` checks the char directly. Both player (`tile_collision` in `player.rs`) and enemy (`enemy_tile_collision` in `enemy.rs`) systems convert an entity's AABB to a grid neighborhood (~12 tiles), resolve overlaps by smallest-penetration-axis push-out, and use a 1-pixel grounded probe. Enemies reverse `EnemyWalker.direction` on wall hits instead of zeroing velocity.
+
+### Enemy Activation
+
+Enemies are spawned inactive (no `EnemyActive` component). The `enemy_activation` system adds `EnemyActive` when an enemy scrolls within one tile of the camera's right edge. Once activated, enemies stay active permanently. All enemy physics systems filter `With<EnemyActive>`.
 
 ### Physics Model
 
@@ -53,19 +63,30 @@ Dual gravity: `GRAVITY_ASCENDING` (600) while rising, `GRAVITY_DESCENDING` (980)
 
 Uses `OrthographicProjection` scaled to show ~267×200 world units (NES-like resolution) in an 800×600 window. Camera follows Mario horizontally with a dead zone (scrolls when Mario reaches the right third), never scrolls left (one-way), and clamps to level bounds. Camera Y is fixed.
 
-### Target Layout (as the game grows)
+### State Machine
 
-- **`resources.rs`** — Shared game state (score, lives, wave progression)
-- **`states.rs`** — `AppState` enum driving a state machine (StartScreen → Playing → GameOver)
-- **Domain modules** — One module per gameplay domain (player, enemy, level, ui, audio, etc.), each exposing a Plugin
-
-### State Machine Pattern
-
-Systems should be state-aware:
-- Gate gameplay systems with `.run_if(in_state(AppState::Playing))`
+- **`AppState`**: `StartScreen → Playing → GameOver` (cycles via Enter key)
+- **`PlayState`** (sub-state of `Playing`): `Running`, `Dying`, `Paused`, `LevelComplete`
+- Gate gameplay systems with `.run_if(in_state(PlayState::Running))` (not just `AppState::Playing`)
 - Use `OnEnter`/`OnExit` for spawn/cleanup symmetry
-- Prefer `DespawnOnExit(AppState::Playing)` on entities that should auto-despawn when leaving a state — this eliminates most manual cleanup systems
-- Use `.after()` chains where frame ordering matters; for 10+ systems, group into `SystemSet`s (e.g., `MovementSet`, `CollisionSet`) and order at the set level
+- Prefer `DespawnOnExit(AppState::Playing)` on entities that should auto-despawn when leaving a state
+- New domain modules should expose a `Plugin` — register in `main.rs`
+
+### System Ordering (GameplaySet)
+
+Cross-plugin system ordering is configured once in `main.rs` via `GameplaySet`:
+
+```
+Input → Physics → Camera → Late   (chained, run_if PlayState::Running)
+```
+
+Each plugin drops its systems into the appropriate set:
+- **Input**: `player_input`, `enemy_activation`
+- **Physics**: player gravity/velocity/collision chain, enemy walk/gravity/velocity/collision chain
+- **Camera**: `camera_follow`
+- **Late**: `check_pit_death`, `countdown_timer`, `mario_enemy_collision`, `enemy_despawn_out_of_bounds`
+
+Systems outside the chain (HUD update, pause input, squish timer, score popups) use direct `run_if` conditions.
 
 ### Messages and Observers
 
