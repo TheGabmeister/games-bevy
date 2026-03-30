@@ -127,3 +127,36 @@ impl RoomPersistence {
         }
     }
 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum EquippedItem {
+    Bomb,
+}
+
+impl EquippedItem {
+    pub const ALL: &[EquippedItem] = &[EquippedItem::Bomb];
+
+    pub fn display_name(self) -> &'static str {
+        match self {
+            Self::Bomb => "BOMB",
+        }
+    }
+
+    pub fn next(self) -> Option<EquippedItem> {
+        let all = Self::ALL;
+        let idx = all.iter().position(|&e| e == self).unwrap();
+        if idx + 1 < all.len() {
+            Some(all[idx + 1])
+        } else {
+            None
+        }
+    }
+}
+
+#[derive(Resource, Debug, Clone, Default)]
+pub struct Inventory {
+    pub rupees: u16,
+    pub bombs: u8,
+    pub keys: u8,
+    pub equipped: Option<EquippedItem>,
+}

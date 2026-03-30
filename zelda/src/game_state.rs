@@ -1,12 +1,17 @@
 use bevy::prelude::*;
 
-use crate::{input::InputActions, states::AppState};
+use crate::{
+    input::InputActions,
+    resources::{EquippedItem, Inventory},
+    states::AppState,
+};
 
 pub struct GameStatePlugin;
 
 impl Plugin for GameStatePlugin {
     fn build(&self, app: &mut App) {
         app.init_state::<AppState>()
+            .init_resource::<Inventory>()
             .add_systems(OnEnter(AppState::Boot), advance_to_title)
             .add_systems(Update, start_from_title.run_if(in_state(AppState::Title)))
             .add_systems(Update, handle_playing_input.run_if(in_state(AppState::Playing)))
@@ -42,9 +47,15 @@ fn handle_playing_input(
 fn handle_paused_input(
     actions: Res<InputActions>,
     mut next_state: ResMut<NextState<AppState>>,
+    mut inventory: ResMut<Inventory>,
 ) {
     if actions.pause || actions.confirm || actions.cancel {
         next_state.set(AppState::Playing);
+    } else if actions.attack {
+        inventory.equipped = match inventory.equipped {
+            None => EquippedItem::ALL.first().copied(),
+            Some(item) => item.next(),
+        };
     }
 }
 

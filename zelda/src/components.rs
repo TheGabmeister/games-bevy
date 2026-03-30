@@ -76,3 +76,13 @@ pub struct InvulnerabilityTimer(pub Timer);
 
 #[derive(Component, Deref, DerefMut)]
 pub struct Lifetime(pub Timer);
+
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PickupKind {
+    Rupee,
+    FiveRupees,
+    Heart,
+    Bomb,
+    Key,
+    HeartContainer,
+}

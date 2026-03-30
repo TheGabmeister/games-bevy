@@ -10,7 +10,7 @@ use crate::{
     input::InputActions,
     player::PlayerSet,
     rendering::{color_material, rectangle_mesh, WorldColor},
-    resources::{CurrentRoom, PlayerVitals, RoomId, RoomTransitionState},
+    resources::{CurrentRoom, Inventory, PlayerVitals, RoomId, RoomTransitionState},
     states::AppState,
 };
 
@@ -68,8 +68,10 @@ fn reset_player_session(
     mut player_vitals: ResMut<PlayerVitals>,
     mut current_room: ResMut<CurrentRoom>,
     mut transition: ResMut<RoomTransitionState>,
+    mut inventory: ResMut<Inventory>,
 ) {
     *player_vitals = PlayerVitals::default();
+    *inventory = Inventory::default();
     current_room.id = RoomId::OverworldCenter;
     transition.locked = false;
     transition.direction = None;
