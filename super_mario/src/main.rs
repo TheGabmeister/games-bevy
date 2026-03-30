@@ -60,12 +60,16 @@ fn setup(
 
 fn player_input(
     keyboard: Res<ButtonInput<KeyCode>>,
-    mut query: Query<(&mut Velocity, &mut FacingDirection), With<Player>>,
+    time: Res<Time>,
+    mut query: Query<(&mut Velocity, &mut FacingDirection, &Grounded), With<Player>>,
 ) {
-    let Ok((mut vel, mut facing)) = query.single_mut() else {
+    let Ok((mut vel, mut facing, grounded)) = query.single_mut() else {
         return;
     };
 
+    let dt = time.delta_secs();
+
+    // --- Horizontal movement with acceleration/deceleration ---
     let mut dir = 0.0;
     if keyboard.pressed(KeyCode::KeyA) || keyboard.pressed(KeyCode::ArrowLeft) {
         dir -= 1.0;
@@ -82,7 +86,35 @@ fn player_input(
         };
     }
 
-    vel.x = dir * PLAYER_WALK_SPEED;
+    let running = keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
+    let max_speed = if running { PLAYER_RUN_SPEED } else { PLAYER_WALK_SPEED };
+    let accel = if grounded.0 { PLAYER_ACCELERATION } else { PLAYER_AIR_ACCELERATION };
+
+    if dir != 0.0 {
+        vel.x += dir * accel * dt;
+        vel.x = vel.x.clamp(-max_speed, max_speed);
+    } else if grounded.0 {
+        let decel = PLAYER_DECELERATION * dt;
+        if vel.x.abs() < decel {
+            vel.x = 0.0;
+        } else {
+            vel.x -= decel * vel.x.signum();
+        }
+    }
+
+    // --- Jumping ---
+    if (keyboard.just_pressed(KeyCode::Space) || keyboard.just_pressed(KeyCode::ArrowUp))
+        && grounded.0
+    {
+        vel.y = PLAYER_JUMP_IMPULSE;
+    }
+
+    // Variable-height jump: cut upward velocity on early release
+    if (keyboard.just_released(KeyCode::Space) || keyboard.just_released(KeyCode::ArrowUp))
+        && vel.y > 0.0
+    {
+        vel.y *= JUMP_CUT_MULTIPLIER;
+    }
 }
 
 fn apply_gravity(

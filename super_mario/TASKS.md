@@ -14,11 +14,11 @@ Ordered for incremental learning. Each task produces a runnable game with visibl
 - [x] **1.4** Spawn Mario as a red rectangle (14×16) near the bottom of the screen
 - [x] **1.5** Add horizontal movement (left/right input → velocity → position update). Track `FacingDirection`.
 - [x] **1.6** Add gravity — Mario falls, add a ground line (single rectangle across the bottom)
-- [ ] **1.7** Add grounded detection and jumping. Variable-height: apply impulse on press, multiply velocity by ~0.4 on release. Use dual gravity: lower while ascending (600), higher while descending (980).
-- [ ] **1.8** Add acceleration/deceleration to horizontal movement (not instant start/stop)
-- [ ] **1.9** Add run speed — hold Shift for higher max speed (~200 vs ~130 walk)
-- [ ] **1.10** Set up camera projection scale so visible area is ~267×200 world units (tiles render large enough)
-- [ ] **1.11** Enforce system ordering with `.after()` chains: Input → Gravity → Movement → Collision → Grounded check
+- [x] **1.7** Add grounded detection and jumping. Variable-height: apply impulse on press, multiply velocity by ~0.4 on release. Use dual gravity: lower while ascending (600), higher while descending (980).
+- [x] **1.8** Add acceleration/deceleration to horizontal movement (not instant start/stop)
+- [x] **1.9** Add run speed — hold Shift for higher max speed (~200 vs ~130 walk)
+- [x] **1.10** Set up camera projection scale so visible area is ~267×200 world units (tiles render large enough)
+- [x] **1.11** Enforce system ordering with `.after()` chains: Input → Gravity → Movement → Collision → Grounded check
 
 **Milestone**: A red rectangle that runs and jumps on a flat brown floor with momentum, against a blue sky.
 

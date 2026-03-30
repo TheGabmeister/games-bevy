@@ -28,14 +28,27 @@ Dependencies compile at `opt-level = 3` while the main crate uses `opt-level = 1
 
 ## Architecture
 
-This is a template for 2D arcade-style Bevy games. When building out from the hello world starter, follow this modular layout:
+Super Mario Bros clone. Currently in early phase — placeholder geometry (colored rectangles), no sprite assets, no state machine, no tile map yet.
 
-- **`main.rs`** — App setup, plugin registration, system scheduling with explicit ordering
-- **`constants.rs`** — All tunable values as named constants (window size, speeds, radii, scoring)
-- **`components.rs`** — Marker components for entity types + data components (Velocity, FacingDirection, etc.)
+### Current Structure
+
+- **`main.rs`** — App setup and all systems (no plugins yet). Systems run in an explicit `.chain()`: `player_input → apply_gravity → apply_velocity → ground_collision`
+- **`constants.rs`** — All tunable values (window, camera, player dimensions, physics, ground)
+- **`components.rs`** — `Player`, `Ground` (markers), `Velocity`, `FacingDirection`, `Grounded`
+
+### Physics Model
+
+Dual gravity: `GRAVITY_ASCENDING` (600) while rising, `GRAVITY_DESCENDING` (980) while falling — gives the classic Mario "floaty jump, fast fall" feel. Terminal velocity is capped. Ground collision uses a single full-width rectangle at `GROUND_Y`.
+
+### Camera
+
+Uses `OrthographicProjection` scaled to show ~267×200 world units (NES-like resolution) in an 800×600 window. Grid tile size is 16 world units.
+
+### Target Layout (as the game grows)
+
 - **`resources.rs`** — Shared game state (score, lives, wave progression)
 - **`states.rs`** — `AppState` enum driving a state machine (StartScreen → Playing → GameOver)
-- **Domain modules** — One module per gameplay domain (player, enemy, combat, ui, audio, etc.), each exposing a Plugin
+- **Domain modules** — One module per gameplay domain (player, enemy, level, ui, audio, etc.), each exposing a Plugin
 
 ### State Machine Pattern
 
@@ -111,12 +124,6 @@ Asset paths are plain relative strings passed to `asset_server.load(...)` — ke
   ));
   ```
 - `ColorMaterial` has **no** `emissive` field. To make shapes glow with bloom, use `Color` values > 1.0 directly (e.g., `Color::srgb(5.0, 1.0, 0.2)`). The bloom post-process extracts bright regions above its threshold.
-
-### State-Scoped Entities
-
-- `StateScoped` was renamed to `DespawnOnExit<S: States>` (and `DespawnOnEnter<S: States>`).
-- Usage: `commands.spawn((MyComponent, DespawnOnExit(AppState::Playing)));`
-- Entities are automatically despawned when the state exits (or enters, respectively).
 
 ### SubStates
 
