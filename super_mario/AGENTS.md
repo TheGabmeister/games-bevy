@@ -14,7 +14,7 @@ Guidance for coding agents working in `c:\dev\games-bevy\super_mario`.
 - Bevy `0.18.1`
 - `bevy` is enabled with the `dynamic_linking` feature
 - The package name in `Cargo.toml` is currently `bevy_template`
-- Current app state: early Super Mario-style prototype, not a generic Bevy starter and not yet a full platformer implementation
+- Current app state: Phase 3-style Super Mario prototype with tile-map level loading, tile collision, and side-scrolling camera, but no game-state flow, HUD, or enemy gameplay yet
 
 ## Build And Validation
 
@@ -43,9 +43,10 @@ Validation expectations:
 
 ## Current Project Layout
 
-- `src/main.rs`: app setup, startup scene spawning, and current movement/physics systems
-- `src/components.rs`: ECS components such as `Player`, `Velocity`, `FacingDirection`, `Grounded`, and `Ground`
-- `src/constants.rs`: tunable constants for window size, camera scale, physics, player dimensions, and temporary ground dimensions
+- `src/main.rs`: app setup, level/entity spawning, player movement/physics, tile collision, and camera follow systems
+- `src/components.rs`: ECS components such as `Player`, `Velocity`, `FacingDirection`, `Grounded`, `Tile`, and `TileType`
+- `src/constants.rs`: tunable constants for window size, camera behavior, physics, z-layers, tile size, player dimensions, and level origin data
+- `src/level.rs`: level grid resource, grid/world coordinate helpers, solid-tile queries, and the current Level 1-1 layout data
 - `assets/`: available project assets for later phases, not yet wired into the current prototype
 - `TASKS.md`: implementation roadmap for the Mario clone
 - `SPEC.md`: gameplay and behavior spec for future expansion
@@ -53,18 +54,20 @@ Validation expectations:
 
 ## Current Runtime Behavior
 
-The current app is a Phase 1-style platformer prototype:
+The current app is a tile-based platformer prototype covering most of `TASKS.md` Phases 1-3:
 
 - `DefaultPlugins` are registered with a configured primary window.
 - The window is `800x600` and titled `Super Mario Bros`.
-- A `Camera2d` is spawned at startup with an orthographic scale derived from `CAMERA_VISIBLE_HEIGHT`.
 - `ClearColor` is set to a light blue sky tone.
-- Mario is represented by a red rectangle mesh with `Player`, `Velocity`, `FacingDirection`, and `Grounded` components.
-- The ground is represented by a single brown rectangle mesh.
-- Horizontal input supports `A`/`D` and arrow keys.
-- Gravity, velocity integration, and simple ground collision are active.
-- The update pipeline is currently chained as `player_input -> apply_gravity -> apply_velocity -> ground_collision`.
-- Jumping, acceleration/deceleration, tile maps, enemies, states, HUD, and asset-driven rendering are not implemented yet.
+- A `Camera2d` is spawned at startup with an orthographic scale derived from `CAMERA_VISIBLE_HEIGHT`.
+- The camera follows Mario horizontally with smooth lerp, uses a dead-zone offset, never scrolls left, and clamps to level bounds.
+- Level 1-1 data is generated in `src/level.rs` as a `211 x 15` grid and stored as a `LevelGrid` resource.
+- Colored primitive tiles are spawned for ground, bricks, question blocks, solid stair blocks, and pipe segments.
+- Mario spawns at the `S` tile position as a red rectangle mesh with `Player`, `Velocity`, `FacingDirection`, and `Grounded`.
+- Horizontal movement includes acceleration/deceleration, air control, run speed with Shift, jumping, and jump-cut behavior.
+- Gravity, velocity integration, neighborhood-based tile collision, and grounded probing are active.
+- The update pipeline is currently chained as `player_input -> apply_gravity -> apply_velocity -> tile_collision -> camera_follow`.
+- Enemies, HUD, start/game-over states, score/lives/timer resources, item interactions, and asset-driven rendering are not implemented yet.
 
 When making changes, align your work with what actually exists in the repo rather than assuming later phases from `TASKS.md` are already present.
 
@@ -75,9 +78,9 @@ As this prototype grows toward the roadmap in `TASKS.md`, prefer this structure:
 - `src/main.rs`: app setup, plugin registration, and high-level wiring
 - `src/constants.rs`: tunable values such as window size, physics, player speeds, and UI sizing
 - `src/components.rs`: marker and data ECS components shared across domains
+- `src/level.rs`: level data, coordinate helpers, and tile/level spawning support
 - `src/resources.rs`: shared mutable game-wide state once it exists
 - `src/states.rs`: `AppState` and sub-state enums once state flow is introduced
-- `src/level.rs`: level data and tile spawning once tile maps are introduced
 - Domain modules such as `src/player.rs`, `src/camera.rs`, `src/enemy.rs`, `src/ui.rs`, `src/audio.rs`, and `src/combat.rs` as systems grow
 
 Prefer small domain plugins over growing `main.rs` indefinitely once the game has more than a handful of systems.
@@ -95,9 +98,10 @@ Prefer small domain plugins over growing `main.rs` indefinitely once the game ha
 
 - Make the smallest coherent change that solves the task.
 - Do not rewrite working structure just to make it "cleaner".
-- Preserve the existing split between `main.rs`, `components.rs`, and `constants.rs`.
+- Preserve the existing split between `main.rs`, `components.rs`, `constants.rs`, and `level.rs`.
 - Add new tunable values to `src/constants.rs` instead of scattering magic numbers.
 - Add shared marker/data ECS types to `src/components.rs` instead of growing `main.rs` with inline definitions.
+- Keep level layout data and grid/world conversion helpers in `src/level.rs` instead of duplicating them in gameplay systems.
 - Introduce new modules when they clearly own a gameplay domain, not preemptively.
 - Prefer extending the existing system chain or a focused plugin over ad hoc scattered registration.
 - When spawning entities tied to a future state, define the matching cleanup path on `OnExit` if they should not persist.
@@ -105,6 +109,7 @@ Prefer small domain plugins over growing `main.rs` indefinitely once the game ha
 ## UI And Asset Notes
 
 - Current visuals use Bevy 2D primitives (`Rectangle`, `Mesh2d`, `MeshMaterial2d`) rather than sprite assets.
+- The current level is also data-driven through tile characters in `src/level.rs`; keep new level features aligned with that approach unless the task explicitly changes it.
 - Asset loading is not wired up yet; do not assume `AssetServer` is already part of the flow.
 - When assets are introduced, keep paths as plain relative strings passed to `asset_server.load(...)`.
 - Keep asset references aligned with files under `assets/`.
@@ -132,6 +137,7 @@ Prefer small domain plugins over growing `main.rs` indefinitely once the game ha
 - App boot and current gameplay loop: `src/main.rs`
 - Shared ECS types: `src/components.rs`
 - Tunable gameplay values: `src/constants.rs`
+- Level data and grid helpers: `src/level.rs`
 - Build output location: `.cargo/config.toml`
 - Dependency/runtime configuration: `Cargo.toml`
 - Planned feature order: `TASKS.md`

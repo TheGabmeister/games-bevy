@@ -28,21 +28,30 @@ Dependencies compile at `opt-level = 3` while the main crate uses `opt-level = 1
 
 ## Architecture
 
-Super Mario Bros clone. Currently in early phase — placeholder geometry (colored rectangles), no sprite assets, no state machine, no tile map yet.
+Super Mario Bros clone. Placeholder geometry (colored rectangles), no sprite assets, no state machine yet.
 
 ### Current Structure
 
-- **`main.rs`** — App setup and all systems (no plugins yet). Systems run in an explicit `.chain()`: `player_input → apply_gravity → apply_velocity → ground_collision`
-- **`constants.rs`** — All tunable values (window, camera, player dimensions, physics, ground)
-- **`components.rs`** — `Player`, `Ground` (markers), `Velocity`, `FacingDirection`, `Grounded`
+- **`main.rs`** — App setup, all systems (no plugins yet). Systems run in an explicit `.chain()`: `player_input → apply_gravity → apply_velocity → tile_collision → camera_follow`
+- **`constants.rs`** — All tunable values (window, camera, player dimensions, physics, z-layers, level origin)
+- **`components.rs`** — `Player` marker, `Velocity`, `FacingDirection`, `Grounded`, `Tile` marker, `TileType` enum
+- **`level.rs`** — Level 1-1 grid (211×15 chars built programmatically), `LevelGrid` resource for collision lookups, coordinate conversion (`tile_to_world`, `world_to_col`, `world_to_row`)
+
+### Coordinate System
+
+The level grid uses row 0 = top, row 14 = bottom. World space has Y increasing upward. `LEVEL_ORIGIN_X/Y` anchors tile (col=0, row=14) at world position (0, -120). Conversion functions in `level.rs` translate between grid and world coordinates.
+
+### Tile Collision
+
+Collision uses the `LevelGrid` resource (char grid) for O(1) tile lookups — not entity queries. `is_solid()` checks the char directly. The `tile_collision` system converts Mario's AABB to grid neighborhood (~12 tiles), resolves overlaps by smallest-penetration-axis push-out, and uses a 1-pixel grounded probe below Mario's feet.
 
 ### Physics Model
 
-Dual gravity: `GRAVITY_ASCENDING` (600) while rising, `GRAVITY_DESCENDING` (980) while falling — gives the classic Mario "floaty jump, fast fall" feel. Terminal velocity is capped. Ground collision uses a single full-width rectangle at `GROUND_Y`.
+Dual gravity: `GRAVITY_ASCENDING` (600) while rising, `GRAVITY_DESCENDING` (980) while falling — gives the classic Mario "floaty jump, fast fall" feel. Terminal velocity is capped. Horizontal movement uses acceleration/deceleration (not instant). Shift key toggles walk/run speed.
 
 ### Camera
 
-Uses `OrthographicProjection` scaled to show ~267×200 world units (NES-like resolution) in an 800×600 window. Grid tile size is 16 world units.
+Uses `OrthographicProjection` scaled to show ~267×200 world units (NES-like resolution) in an 800×600 window. Camera follows Mario horizontally with a dead zone (scrolls when Mario reaches the right third), never scrolls left (one-way), and clamps to level bounds. Camera Y is fixed.
 
 ### Target Layout (as the game grows)
 

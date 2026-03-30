@@ -249,6 +249,7 @@ fn apply_velocity(
 fn tile_collision(
     level: Res<LevelGrid>,
     mut query: Query<(&mut Velocity, &mut Transform, &mut Grounded), With<Player>>,
+    camera_query: Query<&Transform, (With<Camera2d>, Without<Player>)>,
 ) {
     let Ok((mut vel, mut transform, mut grounded)) = query.single_mut() else {
         return;
@@ -257,6 +258,18 @@ fn tile_collision(
     let half_w = PLAYER_WIDTH / 2.0;
     let half_h = PLAYER_SMALL_HEIGHT / 2.0;
     let tile_half = TILE_SIZE / 2.0;
+
+    // Camera acts as a left wall (like original SMB)
+    if let Ok(camera_tf) = camera_query.single() {
+        let camera_left = camera_tf.translation.x - CAMERA_VISIBLE_WIDTH / 2.0;
+        let min_x = camera_left + half_w;
+        if transform.translation.x < min_x {
+            transform.translation.x = min_x;
+            if vel.x < 0.0 {
+                vel.x = 0.0;
+            }
+        }
+    }
 
     // Neighborhood: columns and rows that could overlap Mario's AABB (with 1-tile margin)
     let col_min = world_to_col(transform.translation.x - half_w) - 1;
