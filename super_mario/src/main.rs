@@ -6,6 +6,7 @@ mod level;
 
 use components::*;
 use constants::*;
+use level::{LEVEL_HEIGHT, LEVEL_WIDTH, level_1_1, tile_to_world};
 
 fn main() {
     App::new()
@@ -39,23 +40,113 @@ fn setup(
         Projection::from(projection),
     ));
 
-    // Mario — red rectangle
+    // Pre-allocate shared mesh/material handles for each tile type
+    let tile_mesh = meshes.add(Rectangle::new(TILE_SIZE, TILE_SIZE));
+    let ground_mat = materials.add(ColorMaterial::from_color(Color::srgb(0.55, 0.27, 0.07)));
+    let brick_mat = materials.add(ColorMaterial::from_color(Color::srgb(0.72, 0.40, 0.10)));
+    let question_mat = materials.add(ColorMaterial::from_color(Color::srgb(0.90, 0.75, 0.10)));
+    let solid_mat = materials.add(ColorMaterial::from_color(Color::srgb(0.45, 0.30, 0.15)));
+    let pipe_mat = materials.add(ColorMaterial::from_color(Color::srgb(0.0, 0.65, 0.15)));
+    let player_mat = materials.add(ColorMaterial::from_color(Color::srgb(0.8, 0.1, 0.1)));
+
+    let grid = level_1_1();
+    let mut spawn_pos = (0.0_f32, 0.0_f32);
+
+    for row in 0..LEVEL_HEIGHT {
+        for col in 0..LEVEL_WIDTH {
+            let ch = grid[row][col];
+            let (wx, wy) = tile_to_world(col, row);
+
+            match ch {
+                '#' => {
+                    commands.spawn((
+                        Tile,
+                        TileType::Ground,
+                        Mesh2d(tile_mesh.clone()),
+                        MeshMaterial2d(ground_mat.clone()),
+                        Transform::from_xyz(wx, wy, Z_TILE),
+                    ));
+                }
+                'B' => {
+                    commands.spawn((
+                        Tile,
+                        TileType::Brick,
+                        Mesh2d(tile_mesh.clone()),
+                        MeshMaterial2d(brick_mat.clone()),
+                        Transform::from_xyz(wx, wy, Z_TILE),
+                    ));
+                }
+                '?' | 'M' => {
+                    commands.spawn((
+                        Tile,
+                        TileType::QuestionBlock,
+                        Mesh2d(tile_mesh.clone()),
+                        MeshMaterial2d(question_mat.clone()),
+                        Transform::from_xyz(wx, wy, Z_TILE),
+                    ));
+                }
+                'X' => {
+                    commands.spawn((
+                        Tile,
+                        TileType::Solid,
+                        Mesh2d(tile_mesh.clone()),
+                        MeshMaterial2d(solid_mat.clone()),
+                        Transform::from_xyz(wx, wy, Z_TILE),
+                    ));
+                }
+                '[' => {
+                    commands.spawn((
+                        Tile,
+                        TileType::PipeTopLeft,
+                        Mesh2d(tile_mesh.clone()),
+                        MeshMaterial2d(pipe_mat.clone()),
+                        Transform::from_xyz(wx, wy, Z_PIPE),
+                    ));
+                }
+                ']' => {
+                    commands.spawn((
+                        Tile,
+                        TileType::PipeTopRight,
+                        Mesh2d(tile_mesh.clone()),
+                        MeshMaterial2d(pipe_mat.clone()),
+                        Transform::from_xyz(wx, wy, Z_PIPE),
+                    ));
+                }
+                '{' => {
+                    commands.spawn((
+                        Tile,
+                        TileType::PipeBodyLeft,
+                        Mesh2d(tile_mesh.clone()),
+                        MeshMaterial2d(pipe_mat.clone()),
+                        Transform::from_xyz(wx, wy, Z_PIPE),
+                    ));
+                }
+                '}' => {
+                    commands.spawn((
+                        Tile,
+                        TileType::PipeBodyRight,
+                        Mesh2d(tile_mesh.clone()),
+                        MeshMaterial2d(pipe_mat.clone()),
+                        Transform::from_xyz(wx, wy, Z_PIPE),
+                    ));
+                }
+                'S' => {
+                    spawn_pos = (wx, wy);
+                }
+                _ => {} // '.', 'G', 'K', 'F' — ignored for now
+            }
+        }
+    }
+
+    // Mario — spawned at the S tile position
     commands.spawn((
         Player,
         Velocity::default(),
         FacingDirection::default(),
         Grounded::default(),
         Mesh2d(meshes.add(Rectangle::new(PLAYER_WIDTH, PLAYER_SMALL_HEIGHT))),
-        MeshMaterial2d(materials.add(ColorMaterial::from_color(Color::srgb(0.8, 0.1, 0.1)))),
-        Transform::from_xyz(0.0, 50.0, 0.0),
-    ));
-
-    // Ground — brown rectangle
-    commands.spawn((
-        Ground,
-        Mesh2d(meshes.add(Rectangle::new(GROUND_WIDTH, GROUND_HEIGHT))),
-        MeshMaterial2d(materials.add(ColorMaterial::from_color(Color::srgb(0.55, 0.27, 0.07)))),
-        Transform::from_xyz(0.0, GROUND_Y, 0.0),
+        MeshMaterial2d(player_mat),
+        Transform::from_xyz(spawn_pos.0, spawn_pos.1, Z_PLAYER),
     ));
 }
 

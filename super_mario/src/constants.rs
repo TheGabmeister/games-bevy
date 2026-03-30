@@ -31,6 +31,19 @@ pub const GROUND_Y: f32 = -80.0;
 pub const GROUND_WIDTH: f32 = 800.0;
 pub const GROUND_HEIGHT: f32 = 16.0;
 
+// Level origin — world position of tile (col=0, row=14) bottom-left corner.
+// Row 14 is the bottom row; row 0 is the top. Y increases upward in world space.
+pub const LEVEL_ORIGIN_X: f32 = 0.0;
+pub const LEVEL_ORIGIN_Y: f32 = -120.0;
+
+// Z-layers (render ordering, back to front)
+pub const Z_DECORATION: f32 = 1.0;
+pub const Z_PIPE: f32 = 2.0;
+pub const Z_TILE: f32 = 3.0;
+pub const Z_ITEM: f32 = 4.0;
+pub const Z_ENEMY: f32 = 5.0;
+pub const Z_PLAYER: f32 = 6.0;
+
 // Physics
 pub const GRAVITY_ASCENDING: f32 = 600.0;
 pub const GRAVITY_DESCENDING: f32 = 980.0;

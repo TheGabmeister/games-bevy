@@ -29,9 +29,9 @@ Ordered for incremental learning. Each task produces a runnable game with visibl
 **You'll learn**: Data-driven level design, tile grids, spawning entities from data, component queries.
 
 - [x] **2.1** Create `level.rs` — define Level 1-1 as a 2D array of tile characters (~210 wide × 15 tall). Include a Mario spawn point (`S`).
-- [ ] **2.2** Create `Tile` marker component and `TileType` enum (Ground, Brick, QuestionBlock, Empty, PipeTopLeft, PipeTopRight, PipeBodyLeft, PipeBodyRight)
-- [ ] **2.3** Write a system that reads the level data and spawns colored rectangles for each tile. Assign z-layers (see SPEC render ordering).
-- [ ] **2.4** Spawn Mario at the `S` tile position instead of a hardcoded location
+- [x] **2.2** Create `Tile` marker component and `TileType` enum (Ground, Brick, QuestionBlock, Empty, PipeTopLeft, PipeTopRight, PipeBodyLeft, PipeBodyRight)
+- [x] **2.3** Write a system that reads the level data and spawns colored rectangles for each tile. Assign z-layers (see SPEC render ordering).
+- [x] **2.4** Spawn Mario at the `S` tile position instead of a hardcoded location
 - [ ] **2.5** Implement tile collision — AABB overlap detection, push-out by smallest penetration axis (vertical first, then horizontal). Only check ~12 tiles in the entity's neighborhood (convert position to grid coords), not all 3,000+ tiles. Mario stands on tiles, bumps into walls, hits ceilings.
 - [ ] **2.6** Remove the old single ground rectangle; level is now fully tile-based
 - [ ] **2.7** Add pipes — parse `[]{}` tile chars, render as green rectangles (lip slightly wider than body), solid and collidable

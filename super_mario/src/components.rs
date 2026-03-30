@@ -21,3 +21,19 @@ pub struct Grounded(pub bool);
 
 #[derive(Component)]
 pub struct Ground;
+
+#[derive(Component)]
+pub struct Tile;
+
+#[derive(Component, Clone, Copy, PartialEq, Eq)]
+pub enum TileType {
+    Ground,
+    Brick,
+    QuestionBlock,
+    Empty,
+    Solid,
+    PipeTopLeft,
+    PipeTopRight,
+    PipeBodyLeft,
+    PipeBodyRight,
+}

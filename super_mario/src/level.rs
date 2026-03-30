@@ -1,3 +1,13 @@
+use crate::constants::*;
+
+/// Convert grid (col, row) to world-space center of that tile.
+/// Row 0 = top, Row 14 = bottom. Y increases upward.
+pub fn tile_to_world(col: usize, row: usize) -> (f32, f32) {
+    let x = LEVEL_ORIGIN_X + col as f32 * TILE_SIZE + TILE_SIZE / 2.0;
+    let y = LEVEL_ORIGIN_Y + (LEVEL_HEIGHT - 1 - row) as f32 * TILE_SIZE + TILE_SIZE / 2.0;
+    (x, y)
+}
+
 /// Level 1-1 tile grid (211 columns × 15 rows).
 ///
 /// Tile legend:
