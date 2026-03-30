@@ -70,5 +70,8 @@ pub const SCORE_DOUBLE: u32 = 300;
 pub const SCORE_TRIPLE: u32 = 500;
 pub const SCORE_TETRIS: u32 = 800;
 
+// Spawn
+pub const SPAWN_COL: i32 = 3;
+
 // Next queue
 pub const NEXT_QUEUE_SIZE: usize = 5;

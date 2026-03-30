@@ -204,10 +204,10 @@ The tasks are ordered for incremental learning: each phase produces something vi
 - [x] Spawn a piece at the top of the board and render it
 
 ### Phase 4: Movement & Input
-- [ ] Implement left/right movement with collision detection against walls and filled cells
-- [ ] Implement DAS (delayed auto-shift) for held keys
-- [ ] Implement soft drop (accelerated gravity)
-- [ ] Implement hard drop (instant placement)
+- [x] Implement left/right movement with collision detection against walls and filled cells
+- [x] Implement DAS (delayed auto-shift) for held keys
+- [x] Implement soft drop (accelerated gravity)
+- [x] Implement hard drop (instant placement)
 
 ### Phase 5: Rotation & Wall Kicks
 - [ ] Implement SRS rotation (CW and CCW)

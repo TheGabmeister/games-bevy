@@ -210,7 +210,7 @@ fn spawn_first_piece(mut commands: Commands, mut bag: ResMut<PieceBag>) {
         kind,
         rotation: RotationState::R0,
         row: kind.spawn_row(),
-        col: 3,
+        col: SPAWN_COL,
     });
 
     // Spawn the 4 cell sprites (initially invisible until sync runs).

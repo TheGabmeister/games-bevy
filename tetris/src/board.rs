@@ -8,6 +8,28 @@ pub struct Board {
     pub cells: [[Option<Color>; GRID_COLS]; GRID_TOTAL_ROWS],
 }
 
+impl Board {
+    /// Check whether all `cells` are in-bounds and unoccupied.
+    pub fn is_valid_cells(&self, cells: &[(i32, i32); 4]) -> bool {
+        cells.iter().all(|&(r, c)| {
+            r >= 0
+                && (r as usize) < GRID_TOTAL_ROWS
+                && c >= 0
+                && (c as usize) < GRID_COLS
+                && self.cells[r as usize][c as usize].is_none()
+        })
+    }
+
+    /// Write `color` into the board at the given cell positions.
+    pub fn lock_cells(&mut self, cells: &[(i32, i32); 4], color: Color) {
+        for &(r, c) in cells {
+            if r >= 0 && (r as usize) < GRID_TOTAL_ROWS && c >= 0 && (c as usize) < GRID_COLS {
+                self.cells[r as usize][c as usize] = Some(color);
+            }
+        }
+    }
+}
+
 impl Default for Board {
     fn default() -> Self {
         Self {

@@ -7,10 +7,12 @@ use bevy::{
 
 mod board;
 mod constants;
+mod input;
 mod tetromino;
 
 use board::BoardPlugin;
 use constants::*;
+use input::InputPlugin;
 use tetromino::TetrominoPlugin;
 
 fn main() {
@@ -24,7 +26,7 @@ fn main() {
             }),
             ..default()
         }))
-        .add_plugins((BoardPlugin, TetrominoPlugin))
+        .add_plugins((BoardPlugin, TetrominoPlugin, InputPlugin))
         .insert_resource(ClearColor(CLEAR_COLOR))
         .add_systems(Startup, setup_camera)
         .run();
