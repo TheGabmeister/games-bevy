@@ -31,20 +31,17 @@ impl Plugin for UiPlugin {
     }
 }
 
-pub fn ui_needs_update(current_room: Res<CurrentRoom>, inventory: Res<PlayerInventory>) -> bool {
+fn ui_needs_update(current_room: Res<CurrentRoom>, inventory: Res<PlayerInventory>) -> bool {
     current_room.is_changed() || inventory.is_changed()
 }
 
-pub fn title_to_playing(
-    keys: Res<ButtonInput<KeyCode>>,
-    mut next_state: ResMut<NextState<AppState>>,
-) {
+fn title_to_playing(keys: Res<ButtonInput<KeyCode>>, mut next_state: ResMut<NextState<AppState>>) {
     if keys.just_pressed(KeyCode::Space) || keys.just_pressed(KeyCode::Enter) {
         next_state.set(AppState::Playing);
     }
 }
 
-pub fn spawn_title(mut commands: Commands) {
+fn spawn_title(mut commands: Commands) {
     commands.spawn((
         Text::new(
             "ADVENTURE\n\nPress SPACE to Start\n\nFind the Enchanted Chalice\nand return it to the Golden Castle",
@@ -66,13 +63,13 @@ pub fn spawn_title(mut commands: Commands) {
     ));
 }
 
-pub fn despawn_title(mut commands: Commands, q: Query<Entity, With<TitleScreen>>) {
+fn despawn_title(mut commands: Commands, q: Query<Entity, With<TitleScreen>>) {
     for entity in q.iter() {
         commands.entity(entity).despawn();
     }
 }
 
-pub fn spawn_ui(mut commands: Commands) {
+fn spawn_ui(mut commands: Commands) {
     commands.spawn((
         Text::new("Room: ANTECHAMBER"),
         TextFont {
@@ -124,13 +121,13 @@ pub fn spawn_ui(mut commands: Commands) {
     ));
 }
 
-pub fn despawn_ui(mut commands: Commands, q: Query<Entity, With<GameUi>>) {
+fn despawn_ui(mut commands: Commands, q: Query<Entity, With<GameUi>>) {
     for entity in q.iter() {
         commands.entity(entity).despawn();
     }
 }
 
-pub fn update_ui(
+fn update_ui(
     current_room: Res<CurrentRoom>,
     world: Res<WorldMap>,
     inventory_items: InventoryItems<'_, '_>,
@@ -150,7 +147,7 @@ pub fn update_ui(
     }
 }
 
-pub fn spawn_game_over(mut commands: Commands) {
+fn spawn_game_over(mut commands: Commands) {
     commands.spawn((
         Text::new("EATEN BY A DRAGON!\n\nPress SPACE to try again"),
         TextFont {
@@ -170,13 +167,13 @@ pub fn spawn_game_over(mut commands: Commands) {
     ));
 }
 
-pub fn despawn_game_over(mut commands: Commands, q: Query<Entity, With<GameOverScreen>>) {
+fn despawn_game_over(mut commands: Commands, q: Query<Entity, With<GameOverScreen>>) {
     for entity in q.iter() {
         commands.entity(entity).despawn();
     }
 }
 
-pub fn spawn_win_screen(mut commands: Commands) {
+fn spawn_win_screen(mut commands: Commands) {
     commands.spawn((
         Text::new("YOU WIN!\n\nThe Enchanted Chalice is yours!\n\nPress SPACE to play again"),
         TextFont {
@@ -196,13 +193,13 @@ pub fn spawn_win_screen(mut commands: Commands) {
     ));
 }
 
-pub fn despawn_win_screen(mut commands: Commands, q: Query<Entity, With<WinScreen>>) {
+fn despawn_win_screen(mut commands: Commands, q: Query<Entity, With<WinScreen>>) {
     for entity in q.iter() {
         commands.entity(entity).despawn();
     }
 }
 
-pub fn restart_game(
+fn restart_game(
     keys: Res<ButtonInput<KeyCode>>,
     mut next_state: ResMut<NextState<crate::AppState>>,
 ) {

@@ -194,3 +194,39 @@ impl<'w, 's> InventoryItems<'w, 's> {
         self.carried_kind() == Some(kind)
     }
 }
+
+// Game messages — sent via `MessageWriter`, read via `MessageReader`.
+// Register with `app.add_message::<M>()` in the plugin that produces them.
+
+#[derive(Message, Debug)]
+#[allow(dead_code)]
+pub struct ItemPickedUp {
+    pub entity: Entity,
+    pub kind: ItemKind,
+}
+
+#[derive(Message, Debug)]
+#[allow(dead_code)]
+pub struct ItemDropped {
+    pub entity: Entity,
+}
+
+#[derive(Message, Debug)]
+#[allow(dead_code)]
+pub struct GateOpened {
+    pub entity: Entity,
+    pub key_color: KeyColor,
+}
+
+#[derive(Message, Debug)]
+#[allow(dead_code)]
+pub struct DragonKilled {
+    pub entity: Entity,
+    pub kind: DragonKind,
+}
+
+#[derive(Message, Debug)]
+#[allow(dead_code)]
+pub struct PlayerSwallowed {
+    pub dragon: Entity,
+}

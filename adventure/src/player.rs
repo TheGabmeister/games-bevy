@@ -8,7 +8,10 @@ pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, compute_wall_bypass.in_set(PlayingSet::Prepare))
+        app.add_message::<ItemPickedUp>()
+            .add_message::<ItemDropped>()
+            .add_message::<GateOpened>()
+            .add_systems(Update, compute_wall_bypass.in_set(PlayingSet::Prepare))
             .add_systems(Update, player_movement.in_set(PlayingSet::Movement))
             .add_systems(
                 Update,
@@ -26,39 +29,7 @@ impl Plugin for PlayerPlugin {
     }
 }
 
-type GroundItemsQuery<'w, 's> = Query<
-    'w,
-    's,
-    (&'static Transform, &'static InRoom, &'static ItemKind),
-    (With<Item>, Without<Carried>, Without<Player>),
->;
-type GroundItemsMutQuery<'w, 's> = Query<
-    'w,
-    's,
-    (
-        Entity,
-        &'static mut Transform,
-        &'static InRoom,
-        &'static ItemKind,
-    ),
-    (With<Item>, Without<Carried>, Without<Player>),
->;
-type PickupItemsQuery<'w, 's> = Query<
-    'w,
-    's,
-    (Entity, &'static Transform, &'static InRoom),
-    (With<Item>, Without<Carried>, Without<Player>),
->;
-type CarriedItemRoomQuery<'w, 's> = Query<
-    'w,
-    's,
-    (&'static mut Transform, &'static mut InRoom),
-    (With<Item>, With<Carried>, Without<Player>),
->;
-type CarriedItemTransformQuery<'w, 's> =
-    Query<'w, 's, &'static mut Transform, (With<Item>, With<Carried>, Without<Player>)>;
-
-pub fn player_movement(
+fn player_movement(
     keys: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
     room_walls: Res<RoomWalls>,
@@ -133,10 +104,13 @@ fn collides_walls(
     })
 }
 
-pub fn compute_wall_bypass(
+fn compute_wall_bypass(
     current_room: Res<CurrentRoom>,
     inventory_items: InventoryItems<'_, '_>,
-    ground_items: GroundItemsQuery<'_, '_>,
+    ground_items: Query<
+        (&Transform, &InRoom, &ItemKind),
+        (With<Item>, Without<Carried>, Without<Player>),
+    >,
     mut bypass: ResMut<WallBypass>,
 ) {
     bypass.bridge = ground_items
@@ -149,12 +123,15 @@ pub fn compute_wall_bypass(
     bypass.easter_egg_north = current_room.0 == 6 && inventory_items.is_carrying(ItemKind::Dot);
 }
 
-pub fn magnet_pull(
+fn magnet_pull(
     time: Res<Time>,
     current_room: Res<CurrentRoom>,
     player_q: Query<&Transform, With<Player>>,
     inventory_items: InventoryItems<'_, '_>,
-    mut items_q: GroundItemsMutQuery<'_, '_>,
+    mut items_q: Query<
+        (Entity, &mut Transform, &InRoom, &ItemKind),
+        (With<Item>, Without<Carried>, Without<Player>),
+    >,
 ) {
     let carrying_magnet = inventory_items.is_carrying(ItemKind::Magnet);
 
@@ -196,12 +173,16 @@ pub fn magnet_pull(
     }
 }
 
-pub fn item_pickup(
+fn item_pickup(
     mut commands: Commands,
     player_q: Query<&Transform, With<Player>>,
     mut inventory: ResMut<PlayerInventory>,
     current_room: Res<CurrentRoom>,
-    items: PickupItemsQuery<'_, '_>,
+    items: Query<
+        (Entity, &Transform, &InRoom, &ItemKind),
+        (With<Item>, Without<Carried>, Without<Player>),
+    >,
+    mut messages: MessageWriter<ItemPickedUp>,
 ) {
     if inventory.item.is_some() {
         return;
@@ -212,25 +193,30 @@ pub fn item_pickup(
     };
     let player_pos = player_transform.translation.truncate();
 
-    for (entity, item_transform, in_room) in items.iter() {
+    for (entity, item_transform, in_room, kind) in items.iter() {
         if in_room.0 != current_room.0 {
             continue;
         }
         if player_pos.distance(item_transform.translation.truncate()) < 20.0 {
             inventory.item = Some(entity);
             commands.entity(entity).insert(Carried);
+            messages.write(ItemPickedUp {
+                entity,
+                kind: *kind,
+            });
             break;
         }
     }
 }
 
-pub fn item_drop(
+fn item_drop(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
     player_q: Query<&Transform, With<Player>>,
     mut inventory: ResMut<PlayerInventory>,
     current_room: Res<CurrentRoom>,
-    mut item_q: CarriedItemRoomQuery<'_, '_>,
+    mut item_q: Query<(&mut Transform, &mut InRoom), (With<Item>, With<Carried>, Without<Player>)>,
+    mut messages: MessageWriter<ItemDropped>,
 ) {
     if !keys.just_pressed(KeyCode::Space) && !keys.just_pressed(KeyCode::KeyE) {
         return;
@@ -249,12 +235,15 @@ pub fn item_drop(
         commands.entity(item_entity).remove::<Carried>();
     }
     inventory.item = None;
+    messages.write(ItemDropped {
+        entity: item_entity,
+    });
 }
 
-pub fn carry_item_follow(
+fn carry_item_follow(
     player_q: Query<&Transform, With<Player>>,
     inventory: Res<PlayerInventory>,
-    mut item_q: CarriedItemTransformQuery<'_, '_>,
+    mut item_q: Query<&mut Transform, (With<Item>, With<Carried>, Without<Player>)>,
 ) {
     let Some(item_entity) = inventory.item else {
         return;
@@ -269,12 +258,13 @@ pub fn carry_item_follow(
     }
 }
 
-pub fn gate_interaction(
+fn gate_interaction(
     mut commands: Commands,
     player_q: Query<&Transform, With<Player>>,
     inventory_items: InventoryItems<'_, '_>,
     current_room: Res<CurrentRoom>,
     mut gates: Query<(Entity, &Transform, &mut GateData, &InRoom), With<Gate>>,
+    mut messages: MessageWriter<GateOpened>,
 ) {
     let Ok(player_transform) = player_q.single() else {
         return;
@@ -292,11 +282,15 @@ pub fn gate_interaction(
         if player_pos.distance(gate_transform.translation.truncate()) < 50.0 {
             gate_data.open = true;
             commands.entity(gate_entity).insert(Visibility::Hidden);
+            messages.write(GateOpened {
+                entity: gate_entity,
+                key_color,
+            });
         }
     }
 }
 
-pub fn check_win(
+fn check_win(
     player_q: Query<&InRoom, With<Player>>,
     inventory_items: InventoryItems<'_, '_>,
     mut next_state: ResMut<NextState<crate::AppState>>,

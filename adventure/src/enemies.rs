@@ -13,7 +13,9 @@ pub struct EnemiesPlugin;
 
 impl Plugin for EnemiesPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
+        app.add_message::<DragonKilled>()
+            .add_message::<PlayerSwallowed>()
+            .add_systems(
             Update,
             (
                 dragon_ai,
@@ -29,63 +31,13 @@ impl Plugin for EnemiesPlugin {
         .add_systems(
             Update,
             swallow_animation.run_if(in_state(AppState::Swallowed)),
-        );
+        )
+        .add_systems(OnExit(AppState::Swallowed), cleanup_swallow);
     }
 }
 
-type LivingDragonQuery<'w, 's> = Query<
-    'w,
-    's,
-    (&'static mut Transform, &'static DragonData, &'static InRoom),
-    (With<Dragon>, With<DragonAlive>, Without<Player>),
->;
-type LivingDragonHeadsQuery<'w, 's> = Query<
-    'w,
-    's,
-    (&'static Transform, &'static Children, &'static InRoom),
-    (With<Dragon>, With<DragonAlive>),
->;
-type DragonHeadTransformQuery<'w, 's> =
-    Query<'w, 's, &'static mut Transform, (With<DragonHead>, Without<Dragon>, Without<Player>)>;
-type LivingDragonCollisionQuery<'w, 's> =
-    Query<'w, 's, (Entity, &'static Transform, &'static InRoom), (With<Dragon>, With<DragonAlive>)>;
-type DeadDragonQuery<'w, 's> = Query<
-    'w,
-    's,
-    (
-        Entity,
-        &'static Transform,
-        &'static InRoom,
-        &'static DragonData,
-        &'static Children,
-    ),
-    (With<Dragon>, Without<DragonAlive>),
->;
-type LivingDragonChildrenQuery<'w, 's> = Query<
-    'w,
-    's,
-    (
-        Entity,
-        &'static Transform,
-        &'static InRoom,
-        &'static Children,
-    ),
-    (With<Dragon>, With<DragonAlive>),
->;
-type FreeItemQuery<'w, 's> = Query<
-    'w,
-    's,
-    (
-        Entity,
-        &'static mut Transform,
-        &'static mut InRoom,
-        &'static mut Visibility,
-    ),
-    (With<Item>, Without<Bat>, Without<Carried>),
->;
-
 #[derive(SystemParam)]
-pub struct DragonVisuals<'w, 's> {
+struct DragonVisuals<'w, 's> {
     dead_material: Res<'w, DeadDragonMaterial>,
     body_q: Query<'w, 's, &'static mut MeshMaterial2d<ColorMaterial>, With<DragonBody>>,
     head_q: Query<
@@ -113,12 +65,15 @@ impl<'w, 's> DragonVisuals<'w, 's> {
     }
 }
 
-pub fn dragon_ai(
+fn dragon_ai(
     time: Res<Time>,
     current_room: Res<CurrentRoom>,
     player_q: Query<&Transform, With<Player>>,
     inventory_items: InventoryItems<'_, '_>,
-    mut dragon_q: LivingDragonQuery<'_, '_>,
+    mut dragon_q: Query<
+        (&mut Transform, &DragonData, &InRoom),
+        (With<Dragon>, With<DragonAlive>, Without<Player>),
+    >,
 ) {
     let Ok(player_transform) = player_q.single() else {
         return;
@@ -152,12 +107,12 @@ pub fn dragon_ai(
     }
 }
 
-pub fn update_dragon_heads(
+fn update_dragon_heads(
     current_room: Res<CurrentRoom>,
-    dragon_q: LivingDragonHeadsQuery<'_, '_>,
+    dragon_q: Query<(&Transform, &Children, &InRoom), (With<Dragon>, With<DragonAlive>)>,
     player_q: Query<&Transform, With<Player>>,
     inventory_items: InventoryItems<'_, '_>,
-    mut head_q: DragonHeadTransformQuery<'_, '_>,
+    mut head_q: Query<&mut Transform, (With<DragonHead>, Without<Dragon>, Without<Player>)>,
 ) {
     let Ok(player_transform) = player_q.single() else {
         return;
@@ -196,13 +151,14 @@ pub fn update_dragon_heads(
     }
 }
 
-pub fn dragon_collision(
+fn dragon_collision(
     mut commands: Commands,
     current_room: Res<CurrentRoom>,
     player_q: Query<&Transform, With<Player>>,
     inventory_items: InventoryItems<'_, '_>,
-    dragon_q: LivingDragonCollisionQuery<'_, '_>,
-    mut next_state: ResMut<NextState<crate::AppState>>,
+    dragon_q: Query<(Entity, &Transform, &InRoom), (With<Dragon>, With<DragonAlive>)>,
+    mut next_state: ResMut<NextState<AppState>>,
+    mut messages: MessageWriter<PlayerSwallowed>,
 ) {
     if inventory_items.is_carrying(ItemKind::Sword) {
         return;
@@ -223,18 +179,21 @@ pub fn dragon_collision(
                 dragon: dragon_entity,
                 timer: Timer::from_seconds(0.8, TimerMode::Once),
             });
-            next_state.set(crate::AppState::Swallowed);
+            messages.write(PlayerSwallowed {
+                dragon: dragon_entity,
+            });
+            next_state.set(AppState::Swallowed);
             return;
         }
     }
 }
 
-pub fn swallow_animation(
+fn swallow_animation(
     time: Res<Time>,
     mut swallow: ResMut<SwallowInfo>,
     mut dragon_q: Query<&mut Transform, With<Dragon>>,
     mut player_q: Query<&mut Visibility, With<Player>>,
-    mut next_state: ResMut<NextState<crate::AppState>>,
+    mut next_state: ResMut<NextState<AppState>>,
 ) {
     swallow.timer.tick(time.delta());
 
@@ -248,14 +207,21 @@ pub fn swallow_animation(
     }
 
     if swallow.timer.just_finished() {
-        next_state.set(crate::AppState::GameOver);
+        next_state.set(AppState::GameOver);
     }
 }
 
-pub fn bat_revive_dragons(
+fn cleanup_swallow(mut commands: Commands) {
+    commands.remove_resource::<SwallowInfo>();
+}
+
+fn bat_revive_dragons(
     mut commands: Commands,
     bat_q: Query<(&Transform, &InRoom), With<Bat>>,
-    dead_dragons: DeadDragonQuery<'_, '_>,
+    dead_dragons: Query<
+        (Entity, &Transform, &InRoom, &DragonData, &Children),
+        (With<Dragon>, Without<DragonAlive>),
+    >,
     mut dragon_visuals: DragonVisuals<'_, '_>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
@@ -277,13 +243,17 @@ pub fn bat_revive_dragons(
     }
 }
 
-pub fn sword_combat(
+fn sword_combat(
     mut commands: Commands,
     current_room: Res<CurrentRoom>,
     player_q: Query<&Transform, With<Player>>,
     inventory_items: InventoryItems<'_, '_>,
-    dragon_q: LivingDragonChildrenQuery<'_, '_>,
+    dragon_q: Query<
+        (Entity, &Transform, &InRoom, &DragonData, &Children),
+        (With<Dragon>, With<DragonAlive>),
+    >,
     mut dragon_visuals: DragonVisuals<'_, '_>,
+    mut messages: MessageWriter<DragonKilled>,
 ) {
     if !inventory_items.is_carrying(ItemKind::Sword) {
         return;
@@ -294,7 +264,7 @@ pub fn sword_combat(
     };
     let player_pos = player_transform.translation.truncate();
 
-    for (dragon_entity, dragon_transform, in_room, children) in dragon_q.iter() {
+    for (dragon_entity, dragon_transform, in_room, data, children) in dragon_q.iter() {
         if in_room.0 != current_room.0 {
             continue;
         }
@@ -303,14 +273,21 @@ pub fn sword_combat(
             commands.entity(dragon_entity).remove::<DragonAlive>();
             let dead_material = dragon_visuals.dead_material().clone();
             dragon_visuals.set_children_material(children, &dead_material);
+            messages.write(DragonKilled {
+                entity: dragon_entity,
+                kind: data.kind,
+            });
         }
     }
 }
 
-pub fn bat_ai(
+fn bat_ai(
     time: Res<Time>,
     mut bat_q: Query<(&mut Transform, &mut InRoom, &mut BatData), With<Bat>>,
-    mut item_q: FreeItemQuery<'_, '_>,
+    mut item_q: Query<
+        (Entity, &mut Transform, &mut InRoom, &mut Visibility),
+        (With<Item>, Without<Bat>, Without<Carried>),
+    >,
     inventory_items: InventoryItems<'_, '_>,
     world: Res<WorldMap>,
 ) {
@@ -339,13 +316,13 @@ pub fn bat_ai(
 
     if bat_data.grab_timer.just_finished() {
         if bat_data.held_item.is_some() {
-            let t = time.elapsed_secs();
-            let target_room = ((t * 17.3).abs() as u8) % world.room_count();
+            let target_room = fastrand::u8(0..world.room_count());
 
             if let Some(held) = bat_data.held_item
                 && let Ok((_, mut item_transform, mut item_room, mut visibility)) =
                     item_q.get_mut(held)
             {
+                let t = time.elapsed_secs();
                 item_transform.translation =
                     Vec3::new((t * 5.1).sin() * 150.0, (t * 4.3).cos() * 100.0, 2.0);
                 item_room.0 = target_room;
@@ -355,7 +332,6 @@ pub fn bat_ai(
 
             bat_room.0 = target_room;
         } else {
-            let t = time.elapsed_secs();
             let items: Vec<Entity> = item_q
                 .iter()
                 .filter(|(entity, _, _, _)| inventory_items.carried_entity() != Some(*entity))
@@ -363,7 +339,7 @@ pub fn bat_ai(
                 .collect();
 
             if !items.is_empty() {
-                let target = items[((t * 11.7).abs() as usize) % items.len()];
+                let target = items[fastrand::usize(0..items.len())];
                 bat_data.held_item = Some(target);
 
                 if let Ok((_, item_transform, item_room, _)) = item_q.get(target) {

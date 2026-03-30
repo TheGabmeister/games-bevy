@@ -21,32 +21,32 @@ impl Plugin for SetupPlugin {
     }
 }
 
-pub fn spawn_camera(mut commands: Commands) {
+fn spawn_camera(mut commands: Commands) {
     commands.spawn(Camera2d);
 }
 
-pub fn init_game_resources(
+fn init_game_resources(
     mut current_room: ResMut<CurrentRoom>,
     mut inventory: ResMut<PlayerInventory>,
     mut room_walls: ResMut<RoomWalls>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut commands: Commands,
 ) {
-    current_room.0 = CurrentRoom::default().0;
-    inventory.item = None;
-    room_walls.0.clear();
+    *current_room = CurrentRoom::default();
+    *inventory = PlayerInventory::default();
+    *room_walls = RoomWalls::default();
     commands.insert_resource(DeadDragonMaterial(
         materials.add(Color::srgb(0.4, 0.4, 0.4)),
     ));
 }
 
-pub fn despawn_game_world(mut commands: Commands, entities: Query<Entity, With<GameEntity>>) {
+fn despawn_game_world(mut commands: Commands, entities: Query<Entity, With<GameEntity>>) {
     for entity in entities.iter() {
         commands.entity(entity).despawn();
     }
 }
 
-pub fn spawn_world(
+fn spawn_world(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,

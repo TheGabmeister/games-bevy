@@ -12,6 +12,8 @@ cargo fmt                      # format
 cargo run                      # launch the game (800x600 window)
 ```
 
+Run a single test: `cargo test test_name` (e.g., `cargo test antechamber_walls`).
+
 Build output goes to `D:/cargo-target-dir` (set in `.cargo/config.toml`). Dev profile uses opt-level 1 for the binary, opt-level 3 for dependencies.
 
 Run `cargo test` when changing room topology, world data, or gameplay rules. Run `cargo clippy -- -D warnings` before finishing non-trivial work.
@@ -48,6 +50,10 @@ New systems must be placed in the appropriate set. If a system depends on anothe
 
 `PlayingEnterSet::Reset -> SpawnWorld -> RoomState -> Ui`
 
+### Game Messages
+
+Discrete gameplay occurrences are broadcast as buffered messages (`#[derive(Message)]` in `components.rs`): `ItemPickedUp`, `ItemDropped`, `GateOpened`, `DragonKilled`, `PlayerSwallowed`. Producers send via `MessageWriter<M>`, consumers read via `MessageReader<M>`. Each message type is registered with `app.add_message::<M>()` in the plugin that produces it (PlayerPlugin or EnemiesPlugin).
+
 ## Conventions
 
 - Tag gameplay entities with `GameEntity` for automatic cleanup on return to title screen.
@@ -56,6 +62,8 @@ New systems must be placed in the appropriate set. If a system depends on anothe
 - Prefer `OnEnter`/`OnExit` for spawn/cleanup symmetry.
 - Prefer change detection or `run_if(...)` when updates only need to happen after state changes.
 - Keep the smallest coherent change; don't bundle unrelated refactors.
+- System functions are module-private (`fn`, not `pub fn`); only plugin structs are `pub`.
+- `#![allow(clippy::type_complexity)]` is set crate-wide; inline query types in system params rather than using type aliases.
 
 ## Gameplay Invariants
 

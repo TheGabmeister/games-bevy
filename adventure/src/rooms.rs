@@ -25,18 +25,17 @@ impl Plugin for RoomsPlugin {
     }
 }
 
-type GatePresenceQuery<'w, 's> =
-    Query<'w, 's, (&'static GateData, &'static InRoom), (With<Gate>, Without<Player>)>;
-
-pub fn current_room_changed(current_room: Res<CurrentRoom>) -> bool {
+fn current_room_changed(current_room: Res<CurrentRoom>) -> bool {
     current_room.is_changed()
 }
 
-pub fn spawn_room_walls(
+fn spawn_room_walls(
     mut commands: Commands,
     current_room: Res<CurrentRoom>,
     world: Res<WorldMap>,
     mut room_walls: ResMut<RoomWalls>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
     old_walls: Query<Entity, With<RoomWallMarker>>,
 ) {
     for entity in old_walls.iter() {
@@ -44,13 +43,12 @@ pub fn spawn_room_walls(
     }
 
     let walls = build_room_walls(world.room(current_room.0));
+    let wall_material = materials.add(Color::srgb(0.5, 0.5, 0.5));
 
     for wall in &walls {
         commands.spawn((
-            Sprite::from_color(
-                Color::srgb(0.5, 0.5, 0.5),
-                Vec2::new(wall.hw * 2.0, wall.hh * 2.0),
-            ),
+            Mesh2d(meshes.add(Rectangle::new(wall.hw * 2.0, wall.hh * 2.0))),
+            MeshMaterial2d(wall_material.clone()),
             Transform::from_xyz(wall.x, wall.y, 1.0),
             GameEntity,
             RoomWallMarker,
@@ -60,7 +58,7 @@ pub fn spawn_room_walls(
     room_walls.0 = walls;
 }
 
-pub fn update_background_color(
+fn update_background_color(
     current_room: Res<CurrentRoom>,
     world: Res<WorldMap>,
     mut clear_color: ResMut<ClearColor>,
@@ -68,7 +66,7 @@ pub fn update_background_color(
     clear_color.0 = world.room(current_room.0).color;
 }
 
-pub fn update_visibility(
+fn update_visibility(
     current_room: Res<CurrentRoom>,
     mut q: Query<(&InRoom, &mut Visibility), Without<Carried>>,
 ) {
@@ -81,11 +79,11 @@ pub fn update_visibility(
     }
 }
 
-pub fn room_transition(
+fn room_transition(
     mut player_q: Query<(&mut Transform, &mut InRoom), With<Player>>,
     world: Res<WorldMap>,
     mut current_room: ResMut<CurrentRoom>,
-    gates: GatePresenceQuery<'_, '_>,
+    gates: Query<(&GateData, &InRoom), (With<Gate>, Without<Player>)>,
     inventory_items: InventoryItems<'_, '_>,
 ) {
     let Ok((mut transform, mut player_room)) = player_q.single_mut() else {
