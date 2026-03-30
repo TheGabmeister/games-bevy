@@ -7,19 +7,35 @@ use crate::constants;
 #[derive(Resource, Default)]
 pub struct Score(pub u32);
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Resource, Clone, Copy, Debug)]
+pub struct PlayerVitals {
+    pub current_health: u8,
+    pub max_health: u8,
+}
+
+impl Default for PlayerVitals {
+    fn default() -> Self {
+        Self {
+            current_health: 6,
+            max_health: 6,
+        }
+    }
+}
+
+impl PlayerVitals {
+    pub fn continue_health(self) -> u8 {
+        self.max_health.min(6)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum RoomId {
+    #[default]
     OverworldCenter,
     OverworldNorth,
     OverworldSouth,
     OverworldEast,
     OverworldWest,
-}
-
-impl Default for RoomId {
-    fn default() -> Self {
-        Self::OverworldCenter
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

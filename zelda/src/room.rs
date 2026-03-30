@@ -3,7 +3,10 @@ use bevy::prelude::*;
 
 use crate::{
     collision::CollisionSet,
-    components::{Door, Player, RoomEntity, SolidBody, StaticBlocker, Wall},
+    components::{
+        Damage, Door, Enemy, Health, Hitbox, Hurtbox, Player, RoomEntity, SolidBody,
+        StaticBlocker, Wall,
+    },
     constants,
     input::InputActions,
     resources::{
@@ -90,6 +93,7 @@ impl Plugin for RoomPlugin {
             )
             .add_systems(OnEnter(AppState::Playing), ensure_room_loaded)
             .add_systems(OnEnter(AppState::Title), cleanup_room_entities)
+            .add_systems(OnEnter(AppState::GameOver), cleanup_room_entities)
             .add_systems(Update, tick_room_transition_state.in_set(RoomSet::TransitionTick))
             .add_systems(
                 Update,
@@ -257,6 +261,7 @@ fn spawn_room(
     spawn_perimeter_walls(commands, meshes, materials, room);
     spawn_door_markers(commands, meshes, materials, room);
     spawn_test_obstacles(commands, meshes, materials, room);
+    spawn_test_enemies(commands, meshes, materials, room);
     spawn_test_pickups(commands, meshes, materials, persistence, room);
     spawn_secret_entities(commands, meshes, materials, persistence, room);
 }
@@ -554,6 +559,40 @@ fn spawn_test_pickups(
             constants::render_layers::PICKUPS,
         ),
     ));
+}
+
+fn spawn_test_enemies(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<ColorMaterial>,
+    room: RoomId,
+) {
+    let enemy_positions: &[Vec2] = match room {
+        RoomId::OverworldCenter => &[Vec2::new(0.0, constants::ROOM_ORIGIN.y + 24.0)],
+        RoomId::OverworldNorth => &[Vec2::new(46.0, constants::ROOM_ORIGIN.y - 18.0)],
+        RoomId::OverworldSouth => &[Vec2::new(-46.0, constants::ROOM_ORIGIN.y + 18.0)],
+        RoomId::OverworldEast => &[Vec2::new(-12.0, constants::ROOM_ORIGIN.y)],
+        RoomId::OverworldWest => &[Vec2::new(12.0, constants::ROOM_ORIGIN.y)],
+    };
+
+    for &position in enemy_positions {
+        commands.spawn((
+            Name::new("TestEnemy"),
+            RoomEntity,
+            Enemy,
+            Health::new(1),
+            Damage(1),
+            Hitbox {
+                half_size: Vec2::splat(8.0),
+            },
+            Hurtbox {
+                half_size: Vec2::splat(8.0),
+            },
+            circle_mesh(meshes, 8.0),
+            color_material(materials, WorldColor::Enemy),
+            Transform::from_xyz(position.x, position.y, constants::render_layers::ENTITIES),
+        ));
+    }
 }
 
 fn spawn_secret_entities(

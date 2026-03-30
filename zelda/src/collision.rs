@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::{
-    components::{Player, SolidBody, StaticBlocker, Velocity},
+    components::{Knockback, Player, SolidBody, StaticBlocker, Velocity},
     player::PlayerSet,
     states::AppState,
 };
@@ -27,15 +27,15 @@ impl Plugin for CollisionPlugin {
 
 fn apply_player_velocity_with_static_collision(
     time: Res<Time>,
-    mut movers: Query<(&mut Transform, &Velocity, &SolidBody), With<Player>>,
+    mut movers: Query<(&mut Transform, &Velocity, &mut Knockback, &SolidBody), With<Player>>,
     blockers: Query<(&Transform, &SolidBody), (With<StaticBlocker>, Without<Player>)>,
 ) {
-    let Ok((mut transform, velocity, body)) = movers.single_mut() else {
+    let Ok((mut transform, velocity, mut knockback, body)) = movers.single_mut() else {
         return;
     };
 
     let mut position = transform.translation.truncate();
-    let delta = velocity.0 * time.delta_secs();
+    let delta = (velocity.0 + knockback.velocity) * time.delta_secs();
 
     position.x += delta.x;
     for (blocker_transform, blocker_body) in &blockers {
@@ -63,6 +63,11 @@ fn apply_player_velocity_with_static_collision(
 
     transform.translation.x = position.x;
     transform.translation.y = position.y;
+
+    knockback.velocity = knockback.velocity.lerp(Vec2::ZERO, 10.0 * time.delta_secs());
+    if knockback.velocity.length_squared() < 1.0 {
+        knockback.velocity = Vec2::ZERO;
+    }
 }
 
 fn aabb_overlap(a_pos: Vec2, a_half: Vec2, b_pos: Vec2, b_half: Vec2) -> bool {

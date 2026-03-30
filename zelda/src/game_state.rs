@@ -13,7 +13,8 @@ impl Plugin for GameStatePlugin {
             .add_systems(
                 Update,
                 handle_paused_input.run_if(in_state(AppState::PausedInventory)),
-            );
+            )
+            .add_systems(Update, handle_game_over_input.run_if(in_state(AppState::GameOver)));
     }
 }
 
@@ -44,5 +45,16 @@ fn handle_paused_input(
 ) {
     if actions.pause || actions.confirm || actions.cancel {
         next_state.set(AppState::Playing);
+    }
+}
+
+fn handle_game_over_input(
+    actions: Res<InputActions>,
+    mut next_state: ResMut<NextState<AppState>>,
+) {
+    if actions.confirm || actions.attack {
+        next_state.set(AppState::Playing);
+    } else if actions.cancel {
+        next_state.set(AppState::Title);
     }
 }

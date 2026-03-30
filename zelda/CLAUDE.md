@@ -23,42 +23,81 @@ Dependencies compile at `opt-level = 3` while the main crate uses `opt-level = 1
 
 ## Tech Stack
 
-- **Bevy 0.18.1** (with `dynamic_linking` feature) — ECS game engine
+- **Bevy 0.18.1** — ECS game engine
 - **Rust Edition 2024**
 
 ## Architecture
 
-This is a template for 2D arcade-style Bevy games. It uses one-plugin-per-domain organization.
+Zelda-like top-down action game using primitive 2D shapes (no sprite assets). One-plugin-per-domain organization.
 
-- **`main.rs`** — App setup, plugin registration, camera + placeholder UI spawn
-- **`constants.rs`** — All tunable values as named constants (window size, speeds, radii, scoring)
-- **`components.rs`** — Marker components for entity types + data components (Velocity, etc.)
-- **`resources.rs`** — Shared game state (Score, etc.)
-- **`states.rs`** — `AppState` enum driving a state machine (StartScreen → Playing → GameOver)
-- **`input.rs`** — `InputPlugin` with keyboard/gamepad input mapped to an `InputActions` resource
-- **`player.rs`**, **`enemy.rs`**, **`collision.rs`**, **`ui.rs`**, **`audio.rs`** — Stub domain plugins (empty `build()`) ready to be filled in
+### Plugin Map
 
-### State Machine Pattern
+| Plugin | File | Role |
+|--------|------|------|
+| `GameStatePlugin` | `game_state.rs` | State transitions (Boot→Title→Playing⇄Paused/GameOver) |
+| `CameraPlugin` | `camera.rs` | Fixed orthographic camera, `ScalingMode::FixedVertical(240)` |
+| `PrimitiveRenderingPlugin` | `rendering.rs` | Color palette, mesh/material spawn helpers, Z-layer constants |
+| `RoomPlugin` | `room.rs` | Room loading, transitions, perimeter walls, doors, obstacles, pickups, secrets |
+| `InputPlugin` | `input.rs` | Keyboard + gamepad → `InputActions` resource |
+| `PlayerPlugin` | `player.rs` | Player spawn, movement, facing indicator |
+| `CombatPlugin` | `combat.rs` | Sword attacks, damage resolution, knockback, invulnerability, death |
+| `CollisionPlugin` | `collision.rs` | AABB overlap, split-axis movement vs `StaticBlocker` entities |
+| `UiPlugin` | `ui.rs` | Screen overlays (title, playing HUD, pause, game over) |
+| `EnemyPlugin` | `enemy.rs` | Stub — enemies are spawned by rooms but have no AI |
+| `AudioPlugin` | `audio.rs` | Stub — no sound |
 
-Systems should be state-aware:
+### Shared Modules (no plugin)
+
+- **`constants.rs`** — All tunable values: room dimensions (256×176), HUD height (64), window scale (4×), collision unit (8), door anchors, entry offsets, Z-depth layers
+- **`components.rs`** — All ECS components: `Player`, `Enemy`, `Wall`, `Door`, `StaticBlocker`, `Velocity`, `Health`, `Facing`, `Hitbox`/`Hurtbox`/`SolidBody`, `Damage`, `Knockback`, `SwordAttack`, `InvulnerabilityTimer`, `Lifetime`, `RoomEntity`
+- **`resources.rs`** — Global state: `Score`, `PlayerVitals`, `CurrentRoom`, `RoomTransitionState`, `RoomPersistence`, `RoomId` enum, `ExitDirection` enum
+- **`states.rs`** — `AppState` enum: `Boot`, `Title`, `Playing`, `PausedInventory`, `GameOver`
+
+### State Machine Flow
+
+```
+Boot → Title → Playing ⇄ PausedInventory
+                  ↓
+              GameOver → Playing (continue) or Title (quit)
+```
+
 - Gate gameplay systems with `.run_if(in_state(AppState::Playing))`
 - Use `OnEnter`/`OnExit` for spawn/cleanup symmetry
-- Prefer `DespawnOnExit(AppState::Playing)` on entities that should auto-despawn when leaving a state — this eliminates most manual cleanup systems
-- Use `.after()` chains where frame ordering matters; for 10+ systems, group into `SystemSet`s (e.g., `MovementSet`, `CollisionSet`) and order at the set level
+- Prefer `DespawnOnExit(AppState::Playing)` on entities that should auto-despawn when leaving a state
 
-### Messages and Observers
+### Room System
 
-- `EventWriter<T>`, `EventReader<T>`, and `App::add_event::<T>()` were **renamed** in Bevy 0.17. Use the new names:
-  - `MessageWriter<M>` / `MessageReader<M>` for buffered inter-system messaging
-  - `App::add_message::<M>()` to register a message type
-  - Messages still auto-double-buffer and clean up — do **not** roll your own `Resource<Vec<T>>` workaround.
-- Use `Observer` and `Trigger` for one-shot reactions to entity lifecycle or custom game events — these replace boilerplate `Added<T>`/`RemovedComponents<T>` query patterns.
+5 overworld rooms (`RoomId` enum): Center, North, South, East, West. Each room spawns: floor, perimeter walls with door openings, obstacles (`StaticBlocker`), enemies, pickups.
 
-### Timers
+- **Transitions**: triggered when player crosses room edge (6-unit padding). Locked for 0.2s to prevent re-entry. Player repositioned at inverse door entry.
+- **Persistence** (`RoomPersistence`): unique pickups stay collected, secrets stay revealed, temporary pickups reset on re-entry.
+- **Messages**: `LoadRoomMessage` requests load, `RoomLoadedMessage` confirms completion.
 
-Use `Timer` with `Res<Time>` for cooldowns, spawn intervals, and delays — do not use frame-counting. Store timers in components (per-entity) or resources (global). Tick them with `timer.tick(time.delta())` each frame.
-- The check method is `timer.is_finished()`, **not** `timer.finished()` (`finished` is a private field).
-- `WindowResolution` is **not in the prelude** — import with `use bevy::window::WindowResolution;`.
+### Combat System Ordering
+
+Systems are grouped into `SystemSet`s executed in order:
+1. `AttackSpawn` — sword entity created on attack input
+2. `AttackResolve` — tick lifetimes, detect sword↔hurtbox AABB overlap
+3. `Damage` — tick invulnerability, resolve enemy contact → player damage + knockback
+4. `Death` — check player health → GameOver transition
+
+Sword: lives 0.12s, despawns after one hit or timeout. Player invulnerability: 0.75s after hit. Knockback: 140 units/s, decayed via lerp.
+
+### Collision
+
+Split-axis AABB: velocity applied X then Y separately against all `StaticBlocker` entities, allowing wall-sliding. Player pushed to blocker edge on overlap.
+
+### Screen Layout
+
+- Screen center is world origin (0, 0)
+- Room shifted down by HUD height: `ROOM_ORIGIN = (0, -32)`
+- HUD strip at top of screen
+- Perimeter walls are 16 units thick; door openings are 32 units wide
+- Entry offsets 24 units inside from door anchors
+
+### Z-Depth Layers (`render_layers` module in constants.rs)
+
+Background (-20) → Floor (0) → Walls (10) → Entities (20) → Pickups (30) → Projectiles (40) → UI Background (90) → UI (100) → Debug (200)
 
 ### Coding Rules
 
@@ -66,71 +105,47 @@ Use `Timer` with `Res<Time>` for cooldowns, spawn intervals, and delays — do n
 - New shared mutable game state goes in `resources.rs`
 - New ECS marker/data types go in `components.rs`
 - Prefer extending an existing domain plugin over registering ad hoc systems in `main.rs`
-- Use marker components for entity classification (e.g., `#[derive(Component)] struct Player;`)
-
-### Query Filters
-
-Use Bevy's query filters for performance and correctness:
-- `With<T>`/`Without<T>` to narrow queries without reading a component's data
-- `Changed<T>` to run logic only when a component is mutated
-- `Added<T>` to detect newly added components
-
-### Assets
-
-Asset paths are plain relative strings passed to `asset_server.load(...)` — keep them aligned with files under `assets/`. Store `Handle<T>` in a resource when an asset is used repeatedly to avoid redundant loads. 
+- Use `.after()` chains where frame ordering matters; for 10+ systems, group into `SystemSet`s and order at the set level
 
 ## Bevy 0.18.1 API Notes
 
 - `despawn()` is recursive by default — do **not** use `despawn_recursive()` (removed).
 - `WindowResolution::new(width, height)` takes `u32`, not `f32`. Cast with `as u32` if constants are `f32`.
+- `WindowResolution` is **not in the prelude** — import with `use bevy::window::WindowResolution;`.
 - `OrthographicProjection` is **not** a standalone `Component` — it is wrapped in `Projection` (an enum). To set a custom orthographic projection on a camera, build the struct and convert: `Projection::from(OrthographicProjection { scale: 0.33, ..OrthographicProjection::default_2d() })`. Spawn it alongside `Camera2d` to override the default.
 - `ScalingMode` is in `bevy::camera::ScalingMode`, not `bevy::render::camera`.
 - Use `ApplyDeferred` (struct) not `apply_deferred` (no such function) for command flushing between systems.
 - 2D rendering uses `Camera2d`, `Mesh2d`, `MeshMaterial2d`, `Sprite`.
-- `ChildBuilder` no longer exists — it was replaced by `ChildSpawnerCommands` (which **is** in the prelude). The `.with_children(|parent| { ... })` pattern still works; the closure parameter is now `&mut ChildSpawnerCommands`. Nested `.with_children` calls may fail type inference — flatten children under one parent instead.
+- `ChildBuilder` no longer exists — replaced by `ChildSpawnerCommands` (in the prelude). The `.with_children(|parent| { ... })` pattern still works; the closure parameter is now `&mut ChildSpawnerCommands`. Nested `.with_children` calls may fail type inference — flatten children under one parent instead.
 - `ColorMaterial::from_color(color)` works for creating `ColorMaterial` from a `Color`.
-- `Text2d::new("text")` works for world-space text (score popups, etc.), paired with `TextFont` and `TextColor`.
-- Primitive 2D shapes for `Mesh2d`: `Circle::new(radius)`, `Capsule2d::new(radius, middle_length)`, `RegularPolygon::new(circumradius, sides)`, `Ellipse::new(half_w, half_h)`. The capsule is vertical by default — rotate with `Quat::from_rotation_z(FRAC_PI_2)` for horizontal.
-- Systems with many parameters (6+) still work with `.after()` ordering as long as all parameter types resolve correctly.
+- `Text2d::new("text")` for world-space text, paired with `TextFont` and `TextColor`.
+- Primitive 2D shapes for `Mesh2d`: `Circle::new(radius)`, `Capsule2d::new(radius, middle_length)`, `RegularPolygon::new(circumradius, sides)`, `Ellipse::new(half_w, half_h)`.
+
+### Events / Messages
+
+- `EventWriter<T>`, `EventReader<T>`, `App::add_event::<T>()` were **renamed** in Bevy 0.17+:
+  - `MessageWriter<M>` / `MessageReader<M>` for buffered inter-system messaging
+  - `App::add_message::<M>()` to register a message type
+- Use `Observer` and `Trigger` for one-shot reactions to entity lifecycle or custom game events.
+
+### Timers
+
+Use `Timer` with `Res<Time>` for cooldowns and delays — not frame-counting. The check method is `timer.is_finished()`, **not** `timer.finished()` (`finished` is a private field).
 
 ### Bloom / HDR
 
 - The bloom component is `Bloom`, not `BloomSettings` (renamed).
 - Import: `use bevy::{core_pipeline::tonemapping::{DebandDither, Tonemapping}, post_process::bloom::Bloom};`
 - `Bloom` has presets: `Bloom::NATURAL`, `Bloom::OLD_SCHOOL`, `Bloom::ANAMORPHIC`.
-- Camera setup for bloom:
-  ```rust
-  commands.spawn((
-      Camera2d,
-      Camera {
-          clear_color: ClearColorConfig::Custom(Color::BLACK),
-          ..default()
-      },
-      Tonemapping::TonyMcMapface,
-      Bloom::default(),
-      DebandDither::Enabled,
-  ));
-  ```
-- `ColorMaterial` has **no** `emissive` field. To make shapes glow with bloom, use `Color` values > 1.0 directly (e.g., `Color::srgb(5.0, 1.0, 0.2)`). The bloom post-process extracts bright regions above its threshold.
+- `ColorMaterial` has **no** `emissive` field. Use `Color` values > 1.0 directly for glow.
 
 ### State-Scoped Entities
 
 - `StateScoped` was renamed to `DespawnOnExit<S: States>` (and `DespawnOnEnter<S: States>`).
 - Usage: `commands.spawn((MyComponent, DespawnOnExit(AppState::Playing)));`
-- Entities are automatically despawned when the state exits (or enters, respectively).
 
 ### SubStates
 
-- Define with `#[derive(SubStates)]` and a `#[source(ParentState = ParentState::Variant)]` attribute:
-  ```rust
-  #[derive(SubStates, Clone, PartialEq, Eq, Hash, Debug, Default)]
-  #[source(AppState = AppState::Playing)]
-  enum PlayState {
-      #[default]
-      Running,
-      Paused,
-  }
-  ```
+- Define with `#[derive(SubStates)]` and `#[source(ParentState = ParentState::Variant)]`.
 - Register: `app.init_state::<AppState>().add_sub_state::<PlayState>();`
-- Sub-states only exist when the source state matches; they are removed automatically otherwise.
-- `ComputedStates` also exists for read-only derived states (`app.add_computed_state::<T>()`).
+- Sub-states only exist when the source state matches; removed automatically otherwise.

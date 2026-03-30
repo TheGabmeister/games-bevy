@@ -2,12 +2,12 @@ use bevy::prelude::*;
 
 use crate::{
     components::{
-        Facing, Health, Hitbox, Hurtbox, Knockback, MoveSpeed, Player, RoomEntity, SolidBody,
-        Velocity,
+        Facing, Health, Hitbox, Hurtbox, InvulnerabilityTimer, Knockback, MoveSpeed, Player,
+        RoomEntity, SolidBody, Velocity,
     },
     constants,
     input::InputActions,
-    resources::RoomTransitionState,
+    resources::{PlayerVitals, RoomTransitionState},
     rendering::{circle_mesh, color_material, WorldColor},
     room::RoomLoadedMessage,
     states::AppState,
@@ -49,11 +49,14 @@ impl Plugin for PlayerPlugin {
 fn spawn_player_on_room_load(
     mut commands: Commands,
     mut room_loaded: MessageReader<RoomLoadedMessage>,
+    player_vitals: Res<PlayerVitals>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     for message in room_loaded.read() {
         let _room = message.room;
+        let mut invulnerability = Timer::from_seconds(0.0, TimerMode::Once);
+        invulnerability.set_elapsed(invulnerability.duration());
 
         commands
             .spawn((
@@ -63,7 +66,10 @@ fn spawn_player_on_room_load(
                 Velocity::default(),
                 MoveSpeed(PLAYER_SPEED),
                 Facing::Down,
-                Health::new(6),
+                Health {
+                    current: player_vitals.current_health,
+                    max: player_vitals.max_health,
+                },
                 Hitbox {
                     half_size: Vec2::splat(PLAYER_RADIUS),
                 },
@@ -74,6 +80,7 @@ fn spawn_player_on_room_load(
                     half_size: Vec2::splat(PLAYER_RADIUS),
                 },
                 Knockback::default(),
+                InvulnerabilityTimer(invulnerability),
                 circle_mesh(meshes.as_mut(), PLAYER_RADIUS),
                 color_material(materials.as_mut(), WorldColor::Player),
                 Transform::from_xyz(

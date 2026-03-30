@@ -4,6 +4,7 @@ use bevy::window::WindowResolution;
 mod audio;
 mod camera;
 mod collision;
+mod combat;
 mod components;
 mod constants;
 mod enemy;
@@ -36,6 +37,7 @@ fn main() {
             input::InputPlugin,
             player::PlayerPlugin,
             enemy::EnemyPlugin,
+            combat::CombatPlugin,
             collision::CollisionPlugin,
             ui::UiPlugin,
             audio::AudioPlugin,

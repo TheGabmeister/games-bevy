@@ -523,8 +523,8 @@ Use this as the main backlog. Each item should produce a playable improvement an
 - [x] Implement a basic overworld test room using primitive walls and doors.
 - [x] Implement screen-edge transitions between adjacent overworld rooms.
 - [x] Add room-boundary locking during transitions so the player cannot break screen flow.
-- [ ] Implement sword attacks with hit timing and short-lived attack entities.
-- [ ] Implement player damage, knockback, invulnerability, death, respawn, and continue flow with explicit reset rules.
+- [x] Implement sword attacks with hit timing and short-lived attack entities.
+- [x] Implement player damage, knockback, invulnerability, death, respawn, and continue flow with explicit reset rules.
 - [ ] Add a HUD showing hearts plus basic counters for rupees, bombs, and keys.
 - [ ] Create a persistent `Inventory` resource and wire equipped-item selection.
 - [ ] Implement pickups for rupees, hearts, bombs, keys, and heart containers.

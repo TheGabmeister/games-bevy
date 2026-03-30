@@ -8,7 +8,8 @@ impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnEnter(AppState::Title), spawn_title_screen)
             .add_systems(OnEnter(AppState::Playing), spawn_playing_overlay)
-            .add_systems(OnEnter(AppState::PausedInventory), spawn_pause_overlay);
+            .add_systems(OnEnter(AppState::PausedInventory), spawn_pause_overlay)
+            .add_systems(OnEnter(AppState::GameOver), spawn_game_over_overlay);
     }
 }
 
@@ -57,7 +58,7 @@ fn spawn_playing_overlay(mut commands: Commands) {
     commands.spawn((
         DespawnOnExit(AppState::Playing),
         Text::new(
-            "Move through open doorways to transition rooms | Transition lock keeps motion frozen briefly between rooms",
+            "Move: WASD/arrows | Attack: Z | Touch red enemies to test damage | Transition lock still applies at room edges",
         ),
         TextFont {
             font_size: 18.0,
@@ -75,7 +76,7 @@ fn spawn_playing_overlay(mut commands: Commands) {
     commands.spawn((
         DespawnOnExit(AppState::Playing),
         Text::new(
-            "Yellow pickups persist per room. Orange pickups reset on reload. Center room bush still hides the secret.",
+            "Sword slashes are short-lived. Death sends you to continue flow and reloads temporary room state.",
         ),
         TextFont {
             font_size: 16.0,
@@ -107,6 +108,31 @@ fn spawn_pause_overlay(mut commands: Commands) {
         .with_children(|parent| {
             parent.spawn((
                 Text::new("PAUSED\nPress Tab, Enter, or Esc to return"),
+                TextFont {
+                    font_size: 28.0,
+                    ..default()
+                },
+                TextColor(WorldColor::UiText.color()),
+            ));
+        });
+}
+
+fn spawn_game_over_overlay(mut commands: Commands) {
+    commands
+        .spawn((
+            DespawnOnExit(AppState::GameOver),
+            Node {
+                width: percent(100),
+                height: percent(100),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.05, 0.02, 0.02, 0.84)),
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Text::new("YOU DIED\nPress Enter or Z to continue\nPress Esc for title"),
                 TextFont {
                     font_size: 28.0,
                     ..default()

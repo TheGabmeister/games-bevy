@@ -13,7 +13,7 @@ Guidance for coding agents working in `c:\dev\games-bevy\zelda`.
 - Rust edition `2024`
 - Bevy `0.18.1`
 - `bevy` is enabled with the `dynamic_linking` feature
-- Current app state: modular Bevy prototype with explicit app-state flow, shared room-space constants, primitive-shape rendering helpers, and a screen-based camera shell, but not a full gameplay implementation yet
+- Current app state: modular Bevy prototype with explicit app-state flow, primitive-shape room rendering, room-to-room transitions, a playable combat test loop, and continue/game-over flow, but not a full Zelda feature set yet
 
 ## Build And Validation
 
@@ -42,38 +42,42 @@ Validation expectations:
 ## Current Project Layout
 
 - `src/main.rs`: app bootstrap, plugin registration, window configuration, and high-level wiring
-- `src/game_state.rs`: `GameStatePlugin` with top-level app-state transitions and current prototype play-space spawning
+- `src/game_state.rs`: `GameStatePlugin` with top-level app-state transitions including game-over continue flow
 - `src/camera.rs`: `CameraPlugin` that spawns the fixed-height 2D room camera
 - `src/input.rs`: `InputPlugin` plus the `InputActions` resource populated from keyboard and gamepad input
 - `src/constants.rs`: canonical room-space, HUD, entry offset, logical resolution, and render-layer constants
-- `src/components.rs`: shared ECS components such as `Velocity`
+- `src/components.rs`: shared ECS gameplay components such as `Velocity`, `Player`, `Enemy`, `Health`, `Hitbox`, `Hurtbox`, `SwordAttack`, and timers
 - `src/rendering.rs`: shared primitive mesh/material helpers and world color conventions
-- `src/resources.rs`: shared resources such as `Score`
+- `src/resources.rs`: shared resources such as room state, room persistence, transition lock state, and player vitals
+- `src/room.rs`: `RoomPlugin` with room lifecycle, overworld test-room spawning, transitions, and room-local persistence interactions
+- `src/combat.rs`: `CombatPlugin` with sword spawning, damage resolution, invulnerability, knockback, death, and continue reset flow
 - `src/states.rs`: `AppState` definition for top-level flow
-- `src/player.rs`: `PlayerPlugin` stub
+- `src/player.rs`: `PlayerPlugin` with player spawning, movement input, facing, and facing-indicator updates
 - `src/enemy.rs`: `EnemyPlugin` stub
-- `src/collision.rs`: `CollisionPlugin` stub
-- `src/ui.rs`: title, playing, and paused UI scaffolding
+- `src/collision.rs`: `CollisionPlugin` with player-vs-world collision and knockback-aware movement resolution
+- `src/ui.rs`: title, playing, paused, and game-over UI overlays
 - `src/audio.rs`: `AudioPlugin` stub
 - `assets/`: currently present but empty
 - `.cargo/config.toml`: shared cargo target-dir configuration
 
 ## Current Runtime Behavior
 
-The current app is now a state-driven bootstrap shell rather than a starter scene:
+The current app is now a playable prototype shell rather than a starter scene:
 
 - `DefaultPlugins` are registered.
 - The window uses a logical `256x240` layout scaled to a default `1024x960` desktop window.
-- The app registers `GameStatePlugin`, `CameraPlugin`, `PrimitiveRenderingPlugin`, `InputPlugin`, `PlayerPlugin`, `EnemyPlugin`, `CollisionPlugin`, `UiPlugin`, and `AudioPlugin`.
+- The app registers `GameStatePlugin`, `CameraPlugin`, `PrimitiveRenderingPlugin`, `RoomPlugin`, `InputPlugin`, `PlayerPlugin`, `EnemyPlugin`, `CombatPlugin`, `CollisionPlugin`, `UiPlugin`, and `AudioPlugin`.
 - `CameraPlugin` spawns a `Camera2d` with `ScalingMode::FixedVertical` using the logical screen height.
-- `GameStatePlugin` initializes `AppState`, advances from `Boot` to `Title`, and currently supports `Title -> Playing -> PausedInventory`.
-- Entering `Playing` spawns a prototype shell using primitive shapes: a HUD panel, room floor, door anchor markers, and a room-origin marker.
-- `UiPlugin` spawns title text, playing instructions, and a pause overlay using Bevy UI text/nodes.
+- `GameStatePlugin` initializes `AppState`, advances from `Boot` to `Title`, and currently supports `Title -> Playing -> PausedInventory -> GameOver -> Playing/Title`.
+- `RoomPlugin` spawns a cross-shaped overworld test map with room lifecycle, screen-edge transitions, short transition locking, and room cleanup on title/game-over.
+- Rooms use primitive walls, doors, obstacles, pickups, enemies, and a secret trigger; temporary room entities reset on reload, while unique pickups and secrets persist through `RoomPersistence`.
+- `UiPlugin` spawns title text, playing instructions, a pause overlay, and a game-over continue overlay using Bevy UI text/nodes.
 - `InputPlugin` initializes an `InputActions` resource and updates it during `PreUpdate`.
 - Keyboard and gamepad input currently support Zelda-style movement, attack, item-use, pause, confirm, and cancel actions.
-- Gamepad input merges into the same `InputActions` resource.
-- `constants`, `rendering`, `camera`, `input`, and `states` are now meaningfully wired into the app shell.
-- `PlayerPlugin`, `EnemyPlugin`, `CollisionPlugin`, and `AudioPlugin` are still placeholders with no gameplay systems registered yet.
+- `PlayerPlugin` spawns the player on room load, updates 4-direction movement/facing, and shows a centered triangle facing indicator.
+- `CollisionPlugin` resolves player movement against static blockers and applies knockback-aware movement.
+- `CombatPlugin` spawns short-lived sword attack entities, applies enemy contact damage, handles invulnerability, knockback, death, and continue health reset.
+- `EnemyPlugin` and `AudioPlugin` are still placeholders; current enemies are spawned by `RoomPlugin` as simple room-local test entities.
 
 When making changes, align your work with what actually exists in the repo rather than assuming a larger gameplay architecture is already implemented.
 
@@ -90,9 +94,9 @@ The project has already started moving toward a plugin-per-domain layout with sh
 The current shared foundation is intentionally small:
 
 - `src/constants.rs` currently holds canonical room-space constants, logical resolution, door anchors, entry offsets, and render layers.
-- `src/components.rs` currently holds `Velocity`.
+- `src/components.rs` currently holds the core shared gameplay markers/data used by movement and combat.
 - `src/rendering.rs` currently holds shared rectangle/circle spawning helpers and the initial world color palette.
-- `src/resources.rs` currently holds `Score`.
+- `src/resources.rs` currently holds room id/transition/persistence state plus the current player-health snapshot used by continue flow.
 - `src/states.rs` currently defines `AppState` with `Boot`, `Title`, `Playing`, `PausedInventory`, and `GameOver`.
 
 If you add more gameplay, prefer extending those files before introducing parallel duplicates elsewhere.
@@ -118,6 +122,8 @@ If you add more gameplay, prefer extending those files before introducing parall
 - Put shared mutable game-wide state in `src/resources.rs`.
 - Extend `src/states.rs` when adding real state-driven flow.
 - Keep room-scale camera behavior in `src/camera.rs` rather than reconfiguring projection ad hoc from gameplay modules.
+- Keep room loading, adjacency, persistence classification, and screen-edge transition rules in `src/room.rs`.
+- Keep sword/damage/death/continue logic in `src/combat.rs` unless the task clearly calls for a broader combat refactor.
 - When gameplay entities become state-scoped, define the matching cleanup path on `OnExit` or use Bevy's state-based despawn helpers.
 
 ## UI And Asset Notes
@@ -147,8 +153,11 @@ If you add more gameplay, prefer extending those files before introducing parall
 ## Good First Places To Look
 
 - App boot and plugin wiring: `src/main.rs`
-- Top-level state flow and prototype room shell: `src/game_state.rs`
+- Top-level state flow and continue/game-over wiring: `src/game_state.rs`
 - Camera setup and logical viewport: `src/camera.rs`
+- Room lifecycle, transitions, test rooms, and persistence behavior: `src/room.rs`
+- Combat loop, sword hits, player damage, and death/continue rules: `src/combat.rs`
+- Player spawning and movement/facing updates: `src/player.rs`
 - Input mapping and action resource: `src/input.rs`
 - Shared constants/components/resources/state definitions: `src/constants.rs`, `src/components.rs`, `src/rendering.rs`, `src/resources.rs`, `src/states.rs`
 - Build output location: `.cargo/config.toml`

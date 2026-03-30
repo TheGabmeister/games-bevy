@@ -7,6 +7,9 @@ pub struct Velocity(pub Vec2);
 pub struct Player;
 
 #[derive(Component)]
+pub struct Enemy;
+
+#[derive(Component)]
 pub struct RoomEntity;
 
 #[derive(Component)]
@@ -64,6 +67,12 @@ pub struct Damage(pub u8);
 pub struct Knockback {
     pub velocity: Vec2,
 }
+
+#[derive(Component)]
+pub struct SwordAttack;
+
+#[derive(Component, Deref, DerefMut)]
+pub struct InvulnerabilityTimer(pub Timer);
 
 #[derive(Component, Deref, DerefMut)]
 pub struct Lifetime(pub Timer);
