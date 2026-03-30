@@ -12,7 +12,7 @@ mod tetromino;
 
 use board::BoardPlugin;
 use constants::*;
-use input::InputPlugin;
+use input::GameplayPlugin;
 use tetromino::TetrominoPlugin;
 
 fn main() {
@@ -26,7 +26,7 @@ fn main() {
             }),
             ..default()
         }))
-        .add_plugins((BoardPlugin, TetrominoPlugin, InputPlugin))
+        .add_plugins((BoardPlugin, TetrominoPlugin, GameplayPlugin))
         .insert_resource(ClearColor(CLEAR_COLOR))
         .add_systems(Startup, setup_camera)
         .run();

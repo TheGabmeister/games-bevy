@@ -140,9 +140,9 @@ impl Default for LockDelayState {
 // Plugin
 // ---------------------------------------------------------------------------
 
-pub struct InputPlugin;
+pub struct GameplayPlugin;
 
-impl Plugin for InputPlugin {
+impl Plugin for GameplayPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<InputActions>()
             .init_resource::<DasState>()
