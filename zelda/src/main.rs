@@ -32,6 +32,7 @@ fn main() {
         }))
         .add_plugins((
             game_state::GameStatePlugin,
+            items::ItemsPlugin,
             camera::CameraPlugin,
             rendering::PrimitiveRenderingPlugin,
             room::RoomPlugin,

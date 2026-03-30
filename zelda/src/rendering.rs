@@ -20,7 +20,7 @@ fn spawn_label_text(
     for (entity, label) in &new_labels {
         commands.entity(entity).with_children(|child| {
             child.spawn((
-                Text2d::new(label.0),
+                Text2d::new(label.0.clone()),
                 TextFont {
                     font_size: LABEL_FONT_SIZE,
                     ..default()

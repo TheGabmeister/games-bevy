@@ -9,7 +9,7 @@ use crate::{
     },
     constants,
     input::InputActions,
-    items,
+    items::{self, ItemTable},
     resources::{
         CurrentRoom, ExitDirection, Inventory, PersistentRoomKey, PlayerVitals, RoomId,
         RoomPersistence, RoomPersistenceCategory, RoomTransitionState,
@@ -69,6 +69,7 @@ pub struct PersistentRoomEntity {
 struct RoomLoadContext<'w, 's> {
     current_room: ResMut<'w, CurrentRoom>,
     persistence: Res<'w, RoomPersistence>,
+    item_table: Res<'w, ItemTable>,
     meshes: ResMut<'w, Assets<Mesh>>,
     materials: ResMut<'w, Assets<ColorMaterial>>,
     room_entities: Query<'w, 's, Entity, With<RoomEntity>>,
@@ -216,6 +217,7 @@ fn process_room_loads(
             context.meshes.as_mut(),
             context.materials.as_mut(),
             &context.persistence,
+            &context.item_table,
             message.room,
         );
         room_loaded.write(RoomLoadedMessage {
@@ -230,6 +232,7 @@ fn spawn_room(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<ColorMaterial>,
     persistence: &RoomPersistence,
+    item_table: &ItemTable,
     room: RoomId,
 ) {
     commands.spawn((
@@ -263,7 +266,7 @@ fn spawn_room(
     spawn_door_markers(commands, meshes, materials, room);
     spawn_test_obstacles(commands, meshes, materials, room);
     spawn_test_enemies(commands, meshes, materials, room);
-    spawn_test_pickups(commands, meshes, materials, persistence, room);
+    spawn_test_pickups(commands, meshes, materials, persistence, item_table, room);
     spawn_secret_entities(commands, meshes, materials, persistence, room);
 }
 
@@ -486,7 +489,7 @@ fn spawn_test_obstacles(
             RoomEntity,
             Wall,
             StaticBlocker,
-            Label(name),
+            Label(name.into()),
             SolidBody {
                 half_size: OBSTACLE_SIZE * 0.5,
             },
@@ -502,6 +505,7 @@ fn spawn_test_pickups(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<ColorMaterial>,
     persistence: &RoomPersistence,
+    item_table: &ItemTable,
     room: RoomId,
 ) {
     let (unique_position, unique_kind) = match room {
@@ -524,13 +528,13 @@ fn spawn_test_pickups(
         key: "unique_pickup",
     };
     if !persistence.contains(RoomPersistenceCategory::UniquePickup, unique_key) {
-        let data = items::lookup(unique_kind);
+        let data = item_table.lookup(unique_kind);
         commands.spawn((
             Name::new("UniquePickup"),
             RoomEntity,
             UniquePickup,
             unique_kind,
-            Label(data.label),
+            Label(data.label.clone()),
             PersistentRoomEntity {
                 key: unique_key,
                 category: RoomPersistenceCategory::UniquePickup,
@@ -546,13 +550,13 @@ fn spawn_test_pickups(
     }
 
     {
-        let data = items::lookup(temporary_kind);
+        let data = item_table.lookup(temporary_kind);
         commands.spawn((
             Name::new("TemporaryPickup"),
             RoomEntity,
             TemporaryPickup,
             temporary_kind,
-            Label(data.label),
+            Label(data.label.clone()),
             PersistentRoomEntity {
                 key: PersistentRoomKey {
                     room,
@@ -590,7 +594,7 @@ fn spawn_test_enemies(
             Name::new("TestEnemy"),
             RoomEntity,
             Enemy,
-            Label("enemy"),
+            Label("enemy".into()),
             Health::new(1),
             Damage(1),
             Hitbox {
@@ -625,7 +629,7 @@ fn spawn_secret_entities(
     commands.spawn((
         Name::new("SecretBush"),
         RoomEntity,
-        Label("bush"),
+        Label("bush".into()),
         SecretTrigger {
             key: secret_key,
             reveal_at: Vec2::new(88.0, constants::ROOM_ORIGIN.y + 42.0),
@@ -655,6 +659,7 @@ fn collect_unique_pickups(
     mut persistence: ResMut<RoomPersistence>,
     mut inventory: ResMut<Inventory>,
     mut player_vitals: ResMut<PlayerVitals>,
+    item_table: Res<ItemTable>,
     mut player: Query<(&Transform, &mut Health), With<Player>>,
     pickups: Query<(Entity, &Transform, &PersistentRoomEntity, &PickupKind), With<UniquePickup>>,
 ) {
@@ -665,7 +670,8 @@ fn collect_unique_pickups(
 
     for (entity, transform, persistent, &kind) in &pickups {
         if player_pos.distance(transform.translation.truncate()) <= PICKUP_RADIUS + 8.0 {
-            items::apply_pickup_effect(kind, &mut inventory, &mut player_health, &mut player_vitals);
+            let data = item_table.lookup(kind);
+            items::apply_pickup_effect(&data.effect, &mut inventory, &mut player_health, &mut player_vitals);
             persistence.record(persistent.category, persistent.key);
             commands.entity(entity).despawn();
         }
@@ -676,6 +682,7 @@ fn collect_temporary_pickups(
     mut commands: Commands,
     mut inventory: ResMut<Inventory>,
     mut player_vitals: ResMut<PlayerVitals>,
+    item_table: Res<ItemTable>,
     mut player: Query<(&Transform, &mut Health), With<Player>>,
     pickups: Query<(Entity, &Transform, &PickupKind), (With<TemporaryPickup>, With<RoomEntity>)>,
 ) {
@@ -686,7 +693,8 @@ fn collect_temporary_pickups(
 
     for (entity, transform, &kind) in &pickups {
         if player_pos.distance(transform.translation.truncate()) <= PICKUP_RADIUS + 8.0 {
-            items::apply_pickup_effect(kind, &mut inventory, &mut player_health, &mut player_vitals);
+            let data = item_table.lookup(kind);
+            items::apply_pickup_effect(&data.effect, &mut inventory, &mut player_health, &mut player_vitals);
             commands.entity(entity).despawn();
         }
     }
@@ -738,7 +746,7 @@ fn spawn_revealed_secret(
     commands.spawn((
         Name::new("RevealedSecret"),
         RoomEntity,
-        Label("stair"),
+        Label("stair".into()),
         PersistentRoomEntity {
             key,
             category: RoomPersistenceCategory::Secret,

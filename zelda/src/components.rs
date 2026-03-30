@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use serde::Deserialize;
 
 #[derive(Component, Default)]
 pub struct Velocity(pub Vec2);
@@ -78,9 +79,9 @@ pub struct InvulnerabilityTimer(pub Timer);
 pub struct Lifetime(pub Timer);
 
 #[derive(Component)]
-pub struct Label(pub &'static str);
+pub struct Label(pub String);
 
-#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 pub enum PickupKind {
     Rupee,
     FiveRupees,
