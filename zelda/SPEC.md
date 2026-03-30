@@ -511,11 +511,11 @@ The project should be built from stable foundations upward:
 
 Use this as the main backlog. Each item should produce a playable improvement and keep the game runnable.
 
-- [ ] Replace the starter scene with a real top-level game bootstrap using explicit app states.
-- [ ] Expand `InputActions` from the current prototype controls to Zelda-style movement, attack, pause, confirm, cancel, and item-use actions.
-- [ ] Define canonical room-space constants: logical room size, door anchors, entry offsets, collision unit size, and render layers.
-- [ ] Add a shared primitive-rendering layer for rectangles, circles, and color conventions used across world entities.
-- [ ] Add a camera setup tuned for screen-based 2D rooms.
+- [x] Replace the starter scene with a real top-level game bootstrap using explicit app states.
+- [x] Expand `InputActions` from the current prototype controls to Zelda-style movement, attack, pause, confirm, cancel, and item-use actions.
+- [x] Define canonical room-space constants: logical room size, door anchors, entry offsets, collision unit size, and render layers.
+- [x] Add a shared primitive-rendering layer for rectangles, circles, and color conventions used across world entities.
+- [x] Add a camera setup tuned for screen-based 2D rooms.
 - [ ] Add a room lifecycle system that can spawn, despawn, and transition a single room cleanly.
 - [ ] Define and implement room persistence categories so unique pickups, secrets, and temporary room state reset correctly.
 - [ ] Introduce core gameplay components: player, health, facing, hitbox, hurtbox, damage, knockback, lifetime.

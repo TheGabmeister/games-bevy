@@ -1,20 +1,36 @@
 use bevy::prelude::*;
+use bevy::window::WindowResolution;
 
 mod audio;
+mod camera;
 mod collision;
 mod components;
 mod constants;
 mod enemy;
+mod game_state;
 mod input;
 mod player;
+mod rendering;
 mod resources;
 mod states;
 mod ui;
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
+        .insert_resource(ClearColor(rendering::WorldColor::Backdrop.color()))
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: "Zelda".into(),
+                resolution: WindowResolution::new(constants::WINDOW_WIDTH, constants::WINDOW_HEIGHT),
+                resizable: false,
+                ..default()
+            }),
+            ..default()
+        }))
         .add_plugins((
+            game_state::GameStatePlugin,
+            camera::CameraPlugin,
+            rendering::PrimitiveRenderingPlugin,
             input::InputPlugin,
             player::PlayerPlugin,
             enemy::EnemyPlugin,
@@ -22,18 +38,5 @@ fn main() {
             ui::UiPlugin,
             audio::AudioPlugin,
         ))
-        .add_systems(Startup, setup)
         .run();
-}
-
-fn setup(mut commands: Commands) {
-    commands.spawn(Camera2d);
-    commands.spawn((
-        Text::new("Hello, World!"),
-        Node {
-            align_self: AlignSelf::Center,
-            justify_self: JustifySelf::Center,
-            ..default()
-        },
-    ));
 }
