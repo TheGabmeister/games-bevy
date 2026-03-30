@@ -7,6 +7,7 @@ use crate::{
     },
     constants,
     input::InputActions,
+    resources::RoomTransitionState,
     rendering::{circle_mesh, color_material, WorldColor},
     room::RoomLoadedMessage,
     states::AppState,
@@ -14,6 +15,8 @@ use crate::{
 
 const PLAYER_RADIUS: f32 = 8.0;
 const PLAYER_SPEED: f32 = 90.0;
+const FACING_INDICATOR_SIZE: f32 = 5.0;
+const FACING_INDICATOR_DISTANCE: f32 = 10.0;
 
 pub struct PlayerPlugin;
 
@@ -21,6 +24,9 @@ pub struct PlayerPlugin;
 pub enum PlayerSet {
     Input,
 }
+
+#[derive(Component)]
+struct FacingIndicator;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
@@ -33,6 +39,10 @@ impl Plugin for PlayerPlugin {
             update_player_motion_and_facing
                 .in_set(PlayerSet::Input)
                 .run_if(in_state(AppState::Playing)),
+        )
+        .add_systems(
+            Update,
+            sync_facing_indicator.run_if(in_state(AppState::Playing)),
         );
     }
 }
@@ -46,42 +56,62 @@ fn spawn_player_on_room_load(
     for message in room_loaded.read() {
         let _room = message.room;
 
-        commands.spawn((
-            Name::new("Player"),
-            Player,
-            RoomEntity,
-            Velocity::default(),
-            MoveSpeed(PLAYER_SPEED),
-            Facing::Down,
-            Health::new(6),
-            Hitbox {
-                half_size: Vec2::splat(PLAYER_RADIUS),
-            },
-            Hurtbox {
-                half_size: Vec2::splat(PLAYER_RADIUS),
-            },
-            SolidBody {
-                half_size: Vec2::splat(PLAYER_RADIUS),
-            },
-            Knockback::default(),
-            circle_mesh(meshes.as_mut(), PLAYER_RADIUS),
-            color_material(materials.as_mut(), WorldColor::Player),
-            Transform::from_xyz(
-                message.player_spawn.x,
-                message.player_spawn.y,
-                constants::render_layers::ENTITIES,
-            ),
-        ));
+        commands
+            .spawn((
+                Name::new("Player"),
+                Player,
+                RoomEntity,
+                Velocity::default(),
+                MoveSpeed(PLAYER_SPEED),
+                Facing::Down,
+                Health::new(6),
+                Hitbox {
+                    half_size: Vec2::splat(PLAYER_RADIUS),
+                },
+                Hurtbox {
+                    half_size: Vec2::splat(PLAYER_RADIUS),
+                },
+                SolidBody {
+                    half_size: Vec2::splat(PLAYER_RADIUS),
+                },
+                Knockback::default(),
+                circle_mesh(meshes.as_mut(), PLAYER_RADIUS),
+                color_material(materials.as_mut(), WorldColor::Player),
+                Transform::from_xyz(
+                    message.player_spawn.x,
+                    message.player_spawn.y,
+                    constants::render_layers::ENTITIES,
+                ),
+            ))
+            .with_children(|parent| {
+                parent.spawn((
+                    Name::new("PlayerFacingIndicator"),
+                    FacingIndicator,
+                    Mesh2d(meshes.add(Triangle2d::new(
+                        Vec2::new(0.0, FACING_INDICATOR_SIZE),
+                        Vec2::new(-FACING_INDICATOR_SIZE * 0.7, -FACING_INDICATOR_SIZE),
+                        Vec2::new(FACING_INDICATOR_SIZE * 0.7, -FACING_INDICATOR_SIZE),
+                    ))),
+                    color_material(materials.as_mut(), WorldColor::Accent),
+                    facing_indicator_transform(Facing::Down),
+                ));
+            });
     }
 }
 
 fn update_player_motion_and_facing(
     actions: Res<InputActions>,
+    transition: Res<RoomTransitionState>,
     mut player: Query<(&mut Velocity, &MoveSpeed, &mut Facing), With<Player>>,
 ) {
     let Ok((mut velocity, move_speed, mut facing)) = player.single_mut() else {
         return;
     };
+
+    if transition.locked {
+        velocity.0 = Vec2::ZERO;
+        return;
+    }
 
     let mut axis = actions.movement_axis();
     if axis.x != 0.0 && axis.y != 0.0 {
@@ -101,4 +131,41 @@ fn update_player_motion_and_facing(
     } else {
         *facing
     };
+}
+
+fn sync_facing_indicator(
+    players: Query<(&Facing, &Children), (With<Player>, Changed<Facing>)>,
+    mut indicators: Query<&mut Transform, With<FacingIndicator>>,
+) {
+    for (facing, children) in &players {
+        for child in children.iter() {
+            if let Ok(mut transform) = indicators.get_mut(child) {
+                *transform = facing_indicator_transform(*facing);
+            }
+        }
+    }
+}
+
+fn facing_indicator_transform(facing: Facing) -> Transform {
+    let (offset, rotation) = match facing {
+        Facing::Up => (Vec3::new(0.0, FACING_INDICATOR_DISTANCE, 1.0), 0.0),
+        Facing::Down => (
+            Vec3::new(0.0, -FACING_INDICATOR_DISTANCE, 1.0),
+            std::f32::consts::PI,
+        ),
+        Facing::Left => (
+            Vec3::new(-FACING_INDICATOR_DISTANCE, 0.0, 1.0),
+            std::f32::consts::FRAC_PI_2,
+        ),
+        Facing::Right => (
+            Vec3::new(FACING_INDICATOR_DISTANCE, 0.0, 1.0),
+            -std::f32::consts::FRAC_PI_2,
+        ),
+    };
+
+    Transform {
+        translation: offset,
+        rotation: Quat::from_rotation_z(rotation),
+        ..default()
+    }
 }

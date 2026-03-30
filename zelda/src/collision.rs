@@ -8,11 +8,17 @@ use crate::{
 
 pub struct CollisionPlugin;
 
+#[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum CollisionSet {
+    Resolve,
+}
+
 impl Plugin for CollisionPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
             apply_player_velocity_with_static_collision
+                .in_set(CollisionSet::Resolve)
                 .after(PlayerSet::Input)
                 .run_if(in_state(AppState::Playing)),
         );

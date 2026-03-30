@@ -57,7 +57,7 @@ fn spawn_playing_overlay(mut commands: Commands) {
     commands.spawn((
         DespawnOnExit(AppState::Playing),
         Text::new(
-            "Move: WASD or arrows | Attack: Z | Reload room: Enter/Space | Pause: Tab | Title: Esc",
+            "Move through open doorways to transition rooms | Transition lock keeps motion frozen briefly between rooms",
         ),
         TextFont {
             font_size: 18.0,
@@ -75,7 +75,7 @@ fn spawn_playing_overlay(mut commands: Commands) {
     commands.spawn((
         DespawnOnExit(AppState::Playing),
         Text::new(
-            "Yellow pickup persists. Orange pickup resets on reload. Attack near the orange bush to reveal the secret.",
+            "Yellow pickups persist per room. Orange pickups reset on reload. Center room bush still hides the secret.",
         ),
         TextFont {
             font_size: 16.0,

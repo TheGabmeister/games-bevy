@@ -516,13 +516,13 @@ Use this as the main backlog. Each item should produce a playable improvement an
 - [x] Define canonical room-space constants: logical room size, door anchors, entry offsets, collision unit size, and render layers.
 - [x] Add a shared primitive-rendering layer for rectangles, circles, and color conventions used across world entities.
 - [x] Add a camera setup tuned for screen-based 2D rooms.
-- [ ] Add a room lifecycle system that can spawn, despawn, and transition a single room cleanly.
-- [ ] Define and implement room persistence categories so unique pickups, secrets, and temporary room state reset correctly.
-- [ ] Introduce core gameplay components: player, health, facing, hitbox, hurtbox, damage, knockback, lifetime.
-- [ ] Implement player spawning, 4-direction movement, facing, and collision with static blockers.
-- [ ] Implement a basic overworld test room using primitive walls and doors.
-- [ ] Implement screen-edge transitions between adjacent overworld rooms.
-- [ ] Add room-boundary locking during transitions so the player cannot break screen flow.
+- [x] Add a room lifecycle system that can spawn, despawn, and transition a single room cleanly.
+- [x] Define and implement room persistence categories so unique pickups, secrets, and temporary room state reset correctly.
+- [x] Introduce core gameplay components: player, health, facing, hitbox, hurtbox, damage, knockback, lifetime.
+- [x] Implement player spawning, 4-direction movement, facing, and collision with static blockers.
+- [x] Implement a basic overworld test room using primitive walls and doors.
+- [x] Implement screen-edge transitions between adjacent overworld rooms.
+- [x] Add room-boundary locking during transitions so the player cannot break screen flow.
 - [ ] Implement sword attacks with hit timing and short-lived attack entities.
 - [ ] Implement player damage, knockback, invulnerability, death, respawn, and continue flow with explicit reset rules.
 - [ ] Add a HUD showing hearts plus basic counters for rupees, bombs, and keys.

@@ -1,11 +1,15 @@
-use bevy::prelude::*;
 use bevy::ecs::system::SystemParam;
+use bevy::prelude::*;
 
 use crate::{
-    components::{Door, RoomEntity, SolidBody, StaticBlocker, Wall},
+    collision::CollisionSet,
+    components::{Door, Player, RoomEntity, SolidBody, StaticBlocker, Wall},
     constants,
     input::InputActions,
-    resources::{CurrentRoom, PersistentRoomKey, RoomId, RoomPersistence, RoomPersistenceCategory},
+    resources::{
+        CurrentRoom, ExitDirection, PersistentRoomKey, RoomId, RoomPersistence,
+        RoomPersistenceCategory, RoomTransitionState,
+    },
     rendering::{circle_mesh, color_material, rectangle_mesh, WorldColor},
     states::AppState,
 };
@@ -15,11 +19,13 @@ const DOOR_OPENING: f32 = 32.0;
 const OBSTACLE_SIZE: Vec2 = Vec2::new(20.0, 20.0);
 const PICKUP_RADIUS: f32 = 7.0;
 const SECRET_TRIGGER_RADIUS: f32 = 14.0;
+const EDGE_EXIT_PADDING: f32 = 6.0;
 
 pub struct RoomPlugin;
 
 #[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum RoomSet {
+    TransitionTick,
     RequestLoad,
     Load,
     Interact,
@@ -55,23 +61,41 @@ pub struct PersistentRoomEntity {
     pub category: RoomPersistenceCategory,
 }
 
+#[derive(SystemParam)]
+struct RoomLoadContext<'w, 's> {
+    current_room: ResMut<'w, CurrentRoom>,
+    persistence: Res<'w, RoomPersistence>,
+    meshes: ResMut<'w, Assets<Mesh>>,
+    materials: ResMut<'w, Assets<ColorMaterial>>,
+    room_entities: Query<'w, 's, Entity, With<RoomEntity>>,
+}
+
 impl Plugin for RoomPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<CurrentRoom>()
             .init_resource::<RoomPersistence>()
+            .init_resource::<RoomTransitionState>()
             .add_message::<LoadRoomMessage>()
             .add_message::<RoomLoadedMessage>()
             .configure_sets(
                 Update,
-                (RoomSet::RequestLoad, RoomSet::Load, RoomSet::Interact)
+                (
+                    RoomSet::TransitionTick,
+                    RoomSet::RequestLoad,
+                    RoomSet::Load,
+                    RoomSet::Interact,
+                )
                     .chain()
                     .run_if(in_state(AppState::Playing)),
             )
             .add_systems(OnEnter(AppState::Playing), ensure_room_loaded)
             .add_systems(OnEnter(AppState::Title), cleanup_room_entities)
+            .add_systems(Update, tick_room_transition_state.in_set(RoomSet::TransitionTick))
             .add_systems(
                 Update,
-                request_room_reload.in_set(RoomSet::RequestLoad),
+                (request_room_reload, request_screen_edge_transition)
+                    .in_set(RoomSet::RequestLoad)
+                    .after(CollisionSet::Resolve),
             )
             .add_systems(Update, process_room_loads.in_set(RoomSet::Load))
             .add_systems(
@@ -80,15 +104,6 @@ impl Plugin for RoomPlugin {
                     .in_set(RoomSet::Interact),
             );
     }
-}
-
-#[derive(SystemParam)]
-struct RoomLoadContext<'w, 's> {
-    current_room: ResMut<'w, CurrentRoom>,
-    persistence: Res<'w, RoomPersistence>,
-    meshes: ResMut<'w, Assets<Mesh>>,
-    materials: ResMut<'w, Assets<ColorMaterial>>,
-    room_entities: Query<'w, 's, Entity, With<RoomEntity>>,
 }
 
 fn ensure_room_loaded(
@@ -104,23 +119,79 @@ fn ensure_room_loaded(
     }
 }
 
-fn cleanup_room_entities(mut commands: Commands, room_entities: Query<Entity, With<RoomEntity>>) {
+fn cleanup_room_entities(
+    mut commands: Commands,
+    room_entities: Query<Entity, With<RoomEntity>>,
+    mut transition: ResMut<RoomTransitionState>,
+) {
+    transition.locked = false;
+    transition.direction = None;
+
     for entity in &room_entities {
         commands.entity(entity).despawn();
+    }
+}
+
+fn tick_room_transition_state(time: Res<Time>, mut transition: ResMut<RoomTransitionState>) {
+    if !transition.locked {
+        return;
+    }
+
+    transition.timer.tick(time.delta());
+    if transition.timer.is_finished() {
+        transition.locked = false;
+        transition.direction = None;
     }
 }
 
 fn request_room_reload(
     actions: Res<InputActions>,
     current_room: Res<CurrentRoom>,
+    transition: Res<RoomTransitionState>,
     mut loads: MessageWriter<LoadRoomMessage>,
 ) {
+    if transition.locked {
+        return;
+    }
+
     if actions.confirm {
         loads.write(LoadRoomMessage {
             room: current_room.id,
             player_spawn: constants::WEST_ENTRY_OFFSET,
         });
     }
+}
+
+fn request_screen_edge_transition(
+    current_room: Res<CurrentRoom>,
+    mut transition: ResMut<RoomTransitionState>,
+    player: Query<&Transform, With<Player>>,
+    mut loads: MessageWriter<LoadRoomMessage>,
+) {
+    if transition.locked {
+        return;
+    }
+
+    let Ok(player_transform) = player.single() else {
+        return;
+    };
+
+    let player_pos = player_transform.translation.truncate();
+    let Some(direction) = detect_exit_direction(player_pos) else {
+        return;
+    };
+    let Some(target_room) = adjacent_room(current_room.id, direction) else {
+        return;
+    };
+
+    transition.locked = true;
+    transition.direction = Some(direction);
+    transition.timer.reset();
+
+    loads.write(LoadRoomMessage {
+        room: target_room,
+        player_spawn: direction.target_spawn_offset(),
+    });
 }
 
 fn process_room_loads(
@@ -175,7 +246,7 @@ fn spawn_room(
         Name::new("RoomFloor"),
         RoomEntity,
         rectangle_mesh(meshes, Vec2::new(constants::ROOM_WIDTH, constants::ROOM_HEIGHT)),
-        color_material(materials, WorldColor::RoomFloor),
+        color_material(materials, room_floor_color(room)),
         Transform::from_xyz(
             constants::ROOM_ORIGIN.x,
             constants::ROOM_ORIGIN.y,
@@ -183,9 +254,9 @@ fn spawn_room(
         ),
     ));
 
-    spawn_perimeter_walls(commands, meshes, materials);
-    spawn_door_markers(commands, meshes, materials);
-    spawn_test_obstacles(commands, meshes, materials);
+    spawn_perimeter_walls(commands, meshes, materials, room);
+    spawn_door_markers(commands, meshes, materials, room);
+    spawn_test_obstacles(commands, meshes, materials, room);
     spawn_test_pickups(commands, meshes, materials, persistence, room);
     spawn_secret_entities(commands, meshes, materials, persistence, room);
 }
@@ -194,6 +265,27 @@ fn spawn_perimeter_walls(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<ColorMaterial>,
+    room: RoomId,
+) {
+    for direction in [
+        ExitDirection::North,
+        ExitDirection::South,
+        ExitDirection::East,
+        ExitDirection::West,
+    ] {
+        if adjacent_room(room, direction).is_some() {
+            spawn_open_side(commands, meshes, materials, direction);
+        } else {
+            spawn_closed_side(commands, meshes, materials, direction);
+        }
+    }
+}
+
+fn spawn_open_side(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<ColorMaterial>,
+    direction: ExitDirection,
 ) {
     let horizontal_segment_width = (constants::ROOM_WIDTH - DOOR_OPENING) * 0.5;
     let vertical_segment_height = (constants::ROOM_HEIGHT - DOOR_OPENING) * 0.5;
@@ -204,74 +296,144 @@ fn spawn_perimeter_walls(
     let horizontal_offset = DOOR_OPENING * 0.5 + horizontal_segment_width * 0.5;
     let vertical_offset = DOOR_OPENING * 0.5 + vertical_segment_height * 0.5;
 
-    for (name, size, center) in [
-        (
-            "NorthWallWest",
-            Vec2::new(horizontal_segment_width, WALL_THICKNESS),
-            Vec2::new(-horizontal_offset, top_y),
-        ),
-        (
-            "NorthWallEast",
-            Vec2::new(horizontal_segment_width, WALL_THICKNESS),
-            Vec2::new(horizontal_offset, top_y),
-        ),
-        (
-            "SouthWallWest",
-            Vec2::new(horizontal_segment_width, WALL_THICKNESS),
-            Vec2::new(-horizontal_offset, bottom_y),
-        ),
-        (
-            "SouthWallEast",
-            Vec2::new(horizontal_segment_width, WALL_THICKNESS),
-            Vec2::new(horizontal_offset, bottom_y),
-        ),
-        (
-            "WestWallTop",
-            Vec2::new(WALL_THICKNESS, vertical_segment_height),
-            Vec2::new(left_x, constants::ROOM_ORIGIN.y + vertical_offset),
-        ),
-        (
-            "WestWallBottom",
-            Vec2::new(WALL_THICKNESS, vertical_segment_height),
-            Vec2::new(left_x, constants::ROOM_ORIGIN.y - vertical_offset),
-        ),
-        (
-            "EastWallTop",
-            Vec2::new(WALL_THICKNESS, vertical_segment_height),
-            Vec2::new(right_x, constants::ROOM_ORIGIN.y + vertical_offset),
-        ),
-        (
-            "EastWallBottom",
-            Vec2::new(WALL_THICKNESS, vertical_segment_height),
-            Vec2::new(right_x, constants::ROOM_ORIGIN.y - vertical_offset),
-        ),
-    ] {
-        commands.spawn((
-            Name::new(name),
-            RoomEntity,
-            Wall,
-            StaticBlocker,
-            SolidBody {
-                half_size: size * 0.5,
-            },
-            rectangle_mesh(meshes, size),
-            color_material(materials, WorldColor::Doorway),
-            Transform::from_xyz(center.x, center.y, constants::render_layers::WALLS),
-        ));
+    let segments: [(&str, Vec2, Vec2); 2] = match direction {
+        ExitDirection::North => [
+            (
+                "NorthWallWest",
+                Vec2::new(horizontal_segment_width, WALL_THICKNESS),
+                Vec2::new(-horizontal_offset, top_y),
+            ),
+            (
+                "NorthWallEast",
+                Vec2::new(horizontal_segment_width, WALL_THICKNESS),
+                Vec2::new(horizontal_offset, top_y),
+            ),
+        ],
+        ExitDirection::South => [
+            (
+                "SouthWallWest",
+                Vec2::new(horizontal_segment_width, WALL_THICKNESS),
+                Vec2::new(-horizontal_offset, bottom_y),
+            ),
+            (
+                "SouthWallEast",
+                Vec2::new(horizontal_segment_width, WALL_THICKNESS),
+                Vec2::new(horizontal_offset, bottom_y),
+            ),
+        ],
+        ExitDirection::East => [
+            (
+                "EastWallTop",
+                Vec2::new(WALL_THICKNESS, vertical_segment_height),
+                Vec2::new(right_x, constants::ROOM_ORIGIN.y + vertical_offset),
+            ),
+            (
+                "EastWallBottom",
+                Vec2::new(WALL_THICKNESS, vertical_segment_height),
+                Vec2::new(right_x, constants::ROOM_ORIGIN.y - vertical_offset),
+            ),
+        ],
+        ExitDirection::West => [
+            (
+                "WestWallTop",
+                Vec2::new(WALL_THICKNESS, vertical_segment_height),
+                Vec2::new(left_x, constants::ROOM_ORIGIN.y + vertical_offset),
+            ),
+            (
+                "WestWallBottom",
+                Vec2::new(WALL_THICKNESS, vertical_segment_height),
+                Vec2::new(left_x, constants::ROOM_ORIGIN.y - vertical_offset),
+            ),
+        ],
+    };
+
+    for (name, size, center) in segments {
+        spawn_wall(commands, meshes, materials, name, size, center);
     }
+}
+
+fn spawn_closed_side(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<ColorMaterial>,
+    direction: ExitDirection,
+) {
+    let (name, size, center) = match direction {
+        ExitDirection::North => (
+            "NorthWallClosed",
+            Vec2::new(constants::ROOM_WIDTH, WALL_THICKNESS),
+            Vec2::new(
+                constants::ROOM_ORIGIN.x,
+                constants::ROOM_ORIGIN.y + constants::ROOM_HALF_HEIGHT - WALL_THICKNESS * 0.5,
+            ),
+        ),
+        ExitDirection::South => (
+            "SouthWallClosed",
+            Vec2::new(constants::ROOM_WIDTH, WALL_THICKNESS),
+            Vec2::new(
+                constants::ROOM_ORIGIN.x,
+                constants::ROOM_ORIGIN.y - constants::ROOM_HALF_HEIGHT + WALL_THICKNESS * 0.5,
+            ),
+        ),
+        ExitDirection::East => (
+            "EastWallClosed",
+            Vec2::new(WALL_THICKNESS, constants::ROOM_HEIGHT),
+            Vec2::new(
+                constants::ROOM_ORIGIN.x + constants::ROOM_HALF_WIDTH - WALL_THICKNESS * 0.5,
+                constants::ROOM_ORIGIN.y,
+            ),
+        ),
+        ExitDirection::West => (
+            "WestWallClosed",
+            Vec2::new(WALL_THICKNESS, constants::ROOM_HEIGHT),
+            Vec2::new(
+                constants::ROOM_ORIGIN.x - constants::ROOM_HALF_WIDTH + WALL_THICKNESS * 0.5,
+                constants::ROOM_ORIGIN.y,
+            ),
+        ),
+    };
+
+    spawn_wall(commands, meshes, materials, name, size, center);
+}
+
+fn spawn_wall(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<ColorMaterial>,
+    name: &str,
+    size: Vec2,
+    center: Vec2,
+) {
+    commands.spawn((
+        Name::new(name.to_string()),
+        RoomEntity,
+        Wall,
+        StaticBlocker,
+        SolidBody {
+            half_size: size * 0.5,
+        },
+        rectangle_mesh(meshes, size),
+        color_material(materials, WorldColor::Doorway),
+        Transform::from_xyz(center.x, center.y, constants::render_layers::WALLS),
+    ));
 }
 
 fn spawn_door_markers(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<ColorMaterial>,
+    room: RoomId,
 ) {
-    for (name, anchor) in [
-        ("NorthDoor", constants::NORTH_DOOR_ANCHOR),
-        ("SouthDoor", constants::SOUTH_DOOR_ANCHOR),
-        ("EastDoor", constants::EAST_DOOR_ANCHOR),
-        ("WestDoor", constants::WEST_DOOR_ANCHOR),
+    for (direction, name, anchor) in [
+        (ExitDirection::North, "NorthDoor", constants::NORTH_DOOR_ANCHOR),
+        (ExitDirection::South, "SouthDoor", constants::SOUTH_DOOR_ANCHOR),
+        (ExitDirection::East, "EastDoor", constants::EAST_DOOR_ANCHOR),
+        (ExitDirection::West, "WestDoor", constants::WEST_DOOR_ANCHOR),
     ] {
+        if adjacent_room(room, direction).is_none() {
+            continue;
+        }
+
         commands.spawn((
             Name::new(name),
             RoomEntity,
@@ -287,11 +449,32 @@ fn spawn_test_obstacles(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<ColorMaterial>,
+    room: RoomId,
 ) {
-    for (name, position) in [
-        ("RockA", Vec2::new(-48.0, constants::ROOM_ORIGIN.y + 10.0)),
-        ("RockB", Vec2::new(36.0, constants::ROOM_ORIGIN.y - 20.0)),
-    ] {
+    let obstacles: &[(&str, Vec2)] = match room {
+        RoomId::OverworldCenter => &[
+            ("RockA", Vec2::new(-48.0, constants::ROOM_ORIGIN.y + 10.0)),
+            ("RockB", Vec2::new(36.0, constants::ROOM_ORIGIN.y - 20.0)),
+        ],
+        RoomId::OverworldNorth => &[
+            ("TreeLineA", Vec2::new(-30.0, constants::ROOM_ORIGIN.y + 4.0)),
+            ("TreeLineB", Vec2::new(30.0, constants::ROOM_ORIGIN.y + 4.0)),
+        ],
+        RoomId::OverworldSouth => &[
+            ("PondA", Vec2::new(-24.0, constants::ROOM_ORIGIN.y - 6.0)),
+            ("PondB", Vec2::new(24.0, constants::ROOM_ORIGIN.y - 6.0)),
+        ],
+        RoomId::OverworldEast => &[
+            ("RidgeA", Vec2::new(12.0, constants::ROOM_ORIGIN.y + 26.0)),
+            ("RidgeB", Vec2::new(12.0, constants::ROOM_ORIGIN.y - 26.0)),
+        ],
+        RoomId::OverworldWest => &[
+            ("StatueA", Vec2::new(-12.0, constants::ROOM_ORIGIN.y + 26.0)),
+            ("StatueB", Vec2::new(-12.0, constants::ROOM_ORIGIN.y - 26.0)),
+        ],
+    };
+
+    for &(name, position) in obstacles {
         commands.spawn((
             Name::new(name),
             RoomEntity,
@@ -314,6 +497,21 @@ fn spawn_test_pickups(
     persistence: &RoomPersistence,
     room: RoomId,
 ) {
+    let unique_position = match room {
+        RoomId::OverworldCenter => Vec2::new(-80.0, constants::ROOM_ORIGIN.y - 16.0),
+        RoomId::OverworldNorth => Vec2::new(0.0, constants::ROOM_ORIGIN.y + 18.0),
+        RoomId::OverworldSouth => Vec2::new(0.0, constants::ROOM_ORIGIN.y - 28.0),
+        RoomId::OverworldEast => Vec2::new(60.0, constants::ROOM_ORIGIN.y),
+        RoomId::OverworldWest => Vec2::new(-60.0, constants::ROOM_ORIGIN.y),
+    };
+    let temporary_position = match room {
+        RoomId::OverworldCenter => Vec2::new(72.0, constants::ROOM_ORIGIN.y - 10.0),
+        RoomId::OverworldNorth => Vec2::new(-58.0, constants::ROOM_ORIGIN.y - 4.0),
+        RoomId::OverworldSouth => Vec2::new(58.0, constants::ROOM_ORIGIN.y + 8.0),
+        RoomId::OverworldEast => Vec2::new(-50.0, constants::ROOM_ORIGIN.y + 18.0),
+        RoomId::OverworldWest => Vec2::new(50.0, constants::ROOM_ORIGIN.y - 18.0),
+    };
+
     let unique_key = PersistentRoomKey {
         room,
         key: "starter_rupee",
@@ -329,7 +527,11 @@ fn spawn_test_pickups(
             },
             circle_mesh(meshes, PICKUP_RADIUS),
             color_material(materials, WorldColor::Pickup),
-            Transform::from_xyz(-80.0, constants::ROOM_ORIGIN.y - 16.0, constants::render_layers::PICKUPS),
+            Transform::from_xyz(
+                unique_position.x,
+                unique_position.y,
+                constants::render_layers::PICKUPS,
+            ),
         ));
     }
 
@@ -346,7 +548,11 @@ fn spawn_test_pickups(
         },
         circle_mesh(meshes, PICKUP_RADIUS),
         color_material(materials, WorldColor::Hazard),
-        Transform::from_xyz(72.0, constants::ROOM_ORIGIN.y - 10.0, constants::render_layers::PICKUPS),
+        Transform::from_xyz(
+            temporary_position.x,
+            temporary_position.y,
+            constants::render_layers::PICKUPS,
+        ),
     ));
 }
 
@@ -357,6 +563,10 @@ fn spawn_secret_entities(
     persistence: &RoomPersistence,
     room: RoomId,
 ) {
+    if room != RoomId::OverworldCenter {
+        return;
+    }
+
     let secret_key = PersistentRoomKey {
         room,
         key: "hidden_stair",
@@ -379,14 +589,20 @@ fn spawn_secret_entities(
     ));
 
     if persistence.contains(RoomPersistenceCategory::Secret, secret_key) {
-        spawn_revealed_secret(commands, meshes, materials, secret_key, Vec2::new(88.0, constants::ROOM_ORIGIN.y + 42.0));
+        spawn_revealed_secret(
+            commands,
+            meshes,
+            materials,
+            secret_key,
+            Vec2::new(88.0, constants::ROOM_ORIGIN.y + 42.0),
+        );
     }
 }
 
 fn collect_unique_pickups(
     mut commands: Commands,
     mut persistence: ResMut<RoomPersistence>,
-    player: Query<&Transform, With<crate::components::Player>>,
+    player: Query<&Transform, With<Player>>,
     pickups: Query<(Entity, &Transform, &PersistentRoomEntity), With<UniquePickup>>,
 ) {
     let Some(player_transform) = player.iter().next() else {
@@ -404,7 +620,7 @@ fn collect_unique_pickups(
 
 fn collect_temporary_pickups(
     mut commands: Commands,
-    player: Query<&Transform, With<crate::components::Player>>,
+    player: Query<&Transform, With<Player>>,
     pickups: Query<(Entity, &Transform), (With<TemporaryPickup>, With<RoomEntity>)>,
 ) {
     let Some(player_transform) = player.iter().next() else {
@@ -423,7 +639,7 @@ fn reveal_secret_triggers(
     mut commands: Commands,
     actions: Res<InputActions>,
     mut persistence: ResMut<RoomPersistence>,
-    player: Query<&Transform, With<crate::components::Player>>,
+    player: Query<&Transform, With<Player>>,
     triggers: Query<(Entity, &Transform, &SecretTrigger)>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
@@ -473,4 +689,47 @@ fn spawn_revealed_secret(
         color_material(materials, WorldColor::Accent),
         Transform::from_xyz(position.x, position.y, constants::render_layers::PICKUPS),
     ));
+}
+
+fn detect_exit_direction(player_pos: Vec2) -> Option<ExitDirection> {
+    let left_edge = constants::ROOM_ORIGIN.x - constants::ROOM_HALF_WIDTH - EDGE_EXIT_PADDING;
+    let right_edge = constants::ROOM_ORIGIN.x + constants::ROOM_HALF_WIDTH + EDGE_EXIT_PADDING;
+    let bottom_edge = constants::ROOM_ORIGIN.y - constants::ROOM_HALF_HEIGHT - EDGE_EXIT_PADDING;
+    let top_edge = constants::ROOM_ORIGIN.y + constants::ROOM_HALF_HEIGHT + EDGE_EXIT_PADDING;
+
+    if player_pos.x <= left_edge {
+        Some(ExitDirection::West)
+    } else if player_pos.x >= right_edge {
+        Some(ExitDirection::East)
+    } else if player_pos.y >= top_edge {
+        Some(ExitDirection::North)
+    } else if player_pos.y <= bottom_edge {
+        Some(ExitDirection::South)
+    } else {
+        None
+    }
+}
+
+fn adjacent_room(room: RoomId, direction: ExitDirection) -> Option<RoomId> {
+    match (room, direction) {
+        (RoomId::OverworldCenter, ExitDirection::North) => Some(RoomId::OverworldNorth),
+        (RoomId::OverworldCenter, ExitDirection::South) => Some(RoomId::OverworldSouth),
+        (RoomId::OverworldCenter, ExitDirection::East) => Some(RoomId::OverworldEast),
+        (RoomId::OverworldCenter, ExitDirection::West) => Some(RoomId::OverworldWest),
+        (RoomId::OverworldNorth, ExitDirection::South) => Some(RoomId::OverworldCenter),
+        (RoomId::OverworldSouth, ExitDirection::North) => Some(RoomId::OverworldCenter),
+        (RoomId::OverworldEast, ExitDirection::West) => Some(RoomId::OverworldCenter),
+        (RoomId::OverworldWest, ExitDirection::East) => Some(RoomId::OverworldCenter),
+        _ => None,
+    }
+}
+
+fn room_floor_color(room: RoomId) -> WorldColor {
+    match room {
+        RoomId::OverworldCenter => WorldColor::RoomFloor,
+        RoomId::OverworldNorth => WorldColor::HudPanel,
+        RoomId::OverworldSouth => WorldColor::RoomFloor,
+        RoomId::OverworldEast => WorldColor::Doorway,
+        RoomId::OverworldWest => WorldColor::Backdrop,
+    }
 }

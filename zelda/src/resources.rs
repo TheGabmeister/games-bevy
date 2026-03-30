@@ -2,13 +2,43 @@ use std::collections::HashSet;
 
 use bevy::prelude::*;
 
+use crate::constants;
+
 #[derive(Resource, Default)]
 pub struct Score(pub u32);
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum RoomId {
-    #[default]
-    OverworldTest,
+    OverworldCenter,
+    OverworldNorth,
+    OverworldSouth,
+    OverworldEast,
+    OverworldWest,
+}
+
+impl Default for RoomId {
+    fn default() -> Self {
+        Self::OverworldCenter
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ExitDirection {
+    North,
+    South,
+    East,
+    West,
+}
+
+impl ExitDirection {
+    pub const fn target_spawn_offset(self) -> Vec2 {
+        match self {
+            Self::North => constants::SOUTH_ENTRY_OFFSET,
+            Self::South => constants::NORTH_ENTRY_OFFSET,
+            Self::East => constants::WEST_ENTRY_OFFSET,
+            Self::West => constants::EAST_ENTRY_OFFSET,
+        }
+    }
 }
 
 #[derive(Resource, Clone, Copy, Debug)]
@@ -19,7 +49,24 @@ pub struct CurrentRoom {
 impl Default for CurrentRoom {
     fn default() -> Self {
         Self {
-            id: RoomId::OverworldTest,
+            id: RoomId::OverworldCenter,
+        }
+    }
+}
+
+#[derive(Resource, Debug)]
+pub struct RoomTransitionState {
+    pub locked: bool,
+    pub direction: Option<ExitDirection>,
+    pub timer: Timer,
+}
+
+impl Default for RoomTransitionState {
+    fn default() -> Self {
+        Self {
+            locked: false,
+            direction: None,
+            timer: Timer::from_seconds(0.2, TimerMode::Once),
         }
     }
 }
