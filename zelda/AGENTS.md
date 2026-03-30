@@ -13,7 +13,8 @@ Guidance for coding agents working in `c:\dev\games-bevy\zelda`.
 - Rust edition `2024`
 - Bevy `0.18.1`
 - `bevy` is enabled with the `dynamic_linking` feature
-- Current app state: modular Bevy prototype with explicit app-state flow, primitive-shape room rendering, room-to-room transitions, a playable combat test loop, and continue/game-over flow, but not a full Zelda feature set yet
+- `serde` and `ron` are used for lightweight data-driven content
+- Current app state: modular Bevy prototype with explicit app-state flow, primitive-shape room rendering, room-to-room transitions, data-driven pickups/items, inventory HUD + pause equip flow, a playable combat test loop, and continue/game-over flow, but not a full Zelda feature set yet
 
 ## Build And Validation
 
@@ -46,18 +47,20 @@ Validation expectations:
 - `src/camera.rs`: `CameraPlugin` that spawns the fixed-height 2D room camera
 - `src/input.rs`: `InputPlugin` plus the `InputActions` resource populated from keyboard and gamepad input
 - `src/constants.rs`: canonical room-space, HUD, entry offset, logical resolution, and render-layer constants
-- `src/components.rs`: shared ECS gameplay components such as `Velocity`, `Player`, `Enemy`, `Health`, `Hitbox`, `Hurtbox`, `SwordAttack`, and timers
+- `src/components.rs`: shared ECS gameplay components such as `Velocity`, `Player`, `Enemy`, `Health`, `Hitbox`, `Hurtbox`, `SwordAttack`, timers, and `PickupKind`
 - `src/rendering.rs`: shared primitive mesh/material helpers and world color conventions
-- `src/resources.rs`: shared resources such as room state, room persistence, transition lock state, and player vitals
-- `src/room.rs`: `RoomPlugin` with room lifecycle, overworld test-room spawning, transitions, and room-local persistence interactions
+- `src/resources.rs`: shared resources such as room state, room persistence, transition lock state, player vitals, and inventory/equipped-item state
+- `src/items.rs`: `ItemsPlugin`, item-table loading from RON, and shared pickup-effect application helpers
+- `src/room.rs`: `RoomPlugin` with room lifecycle, overworld test-room spawning, data-driven pickups, transitions, and room-local persistence interactions
 - `src/combat.rs`: `CombatPlugin` with sword spawning, damage resolution, invulnerability, knockback, death, and continue reset flow
 - `src/states.rs`: `AppState` definition for top-level flow
 - `src/player.rs`: `PlayerPlugin` with player spawning, movement input, facing, and facing-indicator updates
 - `src/enemy.rs`: `EnemyPlugin` stub
 - `src/collision.rs`: `CollisionPlugin` with player-vs-world collision and knockback-aware movement resolution
-- `src/ui.rs`: title, playing, paused, and game-over UI overlays
+- `src/ui.rs`: title, HUD, paused inventory, and game-over UI overlays
 - `src/audio.rs`: `AudioPlugin` stub
-- `assets/`: currently present but empty
+- `assets/data/items.ron`: data-driven pickup/item definitions loaded at startup
+- `assets/`: currently contains gameplay data, but no themed art or audio assets yet
 - `.cargo/config.toml`: shared cargo target-dir configuration
 
 ## Current Runtime Behavior
@@ -66,17 +69,20 @@ The current app is now a playable prototype shell rather than a starter scene:
 
 - `DefaultPlugins` are registered.
 - The window uses a logical `256x240` layout scaled to a default `1024x960` desktop window.
-- The app registers `GameStatePlugin`, `CameraPlugin`, `PrimitiveRenderingPlugin`, `RoomPlugin`, `InputPlugin`, `PlayerPlugin`, `EnemyPlugin`, `CombatPlugin`, `CollisionPlugin`, `UiPlugin`, and `AudioPlugin`.
+- The app registers `GameStatePlugin`, `ItemsPlugin`, `CameraPlugin`, `PrimitiveRenderingPlugin`, `RoomPlugin`, `InputPlugin`, `PlayerPlugin`, `EnemyPlugin`, `CombatPlugin`, `CollisionPlugin`, `UiPlugin`, and `AudioPlugin`.
 - `CameraPlugin` spawns a `Camera2d` with `ScalingMode::FixedVertical` using the logical screen height.
 - `GameStatePlugin` initializes `AppState`, advances from `Boot` to `Title`, and currently supports `Title -> Playing -> PausedInventory -> GameOver -> Playing/Title`.
-- `RoomPlugin` spawns a cross-shaped overworld test map with room lifecycle, screen-edge transitions, short transition locking, and room cleanup on title/game-over.
+- `ItemsPlugin` loads an `ItemTable` resource from `assets/data/items.ron` during startup using `std::fs` + `ron`.
+- `RoomPlugin` spawns a cross-shaped overworld test map with room lifecycle, screen-edge transitions, short transition locking, room cleanup on title/game-over, and data-driven pickup spawning.
 - Rooms use primitive walls, doors, obstacles, pickups, enemies, and a secret trigger; temporary room entities reset on reload, while unique pickups and secrets persist through `RoomPersistence`.
-- `UiPlugin` spawns title text, playing instructions, a pause overlay, and a game-over continue overlay using Bevy UI text/nodes.
+- `UiPlugin` spawns title text, a playing HUD for hearts/rupees/bombs/keys/equipped item, a pause inventory overlay, and a game-over continue overlay using Bevy UI text/nodes.
 - `InputPlugin` initializes an `InputActions` resource and updates it during `PreUpdate`.
 - Keyboard and gamepad input currently support Zelda-style movement, attack, item-use, pause, confirm, and cancel actions.
+- `Inventory` tracks rupees, bombs, keys, and the currently equipped item; the pause screen cycles equipped items and the HUD reflects inventory changes.
 - `PlayerPlugin` spawns the player on room load, updates 4-direction movement/facing, and shows a centered triangle facing indicator.
 - `CollisionPlugin` resolves player movement against static blockers and applies knockback-aware movement.
 - `CombatPlugin` spawns short-lived sword attack entities, applies enemy contact damage, handles invulnerability, knockback, death, and continue health reset.
+- Pickup collection applies item effects through shared item data; health pickups update both live `Health` and persisted `PlayerVitals`.
 - `EnemyPlugin` and `AudioPlugin` are still placeholders; current enemies are spawned by `RoomPlugin` as simple room-local test entities.
 
 When making changes, align your work with what actually exists in the repo rather than assuming a larger gameplay architecture is already implemented.
@@ -88,15 +94,17 @@ The project has already started moving toward a plugin-per-domain layout with sh
 - Keep `src/main.rs` focused on app setup, plugin registration, and high-level wiring.
 - Extend the existing domain modules before adding new ad hoc systems to `main.rs`.
 - Keep input concerns in `src/input.rs`.
+- Keep item-table loading and pickup effect rules in `src/items.rs`.
 - Use the existing `src/constants.rs`, `src/components.rs`, `src/resources.rs`, and `src/states.rs` modules instead of recreating those concepts inside domain files.
 - Add new gameplay domains as separate modules/plugins when they own distinct behavior.
 
 The current shared foundation is intentionally small:
 
 - `src/constants.rs` currently holds canonical room-space constants, logical resolution, door anchors, entry offsets, and render layers.
-- `src/components.rs` currently holds the core shared gameplay markers/data used by movement and combat.
+- `src/components.rs` currently holds the core shared gameplay markers/data used by movement, combat, and pickup kinds.
 - `src/rendering.rs` currently holds shared rectangle/circle spawning helpers and the initial world color palette.
-- `src/resources.rs` currently holds room id/transition/persistence state plus the current player-health snapshot used by continue flow.
+- `src/resources.rs` currently holds room id/transition/persistence state plus the current player-health snapshot and inventory state used by HUD/pause/continue flow.
+- `src/items.rs` currently holds the item metadata loader and shared pickup-effect rules.
 - `src/states.rs` currently defines `AppState` with `Boot`, `Title`, `Playing`, `PausedInventory`, and `GameOver`.
 
 If you add more gameplay, prefer extending those files before introducing parallel duplicates elsewhere.
@@ -120,9 +128,10 @@ If you add more gameplay, prefer extending those files before introducing parall
 - Put reusable primitive-shape spawning and shared color conventions in `src/rendering.rs`.
 - Put shared ECS marker/data types in `src/components.rs`.
 - Put shared mutable game-wide state in `src/resources.rs`.
+- Put pickup metadata, effect definitions, and item-table loading in `src/items.rs`; keep `assets/data/items.ron` aligned with the Rust data model.
 - Extend `src/states.rs` when adding real state-driven flow.
 - Keep room-scale camera behavior in `src/camera.rs` rather than reconfiguring projection ad hoc from gameplay modules.
-- Keep room loading, adjacency, persistence classification, and screen-edge transition rules in `src/room.rs`.
+- Keep room loading, adjacency, persistence classification, screen-edge transition rules, and pickup placement in `src/room.rs`.
 - Keep sword/damage/death/continue logic in `src/combat.rs` unless the task clearly calls for a broader combat refactor.
 - When gameplay entities become state-scoped, define the matching cleanup path on `OnExit` or use Bevy's state-based despawn helpers.
 
@@ -131,6 +140,7 @@ If you add more gameplay, prefer extending those files before introducing parall
 - UI currently uses Bevy's component-based UI directly.
 - Asset paths should remain plain relative strings passed to `asset_server.load(...)`.
 - Keep asset references aligned with files under `assets/`.
+- The item table currently loads from `assets/data/items.ron` via `std::fs::read_to_string(...)` rather than `AssetServer`; preserve or consciously refactor that behavior.
 - Do not assume themed art or audio already exists; check `assets/` before wiring references.
 
 ## Bevy 0.18.1 Notes
@@ -155,11 +165,12 @@ If you add more gameplay, prefer extending those files before introducing parall
 - App boot and plugin wiring: `src/main.rs`
 - Top-level state flow and continue/game-over wiring: `src/game_state.rs`
 - Camera setup and logical viewport: `src/camera.rs`
-- Room lifecycle, transitions, test rooms, and persistence behavior: `src/room.rs`
+- Room lifecycle, transitions, test rooms, pickups, and persistence behavior: `src/room.rs`
 - Combat loop, sword hits, player damage, and death/continue rules: `src/combat.rs`
 - Player spawning and movement/facing updates: `src/player.rs`
 - Input mapping and action resource: `src/input.rs`
+- Item metadata and pickup effects: `src/items.rs` and `assets/data/items.ron`
 - Shared constants/components/resources/state definitions: `src/constants.rs`, `src/components.rs`, `src/rendering.rs`, `src/resources.rs`, `src/states.rs`
 - Build output location: `.cargo/config.toml`
 - Dependency/runtime configuration: `Cargo.toml`
-- Available assets, if any: `assets/`
+- Available assets and data: `assets/`

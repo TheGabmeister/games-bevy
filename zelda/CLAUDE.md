@@ -25,6 +25,7 @@ Dependencies compile at `opt-level = 3` while the main crate uses `opt-level = 1
 
 - **Bevy 0.18.1** — ECS game engine
 - **Rust Edition 2024**
+- **serde + ron** — data-driven content loaded from `assets/data/*.ron`
 
 ## Architecture
 
@@ -34,24 +35,39 @@ Zelda-like top-down action game using primitive 2D shapes (no sprite assets). On
 
 | Plugin | File | Role |
 |--------|------|------|
-| `GameStatePlugin` | `game_state.rs` | State transitions (Boot→Title→Playing⇄Paused/GameOver) |
+| `GameStatePlugin` | `game_state.rs` | State transitions (Boot→Title→Playing⇄Paused/GameOver), `Inventory` init |
+| `ItemsPlugin` | `items.rs` | Loads `assets/data/items.ron` into `ItemTable` resource at startup |
 | `CameraPlugin` | `camera.rs` | Fixed orthographic camera, `ScalingMode::FixedVertical(240)` |
-| `PrimitiveRenderingPlugin` | `rendering.rs` | Color palette, mesh/material spawn helpers, Z-layer constants |
+| `PrimitiveRenderingPlugin` | `rendering.rs` | Color palette, mesh/material spawn helpers, reactive `Label` → `Text2d` system |
 | `RoomPlugin` | `room.rs` | Room loading, transitions, perimeter walls, doors, obstacles, pickups, secrets |
 | `InputPlugin` | `input.rs` | Keyboard + gamepad → `InputActions` resource |
 | `PlayerPlugin` | `player.rs` | Player spawn, movement, facing indicator |
 | `CombatPlugin` | `combat.rs` | Sword attacks, damage resolution, knockback, invulnerability, death |
 | `CollisionPlugin` | `collision.rs` | AABB overlap, split-axis movement vs `StaticBlocker` entities |
-| `UiPlugin` | `ui.rs` | Screen overlays (title, playing HUD, pause, game over) |
+| `UiPlugin` | `ui.rs` | HUD (hearts, counters, equipped item), title/pause/game-over overlays |
 | `EnemyPlugin` | `enemy.rs` | Stub — enemies are spawned by rooms but have no AI |
 | `AudioPlugin` | `audio.rs` | Stub — no sound |
 
 ### Shared Modules (no plugin)
 
 - **`constants.rs`** — All tunable values: room dimensions (256×176), HUD height (64), window scale (4×), collision unit (8), door anchors, entry offsets, Z-depth layers
-- **`components.rs`** — All ECS components: `Player`, `Enemy`, `Wall`, `Door`, `StaticBlocker`, `Velocity`, `Health`, `Facing`, `Hitbox`/`Hurtbox`/`SolidBody`, `Damage`, `Knockback`, `SwordAttack`, `InvulnerabilityTimer`, `Lifetime`, `RoomEntity`
-- **`resources.rs`** — Global state: `Score`, `PlayerVitals`, `CurrentRoom`, `RoomTransitionState`, `RoomPersistence`, `RoomId` enum, `ExitDirection` enum
+- **`components.rs`** — All ECS components: `Player`, `Enemy`, `Wall`, `Door`, `StaticBlocker`, `Velocity`, `Health`, `Facing`, `Hitbox`/`Hurtbox`/`SolidBody`, `Damage`, `Knockback`, `SwordAttack`, `InvulnerabilityTimer`, `Lifetime`, `RoomEntity`, `Label`, `PickupKind`
+- **`resources.rs`** — Global state: `Score`, `PlayerVitals`, `Inventory`, `EquippedItem`, `CurrentRoom`, `RoomTransitionState`, `RoomPersistence`, `RoomId` enum, `ExitDirection` enum
 - **`states.rs`** — `AppState` enum: `Boot`, `Title`, `Playing`, `PausedInventory`, `GameOver`
+
+### Data-Driven Items
+
+Item properties (label, description, color, radius, pickup effect) are defined in `assets/data/items.ron` and loaded at startup into `ItemTable` (a `Resource`). The `PickupKind` enum still lives in Rust (adding a new kind requires recompile), but all tunable data is in the RON file.
+
+- `items::ItemTable::lookup(kind)` → `&ItemData` (label, color, radius, effect)
+- `items::apply_pickup_effect(&effect, inventory, health, vitals)` — applies the data-driven `PickupEffect`
+- `PickupEffect` variants: `AddRupees(n)`, `RestoreHealth(n)`, `AddBombs(n)`, `AddKeys(n)`, `HeartContainer`
+
+When adding a new item type: add variant to `PickupKind`, add a `PickupEffect` variant if needed, add an entry to `items.ron`.
+
+### Label System
+
+Attach `Label("text".into())` to any entity — the `PrimitiveRenderingPlugin` reactively spawns a `Text2d` child via `Added<Label>` detection in `PostUpdate`. Labels inherit parent transforms and despawn automatically.
 
 ### State Machine Flow
 
@@ -65,6 +81,14 @@ Boot → Title → Playing ⇄ PausedInventory
 - Use `OnEnter`/`OnExit` for spawn/cleanup symmetry
 - Prefer `DespawnOnExit(AppState::Playing)` on entities that should auto-despawn when leaving a state
 
+### Inventory & HUD
+
+- `Inventory` resource tracks `rupees`, `bombs`, `keys`, `equipped: Option<EquippedItem>`
+- `PlayerVitals` tracks `current_health`/`max_health` persistently across room transitions
+- HUD (UI nodes with absolute positioning) shows hearts, rupee/bomb/key counters, and equipped item
+- Inventory persists through death/continue, resets on new game (Title)
+- Equipped item cycles with attack key (Z) while paused
+
 ### Room System
 
 5 overworld rooms (`RoomId` enum): Center, North, South, East, West. Each room spawns: floor, perimeter walls with door openings, obstacles (`StaticBlocker`), enemies, pickups.
@@ -72,6 +96,7 @@ Boot → Title → Playing ⇄ PausedInventory
 - **Transitions**: triggered when player crosses room edge (6-unit padding). Locked for 0.2s to prevent re-entry. Player repositioned at inverse door entry.
 - **Persistence** (`RoomPersistence`): unique pickups stay collected, secrets stay revealed, temporary pickups reset on re-entry.
 - **Messages**: `LoadRoomMessage` requests load, `RoomLoadedMessage` confirms completion.
+- **Typed pickups**: each pickup has a `PickupKind` component; visual properties and effects looked up from `ItemTable`.
 
 ### Combat System Ordering
 
@@ -104,6 +129,7 @@ Background (-20) → Floor (0) → Walls (10) → Entities (20) → Pickups (30)
 - New tunable values go in `constants.rs`, not inline magic numbers
 - New shared mutable game state goes in `resources.rs`
 - New ECS marker/data types go in `components.rs`
+- New content data goes in `assets/data/*.ron`; keep game logic in Rust, tunables in RON
 - Prefer extending an existing domain plugin over registering ad hoc systems in `main.rs`
 - Use `.after()` chains where frame ordering matters; for 10+ systems, group into `SystemSet`s and order at the set level
 
