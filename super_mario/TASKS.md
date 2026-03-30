@@ -89,15 +89,15 @@ Ordered for incremental learning. Each task produces a runnable game with visibl
 
 **You'll learn**: Enemy AI (simple patrol), collision responses, stomp detection, despawning.
 
-- [ ] **6.1** Create `enemy.rs` module — `Goomba` marker, `EnemyWalker` component (speed, direction)
-- [ ] **6.2** Spawn Goombas from level data at `G` tiles — brown ellipse + rectangle feet
-- [ ] **6.3** Goomba patrol system — walk in one direction, reverse on wall collision (requires enemy-tile collision)
-- [ ] **6.4** Goomba gravity + falls off ledges (enemies need the same gravity/ground collision as Mario)
-- [ ] **6.5** Mario-Goomba collision: stomp detection (Mario above + falling = kill Goomba)
-- [ ] **6.6** Goomba stomp: squish animation (flatten, brief delay, then despawn), Mario bounces up
-- [ ] **6.7** Mario-Goomba side/bottom contact: Mario dies (all contact = death until power-ups in Phase 8)
-- [ ] **6.8** Add score popup on stomp (+100 as floating `Text2d` that rises and fades)
-- [ ] **6.9** Only activate enemies when they're near the camera (don't simulate off-screen enemies)
+- [x] **6.1** Create `enemy.rs` module — `Goomba` marker, `EnemyWalker` component (speed, direction)
+- [x] **6.2** Spawn Goombas from level data at `G` tiles — brown ellipse + rectangle feet
+- [x] **6.3** Goomba patrol system — walk in one direction, reverse on wall collision (requires enemy-tile collision)
+- [x] **6.4** Goomba gravity + falls off ledges (enemies need the same gravity/ground collision as Mario)
+- [x] **6.5** Mario-Goomba collision: stomp detection (Mario above + falling = kill Goomba)
+- [x] **6.6** Goomba stomp: squish animation (flatten, brief delay, then despawn), Mario bounces up
+- [x] **6.7** Mario-Goomba side/bottom contact: Mario dies (all contact = death until power-ups in Phase 8)
+- [x] **6.8** Add score popup on stomp (+100 as floating `Text2d` that rises and fades)
+- [x] **6.9** Only activate enemies when they're near the camera (don't simulate off-screen enemies)
 
 **Milestone**: Goombas patrol the level, can be stomped for points, and kill Mario on contact.
 

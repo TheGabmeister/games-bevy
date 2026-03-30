@@ -3,6 +3,7 @@ use bevy::prelude::*;
 mod camera;
 mod components;
 mod constants;
+mod enemy;
 mod level;
 mod player;
 mod resources;
@@ -46,6 +47,7 @@ fn main() {
             player::PlayerPlugin,
             camera::CameraPlugin,
             ui::UiPlugin,
+            enemy::EnemyPlugin,
         ))
         .add_systems(OnEnter(AppState::Playing), level::spawn_level)
         .run();

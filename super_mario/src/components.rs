@@ -35,6 +35,25 @@ pub enum TileType {
     PipeBodyRight,
 }
 
+// Enemy
+#[derive(Component)]
+pub struct Goomba;
+
+#[derive(Component)]
+pub struct EnemyWalker {
+    pub speed: f32,
+    pub direction: f32,
+}
+
+#[derive(Component)]
+pub struct EnemyActive;
+
+#[derive(Component)]
+pub struct Squished(pub Timer);
+
+#[derive(Component)]
+pub struct ScorePopup(pub Timer);
+
 // HUD markers
 #[derive(Component)]
 pub struct ScoreText;

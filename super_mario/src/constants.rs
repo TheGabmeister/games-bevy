@@ -63,3 +63,15 @@ pub const DEATH_Y: f32 = -160.0;
 pub const DEATH_BOUNCE_IMPULSE: f32 = 280.0;
 pub const DEATH_PAUSE_DURATION: f32 = 0.5;
 pub const DEATH_FALL_DURATION: f32 = 3.0;
+
+// Goomba
+pub const GOOMBA_WIDTH: f32 = 14.0;
+pub const GOOMBA_HEIGHT: f32 = 14.0;
+pub const GOOMBA_SPEED: f32 = 30.0;
+pub const STOMP_BOUNCE_IMPULSE: f32 = 200.0;
+pub const SQUISH_DURATION: f32 = 0.4;
+pub const STOMP_SCORE: u32 = 100;
+
+// Score popup
+pub const SCORE_POPUP_DURATION: f32 = 1.0;
+pub const SCORE_POPUP_RISE_SPEED: f32 = 60.0;

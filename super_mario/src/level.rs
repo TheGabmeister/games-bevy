@@ -178,6 +178,14 @@ pub fn spawn_level(
     let pipe_mat = materials.add(ColorMaterial::from_color(Color::srgb(0.0, 0.65, 0.15)));
     let player_mat = materials.add(ColorMaterial::from_color(Color::srgb(0.8, 0.1, 0.1)));
 
+    // Goomba meshes
+    let goomba_body_mesh = meshes.add(Ellipse::new(6.0, 5.0));
+    let goomba_feet_mesh = meshes.add(Rectangle::new(12.0, 4.0));
+    let goomba_body_mat =
+        materials.add(ColorMaterial::from_color(Color::srgb(0.55, 0.30, 0.10)));
+    let goomba_feet_mat =
+        materials.add(ColorMaterial::from_color(Color::srgb(0.35, 0.18, 0.05)));
+
     let grid = level_1_1();
     commands.insert_resource(LevelGrid { grid });
 
@@ -260,6 +268,24 @@ pub fn spawn_level(
                         Transform::from_xyz(wx, wy, Z_PIPE),
                         DespawnOnExit(AppState::Playing),
                     ));
+                }
+                'G' => {
+                    commands.spawn((
+                        Goomba,
+                        EnemyWalker { speed: GOOMBA_SPEED, direction: -1.0 },
+                        Velocity::default(),
+                        Grounded::default(),
+                        Mesh2d(goomba_body_mesh.clone()),
+                        MeshMaterial2d(goomba_body_mat.clone()),
+                        Transform::from_xyz(wx, wy, Z_ENEMY),
+                        DespawnOnExit(AppState::Playing),
+                    )).with_children(|parent| {
+                        parent.spawn((
+                            Mesh2d(goomba_feet_mesh.clone()),
+                            MeshMaterial2d(goomba_feet_mat.clone()),
+                            Transform::from_xyz(0.0, -5.0, 0.0),
+                        ));
+                    });
                 }
                 'S' => {
                     sp = (wx, wy);
