@@ -1,9 +1,35 @@
 use bevy::prelude::*;
 
+use crate::components::Label;
+
+const LABEL_FONT_SIZE: f32 = 7.0;
+const LABEL_Y_OFFSET: f32 = -12.0;
+
 pub struct PrimitiveRenderingPlugin;
 
 impl Plugin for PrimitiveRenderingPlugin {
-    fn build(&self, _app: &mut App) {}
+    fn build(&self, app: &mut App) {
+        app.add_systems(PostUpdate, spawn_label_text);
+    }
+}
+
+fn spawn_label_text(
+    mut commands: Commands,
+    new_labels: Query<(Entity, &Label), Added<Label>>,
+) {
+    for (entity, label) in &new_labels {
+        commands.entity(entity).with_children(|child| {
+            child.spawn((
+                Text2d::new(label.0),
+                TextFont {
+                    font_size: LABEL_FONT_SIZE,
+                    ..default()
+                },
+                TextColor(WorldColor::UiText.color()),
+                Transform::from_xyz(0.0, LABEL_Y_OFFSET, 1.0),
+            ));
+        });
+    }
 }
 
 #[derive(Clone, Copy, Debug)]

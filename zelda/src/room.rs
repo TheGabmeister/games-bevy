@@ -4,8 +4,8 @@ use bevy::prelude::*;
 use crate::{
     collision::CollisionSet,
     components::{
-        Damage, Door, Enemy, Health, Hitbox, Hurtbox, PickupKind, Player, RoomEntity, SolidBody,
-        StaticBlocker, Wall,
+        Damage, Door, Enemy, Health, Hitbox, Hurtbox, Label, PickupKind, Player, RoomEntity,
+        SolidBody, StaticBlocker, Wall,
     },
     constants,
     input::InputActions,
@@ -485,6 +485,7 @@ fn spawn_test_obstacles(
             RoomEntity,
             Wall,
             StaticBlocker,
+            Label(obstacle_label(name)),
             SolidBody {
                 half_size: OBSTACLE_SIZE * 0.5,
             },
@@ -527,6 +528,7 @@ fn spawn_test_pickups(
             RoomEntity,
             UniquePickup,
             unique_kind,
+            Label(pickup_label(unique_kind)),
             PersistentRoomEntity {
                 key: unique_key,
                 category: RoomPersistenceCategory::UniquePickup,
@@ -546,6 +548,7 @@ fn spawn_test_pickups(
         RoomEntity,
         TemporaryPickup,
         temporary_kind,
+        Label(pickup_label(temporary_kind)),
         PersistentRoomEntity {
             key: PersistentRoomKey {
                 room,
@@ -582,6 +585,7 @@ fn spawn_test_enemies(
             Name::new("TestEnemy"),
             RoomEntity,
             Enemy,
+            Label("enemy"),
             Health::new(1),
             Damage(1),
             Hitbox {
@@ -616,6 +620,7 @@ fn spawn_secret_entities(
     commands.spawn((
         Name::new("SecretBush"),
         RoomEntity,
+        Label("bush"),
         SecretTrigger {
             key: secret_key,
             reveal_at: Vec2::new(88.0, constants::ROOM_ORIGIN.y + 42.0),
@@ -728,6 +733,7 @@ fn spawn_revealed_secret(
     commands.spawn((
         Name::new("RevealedSecret"),
         RoomEntity,
+        Label("stair"),
         PersistentRoomEntity {
             key,
             category: RoomPersistenceCategory::Secret,
@@ -818,5 +824,32 @@ fn room_floor_color(room: RoomId) -> WorldColor {
         RoomId::OverworldSouth => WorldColor::RoomFloor,
         RoomId::OverworldEast => WorldColor::Doorway,
         RoomId::OverworldWest => WorldColor::Backdrop,
+    }
+}
+
+fn obstacle_label(name: &str) -> &str {
+    if name.starts_with("Rock") {
+        "rock"
+    } else if name.starts_with("Tree") {
+        "tree"
+    } else if name.starts_with("Pond") {
+        "pond"
+    } else if name.starts_with("Ridge") {
+        "ridge"
+    } else if name.starts_with("Statue") {
+        "statue"
+    } else {
+        name
+    }
+}
+
+fn pickup_label(kind: PickupKind) -> &'static str {
+    match kind {
+        PickupKind::Rupee => "rupee",
+        PickupKind::FiveRupees => "5 rupee",
+        PickupKind::Heart => "heart",
+        PickupKind::Bomb => "bomb",
+        PickupKind::Key => "key",
+        PickupKind::HeartContainer => "heart+",
     }
 }

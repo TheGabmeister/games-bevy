@@ -525,9 +525,10 @@ Use this as the main backlog. Each item should produce a playable improvement an
 - [x] Add room-boundary locking during transitions so the player cannot break screen flow.
 - [x] Implement sword attacks with hit timing and short-lived attack entities.
 - [x] Implement player damage, knockback, invulnerability, death, respawn, and continue flow with explicit reset rules.
-- [ ] Add a HUD showing hearts plus basic counters for rupees, bombs, and keys.
-- [ ] Create a persistent `Inventory` resource and wire equipped-item selection.
-- [ ] Implement pickups for rupees, hearts, bombs, keys, and heart containers.
+- [x] Add a HUD showing hearts plus basic counters for rupees, bombs, and keys.
+- [x] Create a persistent `Inventory` resource and wire equipped-item selection.
+- [x] Implement pickups for rupees, hearts, bombs, keys, and heart containers.
+- [x] Add short text labels over entities to visually indicate what they represent.
 - [ ] Add enemy drop tables and temporary pickup behavior for common combat rewards.
 - [ ] Add a data format for overworld room definitions and spawn the overworld from data.
 - [ ] Define a shared room schema covering exits, spawn points, geometry, doors, secrets, encounters, rewards, and persistence flags.
