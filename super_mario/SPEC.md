@@ -77,6 +77,26 @@ Everything is drawn with colored primitive shapes:
 - **Collision resolution**: On overlap, push the entity out by the smallest penetration axis. Horizontal and vertical axes are resolved independently — resolve vertical first (landing/ceiling), then horizontal (walls). This prevents corner-catching.
 - **FacingDirection**: All moving entities track which direction they face (Left/Right). Used for fireball direction, shell kick direction, and visual orientation.
 
+### System Execution Order
+
+Physics systems must run in a strict order each frame to avoid jitter, tunneling, and missed collisions:
+
+1. **Input** — read keyboard, set desired velocity/jump
+2. **Gravity** — apply gravitational acceleration to vertical velocity
+3. **Movement** — update position from velocity (`pos += vel * dt`)
+4. **Tile collision resolution** — detect and resolve overlaps with solid tiles (vertical first, then horizontal)
+5. **Grounded check** — test narrow rect below feet to set/clear `Grounded` flag
+6. **Entity collision** — check entity-vs-entity overlaps (stomp, damage, item pickup)
+
+Use `.after()` chains or `SystemSet` ordering to enforce this. Getting the order wrong causes: falling through floors, jumps not registering, one-frame-late grounded state.
+
+### Tile Collision Optimization
+
+Levels have ~3,000+ tiles. Do **not** check every tile each frame. Instead:
+- Convert the entity's bounding box to tile-grid coordinates
+- Only check the ~12 tiles (3×4 neighborhood) that the entity could possibly overlap
+- This applies to Mario, all enemies, mushrooms, and shells
+
 ---
 
 ## Player (Mario)
@@ -90,8 +110,8 @@ Everything is drawn with colored primitive shapes:
 - **Run**: Left/right with acceleration and deceleration (not instant stop)
 - **Max walk speed**: ~130 units/s
 - **Max run speed**: ~200 units/s (hold Shift/run button)
-- **Jump**: Variable-height — holding jump goes higher, releasing cuts it short
-- **Jump height**: ~64 units (4 tiles) for full jump
+- **Jump**: Variable-height — on press, apply a large upward impulse. On release (while still rising), multiply vertical velocity by ~0.4 to cut the jump short. Use two gravity values: lower gravity while ascending (~600 units/s²) for a floaty rise, normal gravity while descending (~980 units/s²) for a snappy fall. This dual-gravity produces the signature Mario jump arc.
+- **Jump height**: ~64 units (4 tiles) for full jump, ~16 units (1 tile) for a short tap
 - **Air control**: Reduced but present — can steer mid-air
 - **Skid**: When reversing direction while moving, brief skid animation (color flash)
 - **No double jump**: Only jump when grounded
@@ -117,10 +137,12 @@ Everything is drawn with colored primitive shapes:
 ### Koopa Troopa
 - Walks in one direction, reverses on wall collision
 - **Stomp**: Retreats into shell (becomes a static green rectangle)
-- **Kick shell**: Touch shell while it's stationary — it slides fast in that direction
+- **Kick shell**: Touch stationary shell from the side — it launches in the direction Mario is facing
+- **Stomp moving shell**: Stomping a moving shell stops it (returns to stationary shell)
 - **Shell kills**: Moving shell defeats other enemies on contact
-- **Shell danger**: Moving shell kills Mario on contact too
+- **Shell danger**: Moving shell kills Mario on side contact (not stomp)
 - Shell bounces off walls
+- Shell has 3 states: `Walking` (Koopa alive) → `Stationary` (shell idle) → `Moving` (shell kicked) → can return to `Stationary` via stomp
 
 ---
 
@@ -138,7 +160,8 @@ Everything is drawn with colored primitive shapes:
 ### Question Block (`?`)
 - Hit from below to release contents
 - After hit, becomes an empty block (gray, darker)
-- Contents: Coin (adds to coin counter) or Power-up (mushroom/fire flower depending on Mario state)
+- Contents: Coin (adds to coin counter) or Power-up (mushroom if Mario is Small, fire flower if Mario is Big/Fire)
+- **Hit disambiguation**: When Mario's head overlaps multiple blocks, activate the block whose horizontal center is closest to Mario's horizontal center. Only one block activates per jump.
 
 ### Empty Block
 - Solid, no interaction — visual indicator that a `?` block was already used
@@ -155,7 +178,8 @@ Everything is drawn with colored primitive shapes:
 ### Super Mushroom
 - Emerges from `?` block, slides along the ground
 - Falls off edges, bounces off walls
-- On contact with Mario: Small → Big (grow animation)
+- On contact with Mario: Small → Big (grow transition)
+- **Growth transition**: Freeze all gameplay (enemies, timer, physics) for ~1 second. Flash Mario between small and big sizes 3-4 times. Mario grows **upward from his feet** (anchor the bottom of the sprite, not the center) — otherwise the new hitbox can clip into ceiling tiles. After the transition, resume gameplay with the new 14×32 hitbox.
 
 ### Fire Flower
 - Emerges from `?` block (only when Mario is already Big)
@@ -183,7 +207,13 @@ Everything is drawn with colored primitive shapes:
 
 ### Flagpole (End of Level)
 - Tall pole at the end of the level
-- Mario touches it → slides down → walks to castle → level complete
+- Mario touches the pole → enter `LevelComplete` sub-state:
+  1. **Disable all player input** — Mario is now driven by scripted movement, not the input→velocity pipeline
+  2. Record contact height for scoring
+  3. Snap Mario's x-position to the pole
+  4. Slide Mario down at a fixed speed until he reaches the base
+  5. Mario walks right at a fixed speed toward the castle entrance
+  6. On reaching the castle, trigger score tally and level transition
 - Score bonus based on height of contact (higher = more points)
 
 ### Castle

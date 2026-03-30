@@ -9,15 +9,16 @@ Ordered for incremental learning. Each task produces a runnable game with visibl
 **You'll learn**: Bevy app setup, ECS basics (entities, components, systems), keyboard input, basic rendering with primitives.
 
 - [ ] **1.1** Set up window (800×600, title "Super Mario Bros"), spawn a 2D camera, set `ClearColor` to light blue sky
-- [ ] **1.2** Create `constants.rs` — window size, tile size (16×16), camera scale, gravity (980), terminal velocity (500), player speeds (walk 130, run 200), jump force
+- [ ] **1.2** Create `constants.rs` — window size, tile size (16×16), camera scale, ascending gravity (600), descending gravity (980), terminal velocity (500), player speeds (walk 130, run 200), jump impulse, jump cut multiplier (0.4)
 - [ ] **1.3** Create `components.rs` — `Player` marker, `Velocity` component, `FacingDirection` enum (Left/Right)
 - [ ] **1.4** Spawn Mario as a red rectangle (14×16) near the bottom of the screen
 - [ ] **1.5** Add horizontal movement (left/right input → velocity → position update). Track `FacingDirection`.
 - [ ] **1.6** Add gravity — Mario falls, add a ground line (single rectangle across the bottom)
-- [ ] **1.7** Add grounded detection and jumping (variable-height: hold = higher, release = cut short)
+- [ ] **1.7** Add grounded detection and jumping. Variable-height: apply impulse on press, multiply velocity by ~0.4 on release. Use dual gravity: lower while ascending (600), higher while descending (980).
 - [ ] **1.8** Add acceleration/deceleration to horizontal movement (not instant start/stop)
 - [ ] **1.9** Add run speed — hold Shift for higher max speed (~200 vs ~130 walk)
 - [ ] **1.10** Set up camera projection scale so visible area is ~267×200 world units (tiles render large enough)
+- [ ] **1.11** Enforce system ordering with `.after()` chains: Input → Gravity → Movement → Collision → Grounded check
 
 **Milestone**: A red rectangle that runs and jumps on a flat brown floor with momentum, against a blue sky.
 
@@ -31,7 +32,7 @@ Ordered for incremental learning. Each task produces a runnable game with visibl
 - [ ] **2.2** Create `Tile` marker component and `TileType` enum (Ground, Brick, QuestionBlock, Empty, PipeTopLeft, PipeTopRight, PipeBodyLeft, PipeBodyRight)
 - [ ] **2.3** Write a system that reads the level data and spawns colored rectangles for each tile. Assign z-layers (see SPEC render ordering).
 - [ ] **2.4** Spawn Mario at the `S` tile position instead of a hardcoded location
-- [ ] **2.5** Implement tile collision — AABB overlap detection, push-out by smallest penetration axis (vertical first, then horizontal). Mario stands on tiles, bumps into walls, hits ceilings.
+- [ ] **2.5** Implement tile collision — AABB overlap detection, push-out by smallest penetration axis (vertical first, then horizontal). Only check ~12 tiles in the entity's neighborhood (convert position to grid coords), not all 3,000+ tiles. Mario stands on tiles, bumps into walls, hits ceilings.
 - [ ] **2.6** Remove the old single ground rectangle; level is now fully tile-based
 - [ ] **2.7** Add pipes — parse `[]{}` tile chars, render as green rectangles (lip slightly wider than body), solid and collidable
 - [ ] **2.8** Add pits/gaps in the ground — verify Mario falls through
@@ -106,7 +107,7 @@ Ordered for incremental learning. Each task produces a runnable game with visibl
 
 **You'll learn**: Entity-to-entity interaction, message passing, spawn-on-event patterns, component swapping.
 
-- [ ] **7.1** Detect Mario hitting a block from below (head collision while jumping)
+- [ ] **7.1** Detect Mario hitting a block from below (head collision while jumping). When head overlaps multiple blocks, activate the one whose center is closest to Mario's center. Only one block per jump.
 - [ ] **7.2** `?` Block hit: block bounces up briefly (visual feedback), then turns into Empty block
 - [ ] **7.3** `?` Block coin release: spawn a coin that arcs up and disappears, +1 coin counter, +200 score
 - [ ] **7.4** Brick block + Small Mario: bump animation (block shakes), enemies on top get killed
@@ -125,7 +126,7 @@ Ordered for incremental learning. Each task produces a runnable game with visibl
 - [ ] **8.1** `?` Blocks marked `M` in level data release a Mushroom instead of a coin
 - [ ] **8.2** Mushroom emerges from block (rises up), then slides along ground, bounces off walls, falls off edges (mushroom needs tile collision + gravity, same as enemies)
 - [ ] **8.3** Mario + Mushroom contact: Small → Big (double height to 14×32)
-- [ ] **8.4** Growth transition: brief "growing" animation (flash between sizes using a timer)
+- [ ] **8.4** Growth transition: freeze all gameplay for ~1s, flash between small/big sizes 3-4 times. Anchor growth from feet (bottom of sprite stays fixed) to avoid clipping into ceiling tiles.
 - [ ] **8.5** Big Mario: update collision box, camera offset
 - [ ] **8.6** Big Mario takes damage → shrink to Small (with ~2s invincibility, flashing sprite)
 - [ ] **8.7** During invincibility: Mario flashes (toggle visibility each frame), enemies pass through
@@ -141,10 +142,10 @@ Ordered for incremental learning. Each task produces a runnable game with visibl
 **You'll learn**: Complex enemy states, entity reuse (Koopa → Shell), chain reactions.
 
 - [ ] **9.1** Create Koopa entity — green rectangle body + circle head, patrols like Goomba
-- [ ] **9.2** Stomp Koopa: transforms into shell (replace with static green rectangle)
-- [ ] **9.3** Kick shell: Mario touches stationary shell → shell slides fast in that direction
+- [ ] **9.2** Stomp Koopa: transforms into stationary shell (static green rectangle). Shell has 3 states: Walking → Stationary → Moving (and back to Stationary via stomp).
+- [ ] **9.3** Kick shell: Mario walks into stationary shell → shell launches in Mario's facing direction
 - [ ] **9.4** Moving shell kills enemies it contacts (Goombas, other Koopas)
-- [ ] **9.5** Moving shell kills Mario on contact (it's dangerous!)
+- [ ] **9.5** Moving shell kills Mario on side contact (stomping a moving shell stops it → returns to Stationary)
 - [ ] **9.6** Shell bounces off walls
 - [ ] **9.7** Chain kill scoring — shell kills give 200, 400, 800... per consecutive enemy
 
@@ -175,8 +176,8 @@ Ordered for incremental learning. Each task produces a runnable game with visibl
 
 - [ ] **11.1** Add flagpole at the end of the level (tall thin rectangle + triangle flag)
 - [ ] **11.2** Add castle after flagpole (rectangles + triangle roof)
-- [ ] **11.3** Mario touches flagpole → enter LevelComplete sub-state, disable input
-- [ ] **11.4** Flagpole sequence: Mario slides down pole, walks right to castle entrance
+- [ ] **11.3** Mario touches flagpole → enter LevelComplete sub-state, disable all player input. Mario is now driven by scripted movement (direct transform control, not the input→velocity pipeline).
+- [ ] **11.4** Flagpole sequence: snap Mario to pole x-position, slide down at fixed speed, then walk right to castle entrance at fixed speed
 - [ ] **11.5** Score based on flagpole contact height (higher = more points, top = 5000)
 - [ ] **11.6** Time bonus: remaining time × 50, visibly count down on HUD
 - [ ] **11.7** After tally: transition to next level (or loop to Level 1-1)
