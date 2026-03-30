@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::board::Board;
+use crate::board::{spawn_line_flash, Board};
 use crate::constants::*;
 use crate::tetromino::{ActivePiece, PieceBag, RotationState, TetrominoKind};
 
@@ -25,18 +25,21 @@ fn spawn_next_piece(piece: &mut ActivePiece, bag: &mut PieceBag) {
     piece.col = SPAWN_COL;
 }
 
-/// Lock the active piece into the board, spawn the next piece, and reset
-/// gravity + lock-delay state.
+/// Lock the active piece into the board, clear full rows, spawn the next
+/// piece, and reset gravity + lock-delay state. Returns cleared row indices
+/// so the caller can spawn flash effects.
 fn lock_and_spawn(
     piece: &mut ActivePiece,
     board: &mut Board,
     bag: &mut PieceBag,
     gravity: &mut GravityTimer,
     lock: &mut LockDelayState,
-) {
+) -> Vec<usize> {
     let cells = piece.board_cells();
     let color = piece.kind.color();
     board.lock_cells(&cells, color);
+
+    let cleared_rows = board.clear_full_rows();
 
     spawn_next_piece(piece, bag);
 
@@ -45,6 +48,8 @@ fn lock_and_spawn(
     lock.resets = 0;
     lock.prev_col = piece.col;
     lock.prev_rotation = piece.rotation;
+
+    cleared_rows
 }
 
 // ---------------------------------------------------------------------------
@@ -236,6 +241,7 @@ fn handle_rotation(
 }
 
 fn handle_hard_drop(
+    mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
     mut piece: ResMut<ActivePiece>,
     mut board: ResMut<Board>,
@@ -252,7 +258,10 @@ fn handle_hard_drop(
         piece.row -= 1;
     }
 
-    lock_and_spawn(&mut piece, &mut board, &mut bag, &mut gravity, &mut lock);
+    let cleared = lock_and_spawn(&mut piece, &mut board, &mut bag, &mut gravity, &mut lock);
+    for &row in &cleared {
+        spawn_line_flash(&mut commands, row);
+    }
 }
 
 fn handle_gravity(
@@ -283,6 +292,7 @@ fn handle_gravity(
 }
 
 fn handle_lock_delay(
+    mut commands: Commands,
     time: Res<Time>,
     mut lock: ResMut<LockDelayState>,
     mut piece: ResMut<ActivePiece>,
@@ -310,6 +320,10 @@ fn handle_lock_delay(
     lock.elapsed += time.delta_secs();
 
     if lock.elapsed >= LOCK_DELAY_SECS {
-        lock_and_spawn(&mut piece, &mut board, &mut bag, &mut gravity, &mut lock);
+        let cleared =
+            lock_and_spawn(&mut piece, &mut board, &mut bag, &mut gravity, &mut lock);
+        for &row in &cleared {
+            spawn_line_flash(&mut commands, row);
+        }
     }
 }

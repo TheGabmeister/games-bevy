@@ -220,9 +220,9 @@ The tasks are ordered for incremental learning: each phase produces something vi
 - [x] Lock piece into the board when delay expires
 
 ### Phase 7: Line Clears & Collapse
-- [ ] Detect fully filled rows after piece locks
-- [ ] Clear filled rows and shift rows above downward
-- [ ] Add line-clear flash animation
+- [x] Detect fully filled rows after piece locks
+- [x] Clear filled rows and shift rows above downward
+- [x] Add line-clear flash animation
 
 ### Phase 8: Scoring, Level & HUD
 - [ ] Create `resources.rs` with Score, Level, Lines Cleared

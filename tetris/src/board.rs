@@ -28,6 +28,35 @@ impl Board {
             }
         }
     }
+
+    /// Find fully filled rows, remove them, collapse rows above downward.
+    /// Returns the original row indices that were cleared (for visual effects).
+    pub fn clear_full_rows(&mut self) -> Vec<usize> {
+        let full_rows: Vec<usize> = (0..GRID_TOTAL_ROWS)
+            .filter(|&r| self.cells[r].iter().all(|c| c.is_some()))
+            .collect();
+
+        if full_rows.is_empty() {
+            return full_rows;
+        }
+
+        // Compact: copy non-cleared rows downward.
+        let mut write = 0;
+        for read in 0..GRID_TOTAL_ROWS {
+            if !full_rows.contains(&read) {
+                if write != read {
+                    self.cells[write] = self.cells[read];
+                }
+                write += 1;
+            }
+        }
+        // Fill vacated top rows with empty.
+        for row in write..GRID_TOTAL_ROWS {
+            self.cells[row] = [None; GRID_COLS];
+        }
+
+        full_rows
+    }
 }
 
 impl Default for Board {
@@ -45,13 +74,33 @@ pub struct BoardCell {
     pub col: usize,
 }
 
+/// Brief white flash overlay when a line is cleared.
+#[derive(Component)]
+struct LineClearFlash(f32);
+
+const LINE_FLASH_DURATION: f32 = 0.15;
+
+/// Spawn a flash overlay for a cleared row.
+pub fn spawn_line_flash(commands: &mut Commands, row: usize) {
+    let y = PLAYFIELD_BOTTOM + row as f32 * CELL_SIZE + CELL_SIZE / 2.0;
+    commands.spawn((
+        LineClearFlash(LINE_FLASH_DURATION),
+        Sprite {
+            color: Color::srgba(1.0, 1.0, 1.0, 0.8),
+            custom_size: Some(Vec2::new(PLAYFIELD_WIDTH, CELL_INNER_SIZE)),
+            ..default()
+        },
+        Transform::from_xyz(0.0, y, 3.0),
+    ));
+}
+
 pub struct BoardPlugin;
 
 impl Plugin for BoardPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Board>()
             .add_systems(Startup, (spawn_playfield_border, spawn_cell_entities))
-            .add_systems(Update, sync_board_cells);
+            .add_systems(Update, (sync_board_cells, animate_line_clear_flash));
     }
 }
 
@@ -153,6 +202,22 @@ fn sync_board_cells(
                 sprite.color = empty_color;
                 *visibility = empty_vis;
             }
+        }
+    }
+}
+
+fn animate_line_clear_flash(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut query: Query<(Entity, &mut LineClearFlash, &mut Sprite)>,
+) {
+    for (entity, mut flash, mut sprite) in &mut query {
+        flash.0 -= time.delta_secs();
+        if flash.0 <= 0.0 {
+            commands.entity(entity).despawn();
+        } else {
+            let alpha = (flash.0 / LINE_FLASH_DURATION) * 0.8;
+            sprite.color = Color::srgba(1.0, 1.0, 1.0, alpha);
         }
     }
 }
