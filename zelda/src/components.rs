@@ -89,3 +89,16 @@ pub enum PickupKind {
     Key,
     HeartContainer,
 }
+
+impl PickupKind {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Rupee => "rupee",
+            Self::FiveRupees => "5 rupee",
+            Self::Heart => "heart",
+            Self::Bomb => "bomb",
+            Self::Key => "key",
+            Self::HeartContainer => "heart+",
+        }
+    }
+}

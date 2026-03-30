@@ -458,24 +458,24 @@ fn spawn_test_obstacles(
 ) {
     let obstacles: &[(&str, Vec2)] = match room {
         RoomId::OverworldCenter => &[
-            ("RockA", Vec2::new(-48.0, constants::ROOM_ORIGIN.y + 10.0)),
-            ("RockB", Vec2::new(36.0, constants::ROOM_ORIGIN.y - 20.0)),
+            ("rock", Vec2::new(-48.0, constants::ROOM_ORIGIN.y + 10.0)),
+            ("rock", Vec2::new(36.0, constants::ROOM_ORIGIN.y - 20.0)),
         ],
         RoomId::OverworldNorth => &[
-            ("TreeLineA", Vec2::new(-30.0, constants::ROOM_ORIGIN.y + 4.0)),
-            ("TreeLineB", Vec2::new(30.0, constants::ROOM_ORIGIN.y + 4.0)),
+            ("tree", Vec2::new(-30.0, constants::ROOM_ORIGIN.y + 4.0)),
+            ("tree", Vec2::new(30.0, constants::ROOM_ORIGIN.y + 4.0)),
         ],
         RoomId::OverworldSouth => &[
-            ("PondA", Vec2::new(-24.0, constants::ROOM_ORIGIN.y - 6.0)),
-            ("PondB", Vec2::new(24.0, constants::ROOM_ORIGIN.y - 6.0)),
+            ("pond", Vec2::new(-24.0, constants::ROOM_ORIGIN.y - 6.0)),
+            ("pond", Vec2::new(24.0, constants::ROOM_ORIGIN.y - 6.0)),
         ],
         RoomId::OverworldEast => &[
-            ("RidgeA", Vec2::new(12.0, constants::ROOM_ORIGIN.y + 26.0)),
-            ("RidgeB", Vec2::new(12.0, constants::ROOM_ORIGIN.y - 26.0)),
+            ("ridge", Vec2::new(12.0, constants::ROOM_ORIGIN.y + 26.0)),
+            ("ridge", Vec2::new(12.0, constants::ROOM_ORIGIN.y - 26.0)),
         ],
         RoomId::OverworldWest => &[
-            ("StatueA", Vec2::new(-12.0, constants::ROOM_ORIGIN.y + 26.0)),
-            ("StatueB", Vec2::new(-12.0, constants::ROOM_ORIGIN.y - 26.0)),
+            ("statue", Vec2::new(-12.0, constants::ROOM_ORIGIN.y + 26.0)),
+            ("statue", Vec2::new(-12.0, constants::ROOM_ORIGIN.y - 26.0)),
         ],
     };
 
@@ -485,7 +485,7 @@ fn spawn_test_obstacles(
             RoomEntity,
             Wall,
             StaticBlocker,
-            Label(obstacle_label(name)),
+            Label(name),
             SolidBody {
                 half_size: OBSTACLE_SIZE * 0.5,
             },
@@ -528,7 +528,7 @@ fn spawn_test_pickups(
             RoomEntity,
             UniquePickup,
             unique_kind,
-            Label(pickup_label(unique_kind)),
+            Label(unique_kind.label()),
             PersistentRoomEntity {
                 key: unique_key,
                 category: RoomPersistenceCategory::UniquePickup,
@@ -548,7 +548,7 @@ fn spawn_test_pickups(
         RoomEntity,
         TemporaryPickup,
         temporary_kind,
-        Label(pickup_label(temporary_kind)),
+        Label(temporary_kind.label()),
         PersistentRoomEntity {
             key: PersistentRoomKey {
                 room,
@@ -827,29 +827,3 @@ fn room_floor_color(room: RoomId) -> WorldColor {
     }
 }
 
-fn obstacle_label(name: &str) -> &str {
-    if name.starts_with("Rock") {
-        "rock"
-    } else if name.starts_with("Tree") {
-        "tree"
-    } else if name.starts_with("Pond") {
-        "pond"
-    } else if name.starts_with("Ridge") {
-        "ridge"
-    } else if name.starts_with("Statue") {
-        "statue"
-    } else {
-        name
-    }
-}
-
-fn pickup_label(kind: PickupKind) -> &'static str {
-    match kind {
-        PickupKind::Rupee => "rupee",
-        PickupKind::FiveRupees => "5 rupee",
-        PickupKind::Heart => "heart",
-        PickupKind::Bomb => "bomb",
-        PickupKind::Key => "key",
-        PickupKind::HeartContainer => "heart+",
-    }
-}
