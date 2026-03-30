@@ -88,17 +88,28 @@ fn spawn_cell_entities(mut commands: Commands) {
     for row in 0..GRID_VISIBLE_ROWS {
         for col in 0..GRID_COLS {
             let pos = grid_to_world(row, col);
+            let (color, visibility) = empty_cell_style();
             commands.spawn((
                 BoardCell { row, col },
                 Sprite {
-                    color: Color::srgba(0.0, 0.0, 0.0, 0.0),
+                    color,
                     custom_size: Some(Vec2::new(CELL_INNER_SIZE, CELL_INNER_SIZE)),
                     ..default()
                 },
                 Transform::from_xyz(pos.x, pos.y, 1.0),
-                Visibility::Hidden,
+                visibility,
             ));
         }
+    }
+}
+
+/// Returns the color and visibility for an empty cell.
+/// In debug builds, cells are faintly visible to show the grid.
+fn empty_cell_style() -> (Color, Visibility) {
+    if cfg!(debug_assertions) {
+        (Color::srgba(1.0, 1.0, 1.0, 0.03), Visibility::Visible)
+    } else {
+        (Color::srgba(0.0, 0.0, 0.0, 0.0), Visibility::Hidden)
     }
 }
 
@@ -109,6 +120,7 @@ fn sync_board_cells(
     if !board.is_changed() {
         return;
     }
+    let (empty_color, empty_vis) = empty_cell_style();
     for (cell, mut sprite, mut visibility) in &mut query {
         match board.cells[cell.row][cell.col] {
             Some(color) => {
@@ -116,7 +128,8 @@ fn sync_board_cells(
                 *visibility = Visibility::Visible;
             }
             None => {
-                *visibility = Visibility::Hidden;
+                sprite.color = empty_color;
+                *visibility = empty_vis;
             }
         }
     }
