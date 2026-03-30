@@ -1,13 +1,17 @@
 use bevy::prelude::*;
 
 use crate::constants::*;
+use crate::states::AppState;
+use crate::tetromino::TetrominoKind;
 
 // ---------------------------------------------------------------------------
-// Messages: gameplay → stats
+// Messages: gameplay -> stats
 // ---------------------------------------------------------------------------
 
 #[derive(Message)]
-pub struct LineClearMsg(pub u32);
+pub struct LineClearMsg {
+    pub rows: Vec<usize>,
+}
 
 #[derive(Message)]
 pub struct HardDropMsg(pub u32);
@@ -15,12 +19,18 @@ pub struct HardDropMsg(pub u32);
 #[derive(Message)]
 pub struct SoftDropMsg(pub u32);
 
-// Message: stats → gameplay
+// Message: stats -> gameplay
 #[derive(Message)]
 pub struct LevelChangedMsg(pub u32);
 
+// Message: gameplay -> effects
+#[derive(Message)]
+pub struct PieceLockedMsg {
+    pub cells: [(i32, i32); 4],
+}
+
 // ---------------------------------------------------------------------------
-// Resource
+// Resources
 // ---------------------------------------------------------------------------
 
 /// Tracks score, level, and lines cleared.
@@ -64,6 +74,22 @@ impl GameStats {
     }
 }
 
+/// Hold slot — stores a piece kind and a one-per-lock flag.
+#[derive(Resource)]
+pub struct HoldPiece {
+    pub piece: Option<TetrominoKind>,
+    pub can_hold: bool,
+}
+
+impl Default for HoldPiece {
+    fn default() -> Self {
+        Self {
+            piece: None,
+            can_hold: true,
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Plugin
 // ---------------------------------------------------------------------------
@@ -73,11 +99,14 @@ pub struct StatsPlugin;
 impl Plugin for StatsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<GameStats>()
+            .init_resource::<HoldPiece>()
             .add_message::<LineClearMsg>()
             .add_message::<HardDropMsg>()
             .add_message::<SoftDropMsg>()
             .add_message::<LevelChangedMsg>()
-            .add_systems(Update, process_scoring);
+            .add_message::<PieceLockedMsg>()
+            .add_systems(Update, process_scoring)
+            .add_systems(OnEnter(AppState::Playing), reset_stats);
     }
 }
 
@@ -96,9 +125,14 @@ fn process_scoring(
     }
     for msg in line_clears.read() {
         let prev_level = stats.level;
-        stats.award_line_clear(msg.0);
+        stats.award_line_clear(msg.rows.len() as u32);
         if stats.level != prev_level {
             level_changed.write(LevelChangedMsg(stats.level));
         }
     }
+}
+
+fn reset_stats(mut stats: ResMut<GameStats>, mut hold: ResMut<HoldPiece>) {
+    *stats = GameStats::default();
+    *hold = HoldPiece::default();
 }

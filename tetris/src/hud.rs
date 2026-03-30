@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 use crate::constants::*;
 use crate::resources::GameStats;
+use crate::states::AppState;
 
 #[derive(Component)]
 struct ScoreText;
@@ -12,7 +13,9 @@ struct LevelText;
 #[derive(Component)]
 struct LinesText;
 
-const HUD_X: f32 = PLAYFIELD_WIDTH / 2.0 + SIDEBAR_MARGIN + 60.0;
+// Left sidebar, below hold box
+const HUD_X: f32 = -(PLAYFIELD_WIDTH / 2.0 + SIDEBAR_MARGIN + 50.0);
+const HUD_TOP_Y: f32 = PLAYFIELD_HEIGHT / 2.0 - 150.0;
 const HUD_LABEL_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.4);
 const HUD_VALUE_COLOR: Color = Color::srgb(2.0, 2.0, 2.0);
 const HUD_LABEL_SIZE: f32 = 18.0;
@@ -24,15 +27,16 @@ pub struct HudPlugin;
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, spawn_hud)
-            .add_systems(Update, update_hud);
+            .add_systems(
+                Update,
+                update_hud.run_if(in_state(AppState::Playing)),
+            );
     }
 }
 
 fn spawn_hud(mut commands: Commands) {
-    let top_y = PLAYFIELD_HEIGHT / 2.0 - 20.0;
-
     // Score
-    spawn_label(&mut commands, "SCORE", HUD_X, top_y);
+    spawn_label(&mut commands, "SCORE", HUD_X, HUD_TOP_Y);
     commands.spawn((
         ScoreText,
         Text2d::new("0"),
@@ -41,11 +45,11 @@ fn spawn_hud(mut commands: Commands) {
             ..default()
         },
         TextColor(HUD_VALUE_COLOR),
-        Transform::from_xyz(HUD_X, top_y - 28.0, 5.0),
+        Transform::from_xyz(HUD_X, HUD_TOP_Y - 28.0, 5.0),
     ));
 
     // Level
-    let level_y = top_y - HUD_SECTION_GAP;
+    let level_y = HUD_TOP_Y - HUD_SECTION_GAP;
     spawn_label(&mut commands, "LEVEL", HUD_X, level_y);
     commands.spawn((
         LevelText,
@@ -59,7 +63,7 @@ fn spawn_hud(mut commands: Commands) {
     ));
 
     // Lines
-    let lines_y = top_y - HUD_SECTION_GAP * 2.0;
+    let lines_y = HUD_TOP_Y - HUD_SECTION_GAP * 2.0;
     spawn_label(&mut commands, "LINES", HUD_X, lines_y);
     commands.spawn((
         LinesText,

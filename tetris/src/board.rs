@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 
 use crate::constants::*;
+use crate::resources::LineClearMsg;
+use crate::states::AppState;
 
 /// The playfield grid. Each cell is `None` (empty) or `Some(Color)` (filled).
 #[derive(Resource)]
@@ -9,7 +11,6 @@ pub struct Board {
 }
 
 impl Board {
-    /// Check whether all `cells` are in-bounds and unoccupied.
     pub fn is_valid_cells(&self, cells: &[(i32, i32); 4]) -> bool {
         cells.iter().all(|&(r, c)| {
             r >= 0
@@ -20,7 +21,6 @@ impl Board {
         })
     }
 
-    /// Write `color` into the board at the given cell positions.
     pub fn lock_cells(&mut self, cells: &[(i32, i32); 4], color: Color) {
         for &(r, c) in cells {
             if r >= 0 && (r as usize) < GRID_TOTAL_ROWS && c >= 0 && (c as usize) < GRID_COLS {
@@ -29,8 +29,6 @@ impl Board {
         }
     }
 
-    /// Find fully filled rows, remove them, collapse rows above downward.
-    /// Returns the original row indices that were cleared (for visual effects).
     pub fn clear_full_rows(&mut self) -> Vec<usize> {
         let full_rows: Vec<usize> = (0..GRID_TOTAL_ROWS)
             .filter(|&r| self.cells[r].iter().all(|c| c.is_some()))
@@ -40,7 +38,6 @@ impl Board {
             return full_rows;
         }
 
-        // Compact: copy non-cleared rows downward.
         let mut write = 0;
         for read in 0..GRID_TOTAL_ROWS {
             if !full_rows.contains(&read) {
@@ -50,7 +47,6 @@ impl Board {
                 write += 1;
             }
         }
-        // Fill vacated top rows with empty.
         for row in write..GRID_TOTAL_ROWS {
             self.cells[row] = [None; GRID_COLS];
         }
@@ -80,8 +76,7 @@ struct LineClearFlash(f32);
 
 const LINE_FLASH_DURATION: f32 = 0.15;
 
-/// Spawn a flash overlay for a cleared row.
-pub fn spawn_line_flash(commands: &mut Commands, row: usize) {
+fn spawn_line_flash(commands: &mut Commands, row: usize) {
     let y = PLAYFIELD_BOTTOM + row as f32 * CELL_SIZE + CELL_SIZE / 2.0;
     commands.spawn((
         LineClearFlash(LINE_FLASH_DURATION),
@@ -94,13 +89,46 @@ pub fn spawn_line_flash(commands: &mut Commands, row: usize) {
     ));
 }
 
+// ---------------------------------------------------------------------------
+// Row collapse animation
+// ---------------------------------------------------------------------------
+
+#[derive(Resource)]
+pub struct RowCollapseAnim {
+    timer: f32,
+    row_offsets: [f32; GRID_VISIBLE_ROWS],
+}
+
+impl Default for RowCollapseAnim {
+    fn default() -> Self {
+        Self {
+            timer: 0.0,
+            row_offsets: [0.0; GRID_VISIBLE_ROWS],
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Plugin
+// ---------------------------------------------------------------------------
+
 pub struct BoardPlugin;
 
 impl Plugin for BoardPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Board>()
+            .init_resource::<RowCollapseAnim>()
             .add_systems(Startup, (spawn_playfield_border, spawn_cell_entities))
-            .add_systems(Update, (sync_board_cells, animate_line_clear_flash));
+            .add_systems(OnEnter(AppState::Playing), reset_board)
+            .add_systems(
+                Update,
+                (
+                    sync_board_cells,
+                    handle_line_clear_visuals,
+                    animate_board_collapse,
+                    animate_line_clear_flash,
+                ),
+            );
     }
 }
 
@@ -112,12 +140,16 @@ pub fn grid_to_world(row: usize, col: usize) -> Vec2 {
     )
 }
 
+fn reset_board(mut board: ResMut<Board>, mut anim: ResMut<RowCollapseAnim>) {
+    *board = Board::default();
+    *anim = RowCollapseAnim::default();
+}
+
 fn spawn_playfield_border(mut commands: Commands) {
     let half_w = PLAYFIELD_WIDTH / 2.0;
     let half_h = PLAYFIELD_HEIGHT / 2.0;
     let bt = BORDER_THICKNESS;
 
-    // Bottom
     commands.spawn((
         Sprite {
             color: BORDER_COLOR,
@@ -126,7 +158,6 @@ fn spawn_playfield_border(mut commands: Commands) {
         },
         Transform::from_xyz(0.0, -half_h - bt / 2.0, 0.0),
     ));
-    // Top
     commands.spawn((
         Sprite {
             color: BORDER_COLOR,
@@ -135,7 +166,6 @@ fn spawn_playfield_border(mut commands: Commands) {
         },
         Transform::from_xyz(0.0, half_h + bt / 2.0, 0.0),
     ));
-    // Left
     commands.spawn((
         Sprite {
             color: BORDER_COLOR,
@@ -144,7 +174,6 @@ fn spawn_playfield_border(mut commands: Commands) {
         },
         Transform::from_xyz(-half_w - bt / 2.0, 0.0, 0.0),
     ));
-    // Right
     commands.spawn((
         Sprite {
             color: BORDER_COLOR,
@@ -174,8 +203,6 @@ fn spawn_cell_entities(mut commands: Commands) {
     }
 }
 
-/// Returns the color and visibility for an empty cell.
-/// In debug builds, cells are faintly visible to show the grid.
 fn empty_cell_style() -> (Color, Visibility) {
     if cfg!(debug_assertions) {
         (Color::srgba(1.0, 1.0, 1.0, 0.03), Visibility::Visible)
@@ -203,6 +230,51 @@ fn sync_board_cells(
                 *visibility = empty_vis;
             }
         }
+    }
+}
+
+fn handle_line_clear_visuals(
+    mut commands: Commands,
+    mut anim: ResMut<RowCollapseAnim>,
+    mut line_clears: MessageReader<LineClearMsg>,
+) {
+    for msg in line_clears.read() {
+        // Flash overlays
+        for &row in &msg.rows {
+            spawn_line_flash(&mut commands, row);
+        }
+
+        // Collapse animation offsets
+        let non_cleared: Vec<usize> = (0..GRID_TOTAL_ROWS)
+            .filter(|r| !msg.rows.contains(r))
+            .collect();
+        anim.timer = COLLAPSE_DURATION;
+        anim.row_offsets = [0.0; GRID_VISIBLE_ROWS];
+        for new_r in 0..GRID_VISIBLE_ROWS {
+            if new_r < non_cleared.len() {
+                anim.row_offsets[new_r] =
+                    (non_cleared[new_r] as f32 - new_r as f32) * CELL_SIZE;
+            }
+        }
+    }
+}
+
+fn animate_board_collapse(
+    time: Res<Time>,
+    mut anim: ResMut<RowCollapseAnim>,
+    mut query: Query<(&BoardCell, &mut Transform)>,
+) {
+    if anim.timer <= 0.0 {
+        return;
+    }
+
+    anim.timer -= time.delta_secs();
+    let t = (anim.timer / COLLAPSE_DURATION).max(0.0);
+
+    for (cell, mut transform) in &mut query {
+        let base_pos = grid_to_world(cell.row, cell.col);
+        let offset = anim.row_offsets[cell.row] * t;
+        transform.translation.y = base_pos.y + offset;
     }
 }
 

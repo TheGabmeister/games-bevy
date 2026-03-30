@@ -1,16 +1,18 @@
 use bevy::prelude::*;
 
-use crate::board::{spawn_line_flash, Board};
+use crate::board::Board;
 use crate::constants::*;
 use crate::input::InputActions;
-use crate::resources::{HardDropMsg, LevelChangedMsg, LineClearMsg, SoftDropMsg};
+use crate::resources::{
+    HardDropMsg, HoldPiece, LevelChangedMsg, LineClearMsg, PieceLockedMsg, SoftDropMsg,
+};
+use crate::states::{AppState, PlayState};
 use crate::tetromino::{ActivePiece, PieceBag, RotationState, TetrominoKind};
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Check whether the piece would fit at an offset from its current position.
 fn can_place(board: &Board, piece: &ActivePiece, dr: i32, dc: i32) -> bool {
     let cells = piece
         .kind
@@ -27,23 +29,36 @@ fn spawn_next_piece(piece: &mut ActivePiece, bag: &mut PieceBag) {
     piece.col = SPAWN_COL;
 }
 
-/// Lock the active piece into the board, clear full rows, spawn the next
-/// piece, and reset gravity + lock-delay state. Returns cleared row indices
-/// so the caller can spawn flash effects.
+struct LockResult {
+    cleared_rows: Vec<usize>,
+    game_over: bool,
+}
+
+/// Lock the active piece, clear lines, spawn next piece, detect game over.
 fn lock_and_spawn(
     piece: &mut ActivePiece,
     board: &mut Board,
     bag: &mut PieceBag,
     gravity: &mut GravityTimer,
     lock: &mut LockDelayState,
-) -> Vec<usize> {
+    hold: &mut HoldPiece,
+) -> LockResult {
     let cells = piece.board_cells();
     let color = piece.kind.color();
     board.lock_cells(&cells, color);
 
+    // Lock out: entire piece above visible area.
+    let lock_out = cells
+        .iter()
+        .all(|&(r, _)| r as usize >= GRID_VISIBLE_ROWS);
+
     let cleared_rows = board.clear_full_rows();
 
     spawn_next_piece(piece, bag);
+    hold.can_hold = true;
+
+    // Block out: new piece overlaps filled cells.
+    let block_out = !board.is_valid_cells(&piece.board_cells());
 
     gravity.elapsed = 0.0;
     lock.elapsed = 0.0;
@@ -51,7 +66,10 @@ fn lock_and_spawn(
     lock.prev_col = piece.col;
     lock.prev_rotation = piece.rotation;
 
-    cleared_rows
+    LockResult {
+        cleared_rows,
+        game_over: lock_out || block_out,
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -91,7 +109,7 @@ impl Default for GravityTimer {
     fn default() -> Self {
         Self {
             elapsed: 0.0,
-            interval: 1.0, // ~level 1
+            interval: 1.0,
         }
     }
 }
@@ -126,9 +144,11 @@ impl Plugin for GameplayPlugin {
         app.init_resource::<DasState>()
             .init_resource::<GravityTimer>()
             .init_resource::<LockDelayState>()
+            .add_systems(OnEnter(AppState::Playing), reset_gameplay)
             .add_systems(
                 Update,
                 (
+                    handle_hold,
                     handle_horizontal_input,
                     handle_rotation,
                     handle_hard_drop,
@@ -136,14 +156,59 @@ impl Plugin for GameplayPlugin {
                     handle_lock_delay,
                     handle_level_change,
                 )
-                    .chain(),
+                    .chain()
+                    .run_if(in_state(PlayState::Running)),
             );
     }
 }
 
+fn reset_gameplay(
+    mut gravity: ResMut<GravityTimer>,
+    mut das: ResMut<DasState>,
+    mut lock: ResMut<LockDelayState>,
+) {
+    *gravity = GravityTimer::default();
+    *das = DasState::default();
+    *lock = LockDelayState::default();
+}
+
 // ---------------------------------------------------------------------------
-// Systems — these read InputActions, never KeyCode
+// Systems
 // ---------------------------------------------------------------------------
+
+fn handle_hold(
+    actions: Res<InputActions>,
+    mut piece: ResMut<ActivePiece>,
+    mut hold: ResMut<HoldPiece>,
+    mut bag: ResMut<PieceBag>,
+    mut gravity: ResMut<GravityTimer>,
+    mut lock: ResMut<LockDelayState>,
+) {
+    if !actions.hold || !hold.can_hold {
+        return;
+    }
+
+    let current_kind = piece.kind;
+
+    if let Some(held_kind) = hold.piece {
+        piece.kind = held_kind;
+    } else {
+        piece.kind = bag.draw();
+    }
+
+    hold.piece = Some(current_kind);
+    hold.can_hold = false;
+
+    piece.rotation = RotationState::R0;
+    piece.row = piece.kind.spawn_row();
+    piece.col = SPAWN_COL;
+
+    gravity.elapsed = 0.0;
+    lock.elapsed = 0.0;
+    lock.resets = 0;
+    lock.prev_col = piece.col;
+    lock.prev_rotation = piece.rotation;
+}
 
 fn handle_horizontal_input(
     actions: Res<InputActions>,
@@ -168,7 +233,6 @@ fn handle_horizontal_input(
     };
 
     if das.direction != dir {
-        // New direction — move immediately, start DAS timer.
         das.direction = dir;
         das.elapsed = 0.0;
         das.charged = false;
@@ -176,7 +240,6 @@ fn handle_horizontal_input(
             piece.col += dc;
         }
     } else {
-        // Same direction held — tick DAS.
         das.elapsed += time.delta_secs();
 
         if !das.charged {
@@ -207,7 +270,6 @@ fn handle_rotation(
     mut piece: ResMut<ActivePiece>,
     board: Res<Board>,
 ) {
-    // O piece doesn't rotate.
     if piece.kind == TetrominoKind::O {
         return;
     }
@@ -238,33 +300,43 @@ fn handle_rotation(
 }
 
 fn handle_hard_drop(
-    mut commands: Commands,
     actions: Res<InputActions>,
     mut piece: ResMut<ActivePiece>,
     mut board: ResMut<Board>,
     mut bag: ResMut<PieceBag>,
     mut gravity: ResMut<GravityTimer>,
     mut lock: ResMut<LockDelayState>,
+    mut hold: ResMut<HoldPiece>,
     mut hard_drop_msgs: MessageWriter<HardDropMsg>,
     mut line_clear_msgs: MessageWriter<LineClearMsg>,
+    mut piece_locked_msgs: MessageWriter<PieceLockedMsg>,
+    mut next_app_state: ResMut<NextState<AppState>>,
 ) {
     if !actions.hard_drop {
         return;
     }
 
-    // Drop to lowest valid row.
     let start_row = piece.row;
     while can_place(&board, &piece, -1, 0) {
         piece.row -= 1;
     }
     hard_drop_msgs.write(HardDropMsg((start_row - piece.row) as u32));
 
-    let cleared = lock_and_spawn(&mut piece, &mut board, &mut bag, &mut gravity, &mut lock);
-    if !cleared.is_empty() {
-        line_clear_msgs.write(LineClearMsg(cleared.len() as u32));
+    let locked_cells = piece.board_cells();
+    piece_locked_msgs.write(PieceLockedMsg {
+        cells: locked_cells,
+    });
+
+    let result = lock_and_spawn(
+        &mut piece, &mut board, &mut bag, &mut gravity, &mut lock, &mut hold,
+    );
+    if !result.cleared_rows.is_empty() {
+        line_clear_msgs.write(LineClearMsg {
+            rows: result.cleared_rows,
+        });
     }
-    for &row in &cleared {
-        spawn_line_flash(&mut commands, row);
+    if result.game_over {
+        next_app_state.set(AppState::GameOver);
     }
 }
 
@@ -293,7 +365,6 @@ fn handle_gravity(
                 soft_rows += 1;
             }
         } else {
-            // Can't move down — lock delay handles the rest.
             timer.elapsed = 0.0;
             break;
         }
@@ -305,27 +376,26 @@ fn handle_gravity(
 }
 
 fn handle_lock_delay(
-    mut commands: Commands,
     time: Res<Time>,
     mut lock: ResMut<LockDelayState>,
     mut piece: ResMut<ActivePiece>,
     mut board: ResMut<Board>,
     mut bag: ResMut<PieceBag>,
     mut gravity: ResMut<GravityTimer>,
+    mut hold: ResMut<HoldPiece>,
     mut line_clear_msgs: MessageWriter<LineClearMsg>,
+    mut piece_locked_msgs: MessageWriter<PieceLockedMsg>,
+    mut next_app_state: ResMut<NextState<AppState>>,
 ) {
-    // Detect player-initiated actions (col or rotation changed).
     let player_acted = piece.col != lock.prev_col || piece.rotation != lock.prev_rotation;
     lock.prev_col = piece.col;
     lock.prev_rotation = piece.rotation;
 
-    // Reset lock delay on player action (even if floating).
     if player_acted && lock.resets < LOCK_DELAY_MAX_RESETS {
         lock.elapsed = 0.0;
         lock.resets += 1;
     }
 
-    // Only tick while the piece is on the ground.
     let on_ground = !can_place(&board, &piece, -1, 0);
     if !on_ground {
         return;
@@ -334,13 +404,21 @@ fn handle_lock_delay(
     lock.elapsed += time.delta_secs();
 
     if lock.elapsed >= LOCK_DELAY_SECS {
-        let cleared =
-            lock_and_spawn(&mut piece, &mut board, &mut bag, &mut gravity, &mut lock);
-        if !cleared.is_empty() {
-            line_clear_msgs.write(LineClearMsg(cleared.len() as u32));
+        let locked_cells = piece.board_cells();
+        piece_locked_msgs.write(PieceLockedMsg {
+            cells: locked_cells,
+        });
+
+        let result = lock_and_spawn(
+            &mut piece, &mut board, &mut bag, &mut gravity, &mut lock, &mut hold,
+        );
+        if !result.cleared_rows.is_empty() {
+            line_clear_msgs.write(LineClearMsg {
+                rows: result.cleared_rows,
+            });
         }
-        for &row in &cleared {
-            spawn_line_flash(&mut commands, row);
+        if result.game_over {
+            next_app_state.set(AppState::GameOver);
         }
     }
 }

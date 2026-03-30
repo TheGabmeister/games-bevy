@@ -75,3 +75,11 @@ pub const SPAWN_COL: i32 = 3;
 
 // Next queue
 pub const NEXT_QUEUE_SIZE: usize = 5;
+
+// Effects
+pub const COLLAPSE_DURATION: f32 = 0.12;
+pub const LOCK_FLASH_DURATION: f32 = 0.1;
+pub const PARTICLE_COUNT_PER_ROW: usize = 12;
+pub const PARTICLE_LIFETIME: f32 = 0.6;
+pub const PARTICLE_SPEED: f32 = 300.0;
+pub const PARTICLE_SIZE: f32 = 4.0;

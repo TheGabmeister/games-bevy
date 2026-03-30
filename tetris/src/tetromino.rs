@@ -1,8 +1,9 @@
 use bevy::prelude::*;
 use rand::seq::SliceRandom;
 
-use crate::board::grid_to_world;
+use crate::board::{grid_to_world, Board};
 use crate::constants::*;
+use crate::states::AppState;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -42,13 +43,10 @@ impl TetrominoKind {
         }
     }
 
-    /// Cell offsets `(row, col)` for the given rotation state.
-    /// Row 0 = bottom of bounding box, col 0 = left.
     pub fn cells(self, rotation: RotationState) -> [(i32, i32); 4] {
         PIECE_CELLS[self as usize][rotation as usize]
     }
 
-    /// SRS wall-kick offsets `(col_offset, row_offset)` for rotating from `from` to `to`.
     pub fn kicks(self, from: RotationState, to: RotationState) -> &'static [(i32, i32); 5] {
         let table = match self {
             TetrominoKind::I => &I_KICKS,
@@ -57,7 +55,6 @@ impl TetrominoKind {
         &table[kick_index(from, to)]
     }
 
-    /// The spawn row so the piece starts in the buffer rows.
     pub fn spawn_row(self) -> i32 {
         match self {
             TetrominoKind::I => GRID_TOTAL_ROWS as i32 - 4,
@@ -96,20 +93,18 @@ impl RotationState {
 }
 
 // ---------------------------------------------------------------------------
-// SRS cell data — offsets (row, col) from piece position
-// Row 0 = bottom of bounding box (board-up convention).
-// Indexed as PIECE_CELLS[kind][rotation].
+// SRS cell data
 // ---------------------------------------------------------------------------
 
 const PIECE_CELLS: [[[(i32, i32); 4]; 4]; 7] = [
-    // I (4×4)
+    // I (4x4)
     [
-        [(2, 0), (2, 1), (2, 2), (2, 3)], // R0 — horizontal bar
-        [(3, 2), (2, 2), (1, 2), (0, 2)], // R1
-        [(1, 0), (1, 1), (1, 2), (1, 3)], // R2
-        [(3, 1), (2, 1), (1, 1), (0, 1)], // R3
+        [(2, 0), (2, 1), (2, 2), (2, 3)],
+        [(3, 2), (2, 2), (1, 2), (0, 2)],
+        [(1, 0), (1, 1), (1, 2), (1, 3)],
+        [(3, 1), (2, 1), (1, 1), (0, 1)],
     ],
-    // O (3×3, occupies cols 1-2)
+    // O (3x3)
     [
         [(2, 1), (2, 2), (1, 1), (1, 2)],
         [(2, 1), (2, 2), (1, 1), (1, 2)],
@@ -118,93 +113,86 @@ const PIECE_CELLS: [[[(i32, i32); 4]; 4]; 7] = [
     ],
     // T
     [
-        [(2, 1), (1, 0), (1, 1), (1, 2)], // R0
-        [(2, 1), (1, 1), (1, 2), (0, 1)], // R1
-        [(1, 0), (1, 1), (1, 2), (0, 1)], // R2
-        [(2, 1), (1, 0), (1, 1), (0, 1)], // R3
+        [(2, 1), (1, 0), (1, 1), (1, 2)],
+        [(2, 1), (1, 1), (1, 2), (0, 1)],
+        [(1, 0), (1, 1), (1, 2), (0, 1)],
+        [(2, 1), (1, 0), (1, 1), (0, 1)],
     ],
     // S
     [
-        [(2, 1), (2, 2), (1, 0), (1, 1)], // R0
-        [(2, 1), (1, 1), (1, 2), (0, 2)], // R1
-        [(1, 1), (1, 2), (0, 0), (0, 1)], // R2
-        [(2, 0), (1, 0), (1, 1), (0, 1)], // R3
+        [(2, 1), (2, 2), (1, 0), (1, 1)],
+        [(2, 1), (1, 1), (1, 2), (0, 2)],
+        [(1, 1), (1, 2), (0, 0), (0, 1)],
+        [(2, 0), (1, 0), (1, 1), (0, 1)],
     ],
     // Z
     [
-        [(2, 0), (2, 1), (1, 1), (1, 2)], // R0
-        [(2, 2), (1, 1), (1, 2), (0, 1)], // R1
-        [(1, 0), (1, 1), (0, 1), (0, 2)], // R2
-        [(2, 1), (1, 0), (1, 1), (0, 0)], // R3
+        [(2, 0), (2, 1), (1, 1), (1, 2)],
+        [(2, 2), (1, 1), (1, 2), (0, 1)],
+        [(1, 0), (1, 1), (0, 1), (0, 2)],
+        [(2, 1), (1, 0), (1, 1), (0, 0)],
     ],
     // J
     [
-        [(2, 0), (1, 0), (1, 1), (1, 2)], // R0
-        [(2, 1), (2, 2), (1, 1), (0, 1)], // R1
-        [(1, 0), (1, 1), (1, 2), (0, 2)], // R2
-        [(2, 1), (1, 1), (0, 0), (0, 1)], // R3
+        [(2, 0), (1, 0), (1, 1), (1, 2)],
+        [(2, 1), (2, 2), (1, 1), (0, 1)],
+        [(1, 0), (1, 1), (1, 2), (0, 2)],
+        [(2, 1), (1, 1), (0, 0), (0, 1)],
     ],
     // L
     [
-        [(2, 2), (1, 0), (1, 1), (1, 2)], // R0
-        [(2, 1), (1, 1), (0, 1), (0, 2)], // R1
-        [(1, 0), (1, 1), (1, 2), (0, 0)], // R2
-        [(2, 0), (2, 1), (1, 1), (0, 1)], // R3
+        [(2, 2), (1, 0), (1, 1), (1, 2)],
+        [(2, 1), (1, 1), (0, 1), (0, 2)],
+        [(1, 0), (1, 1), (1, 2), (0, 0)],
+        [(2, 0), (2, 1), (1, 1), (0, 1)],
     ],
 ];
 
 // ---------------------------------------------------------------------------
-// SRS wall-kick tables — offsets (col, row), row positive = up.
-// Computed from SRS offset data: kick[i] = offset_from[i] − offset_to[i].
-// Indexed via kick_index(from, to).
+// SRS wall-kick tables
 // ---------------------------------------------------------------------------
 
 fn kick_index(from: RotationState, to: RotationState) -> usize {
     use RotationState::*;
     match (from, to) {
-        (R0, R1) => 0, // 0→R CW
-        (R1, R2) => 1, // R→2 CW
-        (R2, R3) => 2, // 2→L CW
-        (R3, R0) => 3, // L→0 CW
-        (R1, R0) => 4, // R→0 CCW
-        (R2, R1) => 5, // 2→R CCW
-        (R3, R2) => 6, // L→2 CCW
-        (R0, R3) => 7, // 0→L CCW
+        (R0, R1) => 0,
+        (R1, R2) => 1,
+        (R2, R3) => 2,
+        (R3, R0) => 3,
+        (R1, R0) => 4,
+        (R2, R1) => 5,
+        (R3, R2) => 6,
+        (R0, R3) => 7,
         _ => unreachable!(),
     }
 }
 
 const JLSTZ_KICKS: [[(i32, i32); 5]; 8] = [
-    // CW
-    [(0, 0), (-1, 0), (-1, -1), (0, 2), (-1, 2)],  // 0→R
-    [(0, 0), (1, 0), (1, 1), (0, -2), (1, -2)],     // R→2
-    [(0, 0), (1, 0), (1, -1), (0, 2), (1, 2)],      // 2→L
-    [(0, 0), (-1, 0), (-1, 1), (0, -2), (-1, -2)],  // L→0
-    // CCW
-    [(0, 0), (1, 0), (1, 1), (0, -2), (1, -2)],     // R→0
-    [(0, 0), (-1, 0), (-1, -1), (0, 2), (-1, 2)],   // 2→R
-    [(0, 0), (-1, 0), (-1, 1), (0, -2), (-1, -2)],  // L→2
-    [(0, 0), (1, 0), (1, -1), (0, 2), (1, 2)],      // 0→L
+    [(0, 0), (-1, 0), (-1, -1), (0, 2), (-1, 2)],
+    [(0, 0), (1, 0), (1, 1), (0, -2), (1, -2)],
+    [(0, 0), (1, 0), (1, -1), (0, 2), (1, 2)],
+    [(0, 0), (-1, 0), (-1, 1), (0, -2), (-1, -2)],
+    [(0, 0), (1, 0), (1, 1), (0, -2), (1, -2)],
+    [(0, 0), (-1, 0), (-1, -1), (0, 2), (-1, 2)],
+    [(0, 0), (-1, 0), (-1, 1), (0, -2), (-1, -2)],
+    [(0, 0), (1, 0), (1, -1), (0, 2), (1, 2)],
 ];
 
 const I_KICKS: [[(i32, i32); 5]; 8] = [
-    // CW
-    [(1, 0), (-1, 0), (2, 0), (-1, 1), (2, -2)],    // 0→R
-    [(0, 1), (-1, 1), (2, 1), (-1, -1), (2, 2)],    // R→2
-    [(-1, 0), (1, 0), (-2, 0), (1, -1), (-2, 2)],   // 2→L
-    [(0, -1), (1, -1), (-2, -1), (1, 1), (-2, -2)], // L→0
-    // CCW
-    [(-1, 0), (1, 0), (-2, 0), (1, -1), (-2, 2)],   // R→0
-    [(0, -1), (1, -1), (-2, -1), (1, 1), (-2, -2)], // 2→R
-    [(1, 0), (-1, 0), (2, 0), (-1, 1), (2, -2)],    // L→2
-    [(0, 1), (-1, 1), (2, 1), (-1, -1), (2, 2)],    // 0→L
+    [(1, 0), (-1, 0), (2, 0), (-1, 1), (2, -2)],
+    [(0, 1), (-1, 1), (2, 1), (-1, -1), (2, 2)],
+    [(-1, 0), (1, 0), (-2, 0), (1, -1), (-2, 2)],
+    [(0, -1), (1, -1), (-2, -1), (1, 1), (-2, -2)],
+    [(-1, 0), (1, 0), (-2, 0), (1, -1), (-2, 2)],
+    [(0, -1), (1, -1), (-2, -1), (1, 1), (-2, -2)],
+    [(1, 0), (-1, 0), (2, 0), (-1, 1), (2, -2)],
+    [(0, 1), (-1, 1), (2, 1), (-1, -1), (2, 2)],
 ];
 
 // ---------------------------------------------------------------------------
 // Active piece
 // ---------------------------------------------------------------------------
 
-/// The currently falling piece.
 #[derive(Resource)]
 pub struct ActivePiece {
     pub kind: TetrominoKind,
@@ -214,7 +202,6 @@ pub struct ActivePiece {
 }
 
 impl ActivePiece {
-    /// Absolute board positions `(row, col)` of the 4 cells.
     pub fn board_cells(&self) -> [(i32, i32); 4] {
         self.kind
             .cells(self.rotation)
@@ -249,10 +236,18 @@ impl PieceBag {
         if self.bag.is_empty() {
             self.refill();
         }
-        self.bag.pop().unwrap()
+        let piece = self.bag.pop().unwrap();
+        // Ensure enough pieces remain for the next-queue preview.
+        if self.bag.len() < NEXT_QUEUE_SIZE {
+            let mut new_bag = TetrominoKind::ALL.to_vec();
+            new_bag.shuffle(&mut rand::rng());
+            let mut combined = new_bag;
+            combined.append(&mut self.bag);
+            self.bag = combined;
+        }
+        piece
     }
 
-    /// Peek at the next `n` pieces without consuming them.
     pub fn peek(&self, n: usize) -> Vec<TetrominoKind> {
         self.bag.iter().rev().take(n).copied().collect()
     }
@@ -262,9 +257,11 @@ impl PieceBag {
 // Components
 // ---------------------------------------------------------------------------
 
-/// Marker + index for the 4 sprites that render the active piece.
 #[derive(Component)]
 pub struct ActivePieceCell(pub usize);
+
+#[derive(Component)]
+pub struct GhostPieceCell(pub usize);
 
 // ---------------------------------------------------------------------------
 // Plugin
@@ -275,21 +272,18 @@ pub struct TetrominoPlugin;
 impl Plugin for TetrominoPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<PieceBag>()
-            .add_systems(Startup, spawn_first_piece)
-            .add_systems(Update, sync_active_piece_cells);
+            .add_systems(Startup, spawn_piece_cells)
+            .add_systems(OnEnter(AppState::Playing), reset_tetromino)
+            .add_systems(
+                Update,
+                (sync_active_piece_cells, sync_ghost_piece_cells)
+                    .run_if(in_state(AppState::Playing)),
+            );
     }
 }
 
-fn spawn_first_piece(mut commands: Commands, mut bag: ResMut<PieceBag>) {
-    let kind = bag.draw();
-    commands.insert_resource(ActivePiece {
-        kind,
-        rotation: RotationState::R0,
-        row: kind.spawn_row(),
-        col: SPAWN_COL,
-    });
-
-    // Spawn the 4 cell sprites (initially invisible until sync runs).
+fn spawn_piece_cells(mut commands: Commands) {
+    // Active piece sprites
     for i in 0..4 {
         commands.spawn((
             ActivePieceCell(i),
@@ -302,13 +296,47 @@ fn spawn_first_piece(mut commands: Commands, mut bag: ResMut<PieceBag>) {
             Visibility::Hidden,
         ));
     }
+    // Ghost piece sprites
+    for i in 0..4 {
+        commands.spawn((
+            GhostPieceCell(i),
+            Sprite {
+                color: Color::srgba(1.0, 1.0, 1.0, GHOST_ALPHA),
+                custom_size: Some(Vec2::new(CELL_INNER_SIZE, CELL_INNER_SIZE)),
+                ..default()
+            },
+            Transform::from_xyz(0.0, 0.0, 1.5),
+            Visibility::Hidden,
+        ));
+    }
+}
+
+fn reset_tetromino(mut commands: Commands, mut bag: ResMut<PieceBag>) {
+    *bag = PieceBag::default();
+    let kind = bag.draw();
+    commands.insert_resource(ActivePiece {
+        kind,
+        rotation: RotationState::R0,
+        row: kind.spawn_row(),
+        col: SPAWN_COL,
+    });
 }
 
 fn sync_active_piece_cells(
     piece: Option<Res<ActivePiece>>,
-    mut query: Query<(&ActivePieceCell, &mut Transform, &mut Sprite, &mut Visibility)>,
+    mut query: Query<(
+        &ActivePieceCell,
+        &mut Transform,
+        &mut Sprite,
+        &mut Visibility,
+    )>,
 ) {
-    let Some(piece) = piece else { return };
+    let Some(piece) = piece else {
+        for (_, _, _, mut vis) in &mut query {
+            *vis = Visibility::Hidden;
+        }
+        return;
+    };
     let cells = piece.board_cells();
     let color = piece.kind.color();
 
@@ -316,7 +344,63 @@ fn sync_active_piece_cells(
         let (row, col) = cells[idx.0];
         sprite.color = color;
 
-        if row >= 0 && (row as usize) < GRID_VISIBLE_ROWS && col >= 0 && (col as usize) < GRID_COLS
+        if row >= 0
+            && (row as usize) < GRID_VISIBLE_ROWS
+            && col >= 0
+            && (col as usize) < GRID_COLS
+        {
+            let pos = grid_to_world(row as usize, col as usize);
+            transform.translation.x = pos.x;
+            transform.translation.y = pos.y;
+            *visibility = Visibility::Visible;
+        } else {
+            *visibility = Visibility::Hidden;
+        }
+    }
+}
+
+fn sync_ghost_piece_cells(
+    piece: Option<Res<ActivePiece>>,
+    board: Res<Board>,
+    mut query: Query<
+        (&GhostPieceCell, &mut Transform, &mut Sprite, &mut Visibility),
+        Without<ActivePieceCell>,
+    >,
+) {
+    let Some(piece) = piece else {
+        for (_, _, _, mut vis) in &mut query {
+            *vis = Visibility::Hidden;
+        }
+        return;
+    };
+
+    // Find hard-drop row.
+    let mut ghost_row = piece.row;
+    loop {
+        let test_cells = piece
+            .kind
+            .cells(piece.rotation)
+            .map(|(r, c)| (ghost_row - 1 + r, piece.col + c));
+        if !board.is_valid_cells(&test_cells) {
+            break;
+        }
+        ghost_row -= 1;
+    }
+
+    let ghost_cells = piece
+        .kind
+        .cells(piece.rotation)
+        .map(|(r, c)| (ghost_row + r, piece.col + c));
+    let color = piece.kind.color().with_alpha(GHOST_ALPHA);
+
+    for (idx, mut transform, mut sprite, mut visibility) in &mut query {
+        let (row, col) = ghost_cells[idx.0];
+        sprite.color = color;
+
+        if row >= 0
+            && (row as usize) < GRID_VISIBLE_ROWS
+            && col >= 0
+            && (col as usize) < GRID_COLS
         {
             let pos = grid_to_world(row as usize, col as usize);
             transform.translation.x = pos.x;
