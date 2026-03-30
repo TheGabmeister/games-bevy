@@ -8,7 +8,7 @@ use crate::tetromino::{ActivePiece, PieceBag, RotationState, TetrominoKind};
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Check whether the piece would fit at `(row, col)` with the given rotation.
+/// Check whether the piece would fit at an offset from its current position.
 fn can_place(board: &Board, piece: &ActivePiece, dr: i32, dc: i32) -> bool {
     let cells = piece
         .kind
@@ -23,6 +23,28 @@ fn spawn_next_piece(piece: &mut ActivePiece, bag: &mut PieceBag) {
     piece.rotation = RotationState::R0;
     piece.row = kind.spawn_row();
     piece.col = SPAWN_COL;
+}
+
+/// Lock the active piece into the board, spawn the next piece, and reset
+/// gravity + lock-delay state.
+fn lock_and_spawn(
+    piece: &mut ActivePiece,
+    board: &mut Board,
+    bag: &mut PieceBag,
+    gravity: &mut GravityTimer,
+    lock: &mut LockDelayState,
+) {
+    let cells = piece.board_cells();
+    let color = piece.kind.color();
+    board.lock_cells(&cells, color);
+
+    spawn_next_piece(piece, bag);
+
+    gravity.elapsed = 0.0;
+    lock.elapsed = 0.0;
+    lock.resets = 0;
+    lock.prev_col = piece.col;
+    lock.prev_rotation = piece.rotation;
 }
 
 // ---------------------------------------------------------------------------
@@ -52,8 +74,6 @@ impl Default for DasState {
     }
 }
 
-/// Basic gravity timer. Phase 6 will extend this with level-based intervals
-/// and lock delay.
 #[derive(Resource)]
 pub struct GravityTimer {
     pub elapsed: f32,
@@ -69,6 +89,25 @@ impl Default for GravityTimer {
     }
 }
 
+#[derive(Resource)]
+struct LockDelayState {
+    elapsed: f32,
+    resets: u32,
+    prev_col: i32,
+    prev_rotation: RotationState,
+}
+
+impl Default for LockDelayState {
+    fn default() -> Self {
+        Self {
+            elapsed: 0.0,
+            resets: 0,
+            prev_col: SPAWN_COL,
+            prev_rotation: RotationState::R0,
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Plugin
 // ---------------------------------------------------------------------------
@@ -79,14 +118,17 @@ impl Plugin for InputPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DasState>()
             .init_resource::<GravityTimer>()
+            .init_resource::<LockDelayState>()
             .add_systems(
                 Update,
                 (
                     handle_horizontal_input,
                     handle_rotation,
-                    handle_gravity,
                     handle_hard_drop,
-                ),
+                    handle_gravity,
+                    handle_lock_delay,
+                )
+                    .chain(),
             );
     }
 }
@@ -193,6 +235,26 @@ fn handle_rotation(
     }
 }
 
+fn handle_hard_drop(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut piece: ResMut<ActivePiece>,
+    mut board: ResMut<Board>,
+    mut bag: ResMut<PieceBag>,
+    mut gravity: ResMut<GravityTimer>,
+    mut lock: ResMut<LockDelayState>,
+) {
+    if !keys.just_pressed(KeyCode::ArrowUp) && !keys.just_pressed(KeyCode::Space) {
+        return;
+    }
+
+    // Drop to lowest valid row.
+    while can_place(&board, &piece, -1, 0) {
+        piece.row -= 1;
+    }
+
+    lock_and_spawn(&mut piece, &mut board, &mut bag, &mut gravity, &mut lock);
+}
+
 fn handle_gravity(
     time: Res<Time>,
     keys: Res<ButtonInput<KeyCode>>,
@@ -213,36 +275,41 @@ fn handle_gravity(
         if can_place(&board, &piece, -1, 0) {
             piece.row -= 1;
         } else {
-            // Can't move down — stop accumulating.
-            // Lock delay will handle this properly in Phase 6.
+            // Can't move down — lock delay handles the rest.
             timer.elapsed = 0.0;
             break;
         }
     }
 }
 
-fn handle_hard_drop(
-    keys: Res<ButtonInput<KeyCode>>,
+fn handle_lock_delay(
+    time: Res<Time>,
+    mut lock: ResMut<LockDelayState>,
     mut piece: ResMut<ActivePiece>,
     mut board: ResMut<Board>,
     mut bag: ResMut<PieceBag>,
     mut gravity: ResMut<GravityTimer>,
 ) {
-    if !keys.just_pressed(KeyCode::ArrowUp) && !keys.just_pressed(KeyCode::Space) {
+    // Detect player-initiated actions (col or rotation changed).
+    let player_acted = piece.col != lock.prev_col || piece.rotation != lock.prev_rotation;
+    lock.prev_col = piece.col;
+    lock.prev_rotation = piece.rotation;
+
+    // Reset lock delay on player action (even if floating).
+    if player_acted && lock.resets < LOCK_DELAY_MAX_RESETS {
+        lock.elapsed = 0.0;
+        lock.resets += 1;
+    }
+
+    // Only tick while the piece is on the ground.
+    let on_ground = !can_place(&board, &piece, -1, 0);
+    if !on_ground {
         return;
     }
 
-    // Drop to lowest valid row.
-    while can_place(&board, &piece, -1, 0) {
-        piece.row -= 1;
+    lock.elapsed += time.delta_secs();
+
+    if lock.elapsed >= LOCK_DELAY_SECS {
+        lock_and_spawn(&mut piece, &mut board, &mut bag, &mut gravity, &mut lock);
     }
-
-    // Lock into board.
-    let cells = piece.board_cells();
-    let color = piece.kind.color();
-    board.lock_cells(&cells, color);
-
-    // Spawn next piece & reset gravity.
-    spawn_next_piece(&mut piece, &mut bag);
-    gravity.elapsed = 0.0;
 }

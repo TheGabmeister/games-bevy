@@ -215,9 +215,9 @@ The tasks are ordered for incremental learning: each phase produces something vi
 - [x] Test rotation near walls and floor
 
 ### Phase 6: Gravity & Lock Delay
-- [ ] Implement gravity tick timer that moves piece down each interval
-- [ ] Implement lock delay (0.5 s) with reset-on-move (max 15 resets)
-- [ ] Lock piece into the board when delay expires
+- [x] Implement gravity tick timer that moves piece down each interval
+- [x] Implement lock delay (0.5 s) with reset-on-move (max 15 resets)
+- [x] Lock piece into the board when delay expires
 
 ### Phase 7: Line Clears & Collapse
 - [ ] Detect fully filled rows after piece locks
