@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 mod components;
 mod constants;
+mod level;
 
 use components::*;
 use constants::*;
