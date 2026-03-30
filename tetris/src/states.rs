@@ -64,7 +64,7 @@ fn spawn_start_screen(mut commands: Commands) {
             ..default()
         },
         TextColor(Color::srgb(2.0, 2.0, 4.0)),
-        Transform::from_xyz(0.0, 80.0, 10.0),
+        Transform::from_xyz(0.0, 80.0, Z_OVERLAY_TEXT),
         DespawnOnExit(AppState::StartScreen),
     ));
     commands.spawn((
@@ -74,7 +74,7 @@ fn spawn_start_screen(mut commands: Commands) {
             ..default()
         },
         TextColor(Color::srgba(1.0, 1.0, 1.0, 0.6)),
-        Transform::from_xyz(0.0, -20.0, 10.0),
+        Transform::from_xyz(0.0, -20.0, Z_OVERLAY_TEXT),
         DespawnOnExit(AppState::StartScreen),
     ));
 }
@@ -100,7 +100,7 @@ fn spawn_game_over_screen(mut commands: Commands, stats: Res<GameStats>) {
             custom_size: Some(Vec2::new(WINDOW_WIDTH, WINDOW_HEIGHT)),
             ..default()
         },
-        Transform::from_xyz(0.0, 0.0, 9.0),
+        Transform::from_xyz(0.0, 0.0, Z_OVERLAY),
         DespawnOnExit(AppState::GameOver),
     ));
     commands.spawn((
@@ -110,7 +110,7 @@ fn spawn_game_over_screen(mut commands: Commands, stats: Res<GameStats>) {
             ..default()
         },
         TextColor(Color::srgb(4.0, 0.5, 0.5)),
-        Transform::from_xyz(0.0, 80.0, 10.0),
+        Transform::from_xyz(0.0, 80.0, Z_OVERLAY_TEXT),
         DespawnOnExit(AppState::GameOver),
     ));
     commands.spawn((
@@ -120,7 +120,7 @@ fn spawn_game_over_screen(mut commands: Commands, stats: Res<GameStats>) {
             ..default()
         },
         TextColor(Color::srgb(2.0, 2.0, 2.0)),
-        Transform::from_xyz(0.0, 20.0, 10.0),
+        Transform::from_xyz(0.0, 20.0, Z_OVERLAY_TEXT),
         DespawnOnExit(AppState::GameOver),
     ));
     commands.spawn((
@@ -130,7 +130,7 @@ fn spawn_game_over_screen(mut commands: Commands, stats: Res<GameStats>) {
             ..default()
         },
         TextColor(Color::srgba(1.0, 1.0, 1.0, 0.6)),
-        Transform::from_xyz(0.0, -30.0, 10.0),
+        Transform::from_xyz(0.0, -30.0, Z_OVERLAY_TEXT),
         DespawnOnExit(AppState::GameOver),
     ));
 }
@@ -155,7 +155,7 @@ fn spawn_pause_overlay(mut commands: Commands) {
             custom_size: Some(Vec2::new(WINDOW_WIDTH, WINDOW_HEIGHT)),
             ..default()
         },
-        Transform::from_xyz(0.0, 0.0, 9.0),
+        Transform::from_xyz(0.0, 0.0, Z_OVERLAY),
         DespawnOnExit(PlayState::Paused),
     ));
     commands.spawn((
@@ -165,7 +165,7 @@ fn spawn_pause_overlay(mut commands: Commands) {
             ..default()
         },
         TextColor(Color::srgba(1.0, 1.0, 1.0, 0.7)),
-        Transform::from_xyz(0.0, 0.0, 10.0),
+        Transform::from_xyz(0.0, 0.0, Z_OVERLAY_TEXT),
         DespawnOnExit(PlayState::Paused),
     ));
 }

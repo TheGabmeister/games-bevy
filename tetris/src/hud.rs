@@ -45,7 +45,7 @@ fn spawn_hud(mut commands: Commands) {
             ..default()
         },
         TextColor(HUD_VALUE_COLOR),
-        Transform::from_xyz(HUD_X, HUD_TOP_Y - 28.0, 5.0),
+        Transform::from_xyz(HUD_X, HUD_TOP_Y - 28.0, Z_UI),
     ));
 
     // Level
@@ -59,7 +59,7 @@ fn spawn_hud(mut commands: Commands) {
             ..default()
         },
         TextColor(HUD_VALUE_COLOR),
-        Transform::from_xyz(HUD_X, level_y - 28.0, 5.0),
+        Transform::from_xyz(HUD_X, level_y - 28.0, Z_UI),
     ));
 
     // Lines
@@ -73,7 +73,7 @@ fn spawn_hud(mut commands: Commands) {
             ..default()
         },
         TextColor(HUD_VALUE_COLOR),
-        Transform::from_xyz(HUD_X, lines_y - 28.0, 5.0),
+        Transform::from_xyz(HUD_X, lines_y - 28.0, Z_UI),
     ));
 }
 
@@ -85,7 +85,7 @@ fn spawn_label(commands: &mut Commands, text: &str, x: f32, y: f32) {
             ..default()
         },
         TextColor(HUD_LABEL_COLOR),
-        Transform::from_xyz(x, y, 5.0),
+        Transform::from_xyz(x, y, Z_UI),
     ));
 }
 

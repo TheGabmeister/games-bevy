@@ -3,11 +3,12 @@ use bevy::prelude::*;
 use crate::constants::*;
 use crate::resources::LineClearMsg;
 use crate::states::AppState;
+use crate::tetromino::TetrominoKind;
 
 /// The playfield grid. Each cell is `None` (empty) or `Some(Color)` (filled).
 #[derive(Resource)]
 pub struct Board {
-    pub cells: [[Option<Color>; GRID_COLS]; GRID_TOTAL_ROWS],
+    pub cells: [[Option<TetrominoKind>; GRID_COLS]; GRID_TOTAL_ROWS],
 }
 
 impl Board {
@@ -21,10 +22,10 @@ impl Board {
         })
     }
 
-    pub fn lock_cells(&mut self, cells: &[(i32, i32); 4], color: Color) {
+    pub fn lock_cells(&mut self, cells: &[(i32, i32); 4], kind: TetrominoKind) {
         for &(r, c) in cells {
             if r >= 0 && (r as usize) < GRID_TOTAL_ROWS && c >= 0 && (c as usize) < GRID_COLS {
-                self.cells[r as usize][c as usize] = Some(color);
+                self.cells[r as usize][c as usize] = Some(kind);
             }
         }
     }
@@ -74,8 +75,6 @@ pub struct BoardCell {
 #[derive(Component)]
 struct LineClearFlash(f32);
 
-const LINE_FLASH_DURATION: f32 = 0.15;
-
 fn spawn_line_flash(commands: &mut Commands, row: usize) {
     let y = PLAYFIELD_BOTTOM + row as f32 * CELL_SIZE + CELL_SIZE / 2.0;
     commands.spawn((
@@ -85,7 +84,7 @@ fn spawn_line_flash(commands: &mut Commands, row: usize) {
             custom_size: Some(Vec2::new(PLAYFIELD_WIDTH, CELL_INNER_SIZE)),
             ..default()
         },
-        Transform::from_xyz(0.0, y, 3.0),
+        Transform::from_xyz(0.0, y, Z_FLASH),
     ));
 }
 
@@ -124,7 +123,7 @@ impl Plugin for BoardPlugin {
                 Update,
                 (
                     sync_board_cells,
-                    handle_line_clear_visuals,
+                    handle_line_clear_visuals.run_if(in_state(AppState::Playing)),
                     animate_board_collapse,
                     animate_line_clear_flash,
                 ),
@@ -156,7 +155,7 @@ fn spawn_playfield_border(mut commands: Commands) {
             custom_size: Some(Vec2::new(PLAYFIELD_WIDTH + bt * 2.0, bt)),
             ..default()
         },
-        Transform::from_xyz(0.0, -half_h - bt / 2.0, 0.0),
+        Transform::from_xyz(0.0, -half_h - bt / 2.0, Z_BORDER),
     ));
     commands.spawn((
         Sprite {
@@ -164,7 +163,7 @@ fn spawn_playfield_border(mut commands: Commands) {
             custom_size: Some(Vec2::new(PLAYFIELD_WIDTH + bt * 2.0, bt)),
             ..default()
         },
-        Transform::from_xyz(0.0, half_h + bt / 2.0, 0.0),
+        Transform::from_xyz(0.0, half_h + bt / 2.0, Z_BORDER),
     ));
     commands.spawn((
         Sprite {
@@ -172,7 +171,7 @@ fn spawn_playfield_border(mut commands: Commands) {
             custom_size: Some(Vec2::new(bt, PLAYFIELD_HEIGHT)),
             ..default()
         },
-        Transform::from_xyz(-half_w - bt / 2.0, 0.0, 0.0),
+        Transform::from_xyz(-half_w - bt / 2.0, 0.0, Z_BORDER),
     ));
     commands.spawn((
         Sprite {
@@ -180,7 +179,7 @@ fn spawn_playfield_border(mut commands: Commands) {
             custom_size: Some(Vec2::new(bt, PLAYFIELD_HEIGHT)),
             ..default()
         },
-        Transform::from_xyz(half_w + bt / 2.0, 0.0, 0.0),
+        Transform::from_xyz(half_w + bt / 2.0, 0.0, Z_BORDER),
     ));
 }
 
@@ -196,7 +195,7 @@ fn spawn_cell_entities(mut commands: Commands) {
                     custom_size: Some(Vec2::new(CELL_INNER_SIZE, CELL_INNER_SIZE)),
                     ..default()
                 },
-                Transform::from_xyz(pos.x, pos.y, 1.0),
+                Transform::from_xyz(pos.x, pos.y, Z_BOARD_CELL),
                 visibility,
             ));
         }
@@ -221,8 +220,8 @@ fn sync_board_cells(
     let (empty_color, empty_vis) = empty_cell_style();
     for (cell, mut sprite, mut visibility) in &mut query {
         match board.cells[cell.row][cell.col] {
-            Some(color) => {
-                sprite.color = color;
+            Some(kind) => {
+                sprite.color = kind.color();
                 *visibility = Visibility::Visible;
             }
             None => {

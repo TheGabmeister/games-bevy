@@ -4,6 +4,7 @@ use rand::Rng;
 use crate::board::grid_to_world;
 use crate::constants::*;
 use crate::resources::{LineClearMsg, PieceLockedMsg};
+use crate::states::AppState;
 
 // ---------------------------------------------------------------------------
 // Components
@@ -30,8 +31,8 @@ impl Plugin for EffectsPlugin {
         app.add_systems(
             Update,
             (
-                spawn_line_clear_particles,
-                spawn_lock_flash,
+                spawn_line_clear_particles.run_if(in_state(AppState::Playing)),
+                spawn_lock_flash.run_if(in_state(AppState::Playing)),
                 animate_particles,
                 animate_lock_flash,
             ),
@@ -75,7 +76,7 @@ fn spawn_line_clear_particles(
                         custom_size: Some(Vec2::splat(PARTICLE_SIZE)),
                         ..default()
                     },
-                    Transform::from_xyz(x, y, 4.0),
+                    Transform::from_xyz(x, y, Z_PARTICLE),
                 ));
             }
         }
@@ -122,7 +123,7 @@ fn spawn_lock_flash(mut commands: Commands, mut piece_locked: MessageReader<Piec
                         custom_size: Some(Vec2::new(CELL_INNER_SIZE, CELL_INNER_SIZE)),
                         ..default()
                     },
-                    Transform::from_xyz(pos.x, pos.y, 3.0),
+                    Transform::from_xyz(pos.x, pos.y, Z_FLASH),
                 ));
             }
         }

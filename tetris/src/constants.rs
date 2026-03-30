@@ -45,10 +45,10 @@ pub const COLOR_L: Color = Color::srgb(4.0, 2.0, 0.0);
 pub const GHOST_ALPHA: f32 = 0.25;
 
 // Gravity & drop
-pub const GRAVITY_BASE: f64 = 0.8;
-pub const GRAVITY_FACTOR: f64 = 0.007;
-pub const GRAVITY_FLOOR: f64 = 0.05;
-pub const SOFT_DROP_MULTIPLIER: f64 = 20.0;
+pub const GRAVITY_BASE: f32 = 0.8;
+pub const GRAVITY_FACTOR: f32 = 0.007;
+pub const GRAVITY_FLOOR: f32 = 0.05;
+pub const SOFT_DROP_MULTIPLIER: f32 = 20.0;
 pub const HARD_DROP_SCORE_PER_ROW: u32 = 2;
 pub const SOFT_DROP_SCORE_PER_ROW: u32 = 1;
 
@@ -83,3 +83,15 @@ pub const PARTICLE_COUNT_PER_ROW: usize = 12;
 pub const PARTICLE_LIFETIME: f32 = 0.6;
 pub const PARTICLE_SPEED: f32 = 300.0;
 pub const PARTICLE_SIZE: f32 = 4.0;
+pub const LINE_FLASH_DURATION: f32 = 0.15;
+
+// Z-index layers
+pub const Z_BORDER: f32 = 0.0;
+pub const Z_BOARD_CELL: f32 = 1.0;
+pub const Z_GHOST_PIECE: f32 = 1.5;
+pub const Z_ACTIVE_PIECE: f32 = 2.0;
+pub const Z_FLASH: f32 = 3.0;
+pub const Z_PARTICLE: f32 = 4.0;
+pub const Z_UI: f32 = 5.0;
+pub const Z_OVERLAY: f32 = 9.0;
+pub const Z_OVERLAY_TEXT: f32 = 10.0;

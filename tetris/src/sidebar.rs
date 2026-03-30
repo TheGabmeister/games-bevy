@@ -63,7 +63,7 @@ fn spawn_sidebar(mut commands: Commands) {
             ..default()
         },
         TextColor(LABEL_COLOR),
-        Transform::from_xyz(SIDEBAR_X_RIGHT, SIDEBAR_TOP_Y, 5.0),
+        Transform::from_xyz(SIDEBAR_X_RIGHT, SIDEBAR_TOP_Y, Z_UI),
     ));
 
     // Next queue cells (5 slots x 4 cells)
@@ -76,7 +76,7 @@ fn spawn_sidebar(mut commands: Commands) {
                     custom_size: Some(Vec2::new(SIDEBAR_CELL_INNER, SIDEBAR_CELL_INNER)),
                     ..default()
                 },
-                Transform::from_xyz(0.0, 0.0, 5.0),
+                Transform::from_xyz(0.0, 0.0, Z_UI),
                 Visibility::Hidden,
             ));
         }
@@ -90,7 +90,7 @@ fn spawn_sidebar(mut commands: Commands) {
             ..default()
         },
         TextColor(LABEL_COLOR),
-        Transform::from_xyz(SIDEBAR_X_LEFT, SIDEBAR_TOP_Y, 5.0),
+        Transform::from_xyz(SIDEBAR_X_LEFT, SIDEBAR_TOP_Y, Z_UI),
     ));
 
     // Hold box cells (4 cells)
@@ -102,7 +102,7 @@ fn spawn_sidebar(mut commands: Commands) {
                 custom_size: Some(Vec2::new(SIDEBAR_CELL_INNER, SIDEBAR_CELL_INNER)),
                 ..default()
             },
-            Transform::from_xyz(0.0, 0.0, 5.0),
+            Transform::from_xyz(0.0, 0.0, Z_UI),
             Visibility::Hidden,
         ));
     }

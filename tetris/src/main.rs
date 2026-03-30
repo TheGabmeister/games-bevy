@@ -49,7 +49,6 @@ fn main() {
             SidebarPlugin,
             EffectsPlugin,
         ))
-        .insert_resource(ClearColor(CLEAR_COLOR))
         .add_systems(Startup, setup_camera)
         .run();
 }

@@ -292,7 +292,7 @@ fn spawn_piece_cells(mut commands: Commands) {
                 custom_size: Some(Vec2::new(CELL_INNER_SIZE, CELL_INNER_SIZE)),
                 ..default()
             },
-            Transform::from_xyz(0.0, 0.0, 2.0),
+            Transform::from_xyz(0.0, 0.0, Z_ACTIVE_PIECE),
             Visibility::Hidden,
         ));
     }
@@ -305,7 +305,7 @@ fn spawn_piece_cells(mut commands: Commands) {
                 custom_size: Some(Vec2::new(CELL_INNER_SIZE, CELL_INNER_SIZE)),
                 ..default()
             },
-            Transform::from_xyz(0.0, 0.0, 1.5),
+            Transform::from_xyz(0.0, 0.0, Z_GHOST_PIECE),
             Visibility::Hidden,
         ));
     }

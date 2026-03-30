@@ -105,7 +105,7 @@ impl Plugin for StatsPlugin {
             .add_message::<SoftDropMsg>()
             .add_message::<LevelChangedMsg>()
             .add_message::<PieceLockedMsg>()
-            .add_systems(Update, process_scoring)
+            .add_systems(Update, process_scoring.run_if(in_state(AppState::Playing)))
             .add_systems(OnEnter(AppState::Playing), reset_stats);
     }
 }

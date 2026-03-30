@@ -44,8 +44,7 @@ fn lock_and_spawn(
     hold: &mut HoldPiece,
 ) -> LockResult {
     let cells = piece.board_cells();
-    let color = piece.kind.color();
-    board.lock_cells(&cells, color);
+    board.lock_cells(&cells, piece.kind);
 
     // Lock out: entire piece above visible area.
     let lock_out = cells
@@ -69,6 +68,34 @@ fn lock_and_spawn(
     LockResult {
         cleared_rows,
         game_over: lock_out || block_out,
+    }
+}
+
+/// Lock the active piece, emit messages, check game over, and spawn the next piece.
+fn perform_lock(
+    piece: &mut ActivePiece,
+    board: &mut Board,
+    bag: &mut PieceBag,
+    gravity: &mut GravityTimer,
+    lock: &mut LockDelayState,
+    hold: &mut HoldPiece,
+    line_clear_msgs: &mut MessageWriter<LineClearMsg>,
+    piece_locked_msgs: &mut MessageWriter<PieceLockedMsg>,
+    next_app_state: &mut NextState<AppState>,
+) {
+    let locked_cells = piece.board_cells();
+    piece_locked_msgs.write(PieceLockedMsg {
+        cells: locked_cells,
+    });
+
+    let result = lock_and_spawn(piece, board, bag, gravity, lock, hold);
+    if !result.cleared_rows.is_empty() {
+        line_clear_msgs.write(LineClearMsg {
+            rows: result.cleared_rows,
+        });
+    }
+    if result.game_over {
+        next_app_state.set(AppState::GameOver);
     }
 }
 
@@ -322,22 +349,17 @@ fn handle_hard_drop(
     }
     hard_drop_msgs.write(HardDropMsg((start_row - piece.row) as u32));
 
-    let locked_cells = piece.board_cells();
-    piece_locked_msgs.write(PieceLockedMsg {
-        cells: locked_cells,
-    });
-
-    let result = lock_and_spawn(
-        &mut piece, &mut board, &mut bag, &mut gravity, &mut lock, &mut hold,
+    perform_lock(
+        &mut piece,
+        &mut board,
+        &mut bag,
+        &mut gravity,
+        &mut lock,
+        &mut hold,
+        &mut line_clear_msgs,
+        &mut piece_locked_msgs,
+        &mut next_app_state,
     );
-    if !result.cleared_rows.is_empty() {
-        line_clear_msgs.write(LineClearMsg {
-            rows: result.cleared_rows,
-        });
-    }
-    if result.game_over {
-        next_app_state.set(AppState::GameOver);
-    }
 }
 
 fn handle_gravity(
@@ -349,7 +371,7 @@ fn handle_gravity(
     mut soft_drop_msgs: MessageWriter<SoftDropMsg>,
 ) {
     let interval = if actions.soft_drop {
-        timer.interval / SOFT_DROP_MULTIPLIER as f32
+        timer.interval / SOFT_DROP_MULTIPLIER
     } else {
         timer.interval
     };
@@ -404,22 +426,17 @@ fn handle_lock_delay(
     lock.elapsed += time.delta_secs();
 
     if lock.elapsed >= LOCK_DELAY_SECS {
-        let locked_cells = piece.board_cells();
-        piece_locked_msgs.write(PieceLockedMsg {
-            cells: locked_cells,
-        });
-
-        let result = lock_and_spawn(
-            &mut piece, &mut board, &mut bag, &mut gravity, &mut lock, &mut hold,
+        perform_lock(
+            &mut piece,
+            &mut board,
+            &mut bag,
+            &mut gravity,
+            &mut lock,
+            &mut hold,
+            &mut line_clear_msgs,
+            &mut piece_locked_msgs,
+            &mut next_app_state,
         );
-        if !result.cleared_rows.is_empty() {
-            line_clear_msgs.write(LineClearMsg {
-                rows: result.cleared_rows,
-            });
-        }
-        if result.game_over {
-            next_app_state.set(AppState::GameOver);
-        }
     }
 }
 
@@ -428,8 +445,8 @@ fn handle_level_change(
     mut level_msgs: MessageReader<LevelChangedMsg>,
 ) {
     for msg in level_msgs.read() {
-        let l = msg.0 as f64;
+        let l = msg.0 as f32;
         gravity.interval =
-            ((GRAVITY_BASE - (l - 1.0) * GRAVITY_FACTOR).powf(l - 1.0)).max(GRAVITY_FLOOR) as f32;
+            (GRAVITY_BASE - (l - 1.0) * GRAVITY_FACTOR).powf(l - 1.0).max(GRAVITY_FLOOR);
     }
 }

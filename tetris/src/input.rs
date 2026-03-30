@@ -18,23 +18,27 @@ pub struct InputPlugin;
 impl Plugin for InputPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<InputActions>()
-            .add_systems(PreUpdate, (read_keyboard, read_gamepad).chain());
+            .add_systems(PreUpdate, (clear_input, read_keyboard, read_gamepad).chain());
     }
 }
 
+fn clear_input(mut actions: ResMut<InputActions>) {
+    *actions = InputActions::default();
+}
+
 fn read_keyboard(keys: Res<ButtonInput<KeyCode>>, mut actions: ResMut<InputActions>) {
-    actions.move_left = keys.pressed(KeyCode::ArrowLeft) || keys.pressed(KeyCode::KeyA);
-    actions.move_right = keys.pressed(KeyCode::ArrowRight) || keys.pressed(KeyCode::KeyD);
-    actions.rotate_cw = keys.just_pressed(KeyCode::KeyX) || keys.just_pressed(KeyCode::KeyE);
-    actions.rotate_ccw = keys.just_pressed(KeyCode::KeyZ) || keys.just_pressed(KeyCode::KeyQ);
-    actions.soft_drop = keys.pressed(KeyCode::ArrowDown) || keys.pressed(KeyCode::KeyS);
-    actions.hard_drop =
+    actions.move_left |= keys.pressed(KeyCode::ArrowLeft) || keys.pressed(KeyCode::KeyA);
+    actions.move_right |= keys.pressed(KeyCode::ArrowRight) || keys.pressed(KeyCode::KeyD);
+    actions.rotate_cw |= keys.just_pressed(KeyCode::KeyX) || keys.just_pressed(KeyCode::KeyE);
+    actions.rotate_ccw |= keys.just_pressed(KeyCode::KeyZ) || keys.just_pressed(KeyCode::KeyQ);
+    actions.soft_drop |= keys.pressed(KeyCode::ArrowDown) || keys.pressed(KeyCode::KeyS);
+    actions.hard_drop |=
         keys.just_pressed(KeyCode::ArrowUp) || keys.just_pressed(KeyCode::Space);
-    actions.hold = keys.just_pressed(KeyCode::KeyC)
+    actions.hold |= keys.just_pressed(KeyCode::KeyC)
         || keys.just_pressed(KeyCode::ShiftLeft)
         || keys.just_pressed(KeyCode::ShiftRight);
-    actions.pause = keys.just_pressed(KeyCode::Escape);
-    actions.start_restart = keys.just_pressed(KeyCode::Enter);
+    actions.pause |= keys.just_pressed(KeyCode::Escape);
+    actions.start_restart |= keys.just_pressed(KeyCode::Enter);
 }
 
 const STICK_THRESHOLD: f32 = 0.5;
