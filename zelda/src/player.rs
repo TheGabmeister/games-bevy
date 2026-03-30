@@ -16,7 +16,6 @@ use crate::{
 const PLAYER_RADIUS: f32 = 8.0;
 const PLAYER_SPEED: f32 = 90.0;
 const FACING_INDICATOR_SIZE: f32 = 5.0;
-const FACING_INDICATOR_DISTANCE: f32 = 10.0;
 
 pub struct PlayerPlugin;
 
@@ -93,7 +92,11 @@ fn spawn_player_on_room_load(
                         Vec2::new(FACING_INDICATOR_SIZE * 0.7, -FACING_INDICATOR_SIZE),
                     ))),
                     color_material(materials.as_mut(), WorldColor::Accent),
-                    facing_indicator_transform(Facing::Down),
+                    Transform {
+                        translation: Vec3::new(0.0, 0.0, 1.0),
+                        rotation: Quat::from_rotation_z(std::f32::consts::PI),
+                        ..default()
+                    },
                 ));
             });
     }
@@ -140,32 +143,14 @@ fn sync_facing_indicator(
     for (facing, children) in &players {
         for child in children.iter() {
             if let Ok(mut transform) = indicators.get_mut(child) {
-                *transform = facing_indicator_transform(*facing);
+                transform.translation = Vec3::new(0.0, 0.0, 1.0);
+                transform.rotation = Quat::from_rotation_z(match facing {
+                    Facing::Up => 0.0,
+                    Facing::Down => std::f32::consts::PI,
+                    Facing::Left => std::f32::consts::FRAC_PI_2,
+                    Facing::Right => -std::f32::consts::FRAC_PI_2,
+                });
             }
         }
-    }
-}
-
-fn facing_indicator_transform(facing: Facing) -> Transform {
-    let (offset, rotation) = match facing {
-        Facing::Up => (Vec3::new(0.0, FACING_INDICATOR_DISTANCE, 1.0), 0.0),
-        Facing::Down => (
-            Vec3::new(0.0, -FACING_INDICATOR_DISTANCE, 1.0),
-            std::f32::consts::PI,
-        ),
-        Facing::Left => (
-            Vec3::new(-FACING_INDICATOR_DISTANCE, 0.0, 1.0),
-            std::f32::consts::FRAC_PI_2,
-        ),
-        Facing::Right => (
-            Vec3::new(FACING_INDICATOR_DISTANCE, 0.0, 1.0),
-            -std::f32::consts::FRAC_PI_2,
-        ),
-    };
-
-    Transform {
-        translation: offset,
-        rotation: Quat::from_rotation_z(rotation),
-        ..default()
     }
 }
