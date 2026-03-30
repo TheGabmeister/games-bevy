@@ -5,6 +5,29 @@ use crate::constants::*;
 use crate::tetromino::{ActivePiece, PieceBag, RotationState, TetrominoKind};
 
 // ---------------------------------------------------------------------------
+// Action layer — all key bindings live here, game systems read actions only
+// ---------------------------------------------------------------------------
+
+#[derive(Resource, Default)]
+pub struct InputActions {
+    pub move_left: bool,
+    pub move_right: bool,
+    pub rotate_cw: bool,
+    pub rotate_ccw: bool,
+    pub soft_drop: bool,
+    pub hard_drop: bool,
+}
+
+fn read_keyboard(keys: Res<ButtonInput<KeyCode>>, mut actions: ResMut<InputActions>) {
+    actions.move_left = keys.pressed(KeyCode::ArrowLeft) || keys.pressed(KeyCode::KeyA);
+    actions.move_right = keys.pressed(KeyCode::ArrowRight) || keys.pressed(KeyCode::KeyD);
+    actions.rotate_cw = keys.just_pressed(KeyCode::KeyX) || keys.just_pressed(KeyCode::KeyE);
+    actions.rotate_ccw = keys.just_pressed(KeyCode::KeyZ) || keys.just_pressed(KeyCode::KeyQ);
+    actions.soft_drop = keys.pressed(KeyCode::ArrowDown) || keys.pressed(KeyCode::KeyS);
+    actions.hard_drop = keys.just_pressed(KeyCode::ArrowUp) || keys.just_pressed(KeyCode::Space);
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -121,12 +144,14 @@ pub struct InputPlugin;
 
 impl Plugin for InputPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<DasState>()
+        app.init_resource::<InputActions>()
+            .init_resource::<DasState>()
             .init_resource::<GravityTimer>()
             .init_resource::<LockDelayState>()
             .add_systems(
                 Update,
                 (
+                    read_keyboard,
                     handle_horizontal_input,
                     handle_rotation,
                     handle_hard_drop,
@@ -139,20 +164,17 @@ impl Plugin for InputPlugin {
 }
 
 // ---------------------------------------------------------------------------
-// Systems
+// Systems — these read InputActions, never KeyCode
 // ---------------------------------------------------------------------------
 
 fn handle_horizontal_input(
-    keys: Res<ButtonInput<KeyCode>>,
+    actions: Res<InputActions>,
     time: Res<Time>,
     mut das: ResMut<DasState>,
     mut piece: ResMut<ActivePiece>,
     board: Res<Board>,
 ) {
-    let left = keys.pressed(KeyCode::ArrowLeft) || keys.pressed(KeyCode::KeyA);
-    let right = keys.pressed(KeyCode::ArrowRight) || keys.pressed(KeyCode::KeyD);
-
-    let dir = match (left, right) {
+    let dir = match (actions.move_left, actions.move_right) {
         (true, false) => Some(HorizontalDir::Left),
         (false, true) => Some(HorizontalDir::Right),
         _ => None,
@@ -203,7 +225,7 @@ fn handle_horizontal_input(
 }
 
 fn handle_rotation(
-    keys: Res<ButtonInput<KeyCode>>,
+    actions: Res<InputActions>,
     mut piece: ResMut<ActivePiece>,
     board: Res<Board>,
 ) {
@@ -212,12 +234,9 @@ fn handle_rotation(
         return;
     }
 
-    let cw = keys.just_pressed(KeyCode::KeyX) || keys.just_pressed(KeyCode::KeyE);
-    let ccw = keys.just_pressed(KeyCode::KeyZ) || keys.just_pressed(KeyCode::KeyQ);
-
-    let target = if cw {
+    let target = if actions.rotate_cw {
         piece.rotation.cw()
-    } else if ccw {
+    } else if actions.rotate_ccw {
         piece.rotation.ccw()
     } else {
         return;
@@ -242,14 +261,14 @@ fn handle_rotation(
 
 fn handle_hard_drop(
     mut commands: Commands,
-    keys: Res<ButtonInput<KeyCode>>,
+    actions: Res<InputActions>,
     mut piece: ResMut<ActivePiece>,
     mut board: ResMut<Board>,
     mut bag: ResMut<PieceBag>,
     mut gravity: ResMut<GravityTimer>,
     mut lock: ResMut<LockDelayState>,
 ) {
-    if !keys.just_pressed(KeyCode::ArrowUp) && !keys.just_pressed(KeyCode::Space) {
+    if !actions.hard_drop {
         return;
     }
 
@@ -266,13 +285,12 @@ fn handle_hard_drop(
 
 fn handle_gravity(
     time: Res<Time>,
-    keys: Res<ButtonInput<KeyCode>>,
+    actions: Res<InputActions>,
     mut timer: ResMut<GravityTimer>,
     mut piece: ResMut<ActivePiece>,
     board: Res<Board>,
 ) {
-    let soft_drop = keys.pressed(KeyCode::ArrowDown) || keys.pressed(KeyCode::KeyS);
-    let interval = if soft_drop {
+    let interval = if actions.soft_drop {
         timer.interval / SOFT_DROP_MULTIPLIER as f32
     } else {
         timer.interval
