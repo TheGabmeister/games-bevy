@@ -34,3 +34,13 @@ pub enum TileType {
     PipeBodyLeft,
     PipeBodyRight,
 }
+
+// HUD markers
+#[derive(Component)]
+pub struct ScoreText;
+
+#[derive(Component)]
+pub struct CoinText;
+
+#[derive(Component)]
+pub struct TimerText;

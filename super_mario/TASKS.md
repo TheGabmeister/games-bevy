@@ -58,14 +58,14 @@ Ordered for incremental learning. Each task produces a runnable game with visibl
 
 **You'll learn**: Bevy states, `OnEnter`/`OnExit`, UI nodes, text rendering, `DespawnOnExit`.
 
-- [ ] **4.1** Create `states.rs` — `AppState` enum (StartScreen, Playing, GameOver)
-- [ ] **4.2** Create `resources.rs` — `GameData` resource (score, coins, lives, world name, timer)
-- [ ] **4.3** Implement StartScreen state — title text, "Press Enter" prompt
-- [ ] **4.4** Implement Playing state — spawn level and Mario on enter, cleanup on exit
-- [ ] **4.5** Implement GameOver state — "Game Over" text, restart on Enter
-- [ ] **4.6** Add HUD overlay during Playing — score, coins, world, countdown timer
-- [ ] **4.7** Implement countdown timer (400 → 0, death on timeout)
-- [ ] **4.8** Gate all gameplay systems with `.run_if(in_state(AppState::Playing))`
+- [x] **4.1** Create `states.rs` — `AppState` enum (StartScreen, Playing, GameOver)
+- [x] **4.2** Create `resources.rs` — `GameData` resource (score, coins, lives, world name, timer)
+- [x] **4.3** Implement StartScreen state — title text, "Press Enter" prompt
+- [x] **4.4** Implement Playing state — spawn level and Mario on enter, cleanup on exit
+- [x] **4.5** Implement GameOver state — "Game Over" text, restart on Enter
+- [x] **4.6** Add HUD overlay during Playing — score, coins, world, countdown timer
+- [x] **4.7** Implement countdown timer (400 → 0, death on timeout)
+- [x] **4.8** Gate all gameplay systems with `.run_if(in_state(AppState::Playing))`
 
 **Milestone**: Full game loop — start screen → play → die → game over → restart.
 
@@ -75,11 +75,11 @@ Ordered for incremental learning. Each task produces a runnable game with visibl
 
 **You'll learn**: Sub-states, animation with timers, entity lifecycle, respawning.
 
-- [ ] **5.1** Add `PlayState` sub-state (Running, Dying, Paused, LevelComplete)
-- [ ] **5.2** Implement pit death — falling below screen triggers Dying state
-- [ ] **5.3** Add death animation — Mario bounces up, then falls off screen (using a timer)
-- [ ] **5.4** After death animation: decrement lives, respawn at level start (or GameOver if lives = 0)
-- [ ] **5.5** Implement pause — Escape toggles Paused sub-state, freeze all systems, show overlay
+- [x] **5.1** Add `PlayState` sub-state (Running, Dying, Paused, LevelComplete)
+- [x] **5.2** Implement pit death — falling below screen triggers Dying state
+- [x] **5.3** Add death animation — Mario bounces up, then falls off screen (using a timer)
+- [x] **5.4** After death animation: decrement lives, respawn at level start (or GameOver if lives = 0)
+- [x] **5.5** Implement pause — Escape toggles Paused sub-state, freeze all systems, show overlay
 
 **Milestone**: Mario dies from pits, has lives, can pause, and transitions cleanly between states.
 

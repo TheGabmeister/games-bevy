@@ -53,3 +53,13 @@ pub const CAMERA_MAX_X: f32 = LEVEL_ORIGIN_X + 211.0 * TILE_SIZE - CAMERA_VISIBL
 pub const GRAVITY_ASCENDING: f32 = 600.0;
 pub const GRAVITY_DESCENDING: f32 = 980.0;
 pub const TERMINAL_VELOCITY: f32 = 500.0;
+
+// Timer
+pub const TIMER_START: f32 = 400.0;
+pub const TIMER_TICK_RATE: f32 = 2.5; // ticks per second
+
+// Death
+pub const DEATH_Y: f32 = -160.0;
+pub const DEATH_BOUNCE_IMPULSE: f32 = 280.0;
+pub const DEATH_PAUSE_DURATION: f32 = 0.5;
+pub const DEATH_FALL_DURATION: f32 = 3.0;
