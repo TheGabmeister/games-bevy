@@ -10,7 +10,7 @@ mod state;
 mod ui;
 
 use components::*;
-use resources::{GameAssets, GameData, ShootCooldown};
+use resources::{GameAssets, GameData};
 use spawn::{spawn_ship, spawn_wave};
 use state::AppState;
 
@@ -23,7 +23,7 @@ pub const HALF_H: f32 = WINDOW_HEIGHT / 2.0;
 // ── Ship ──────────────────────────────────────────────────────────────────────
 pub const SHIP_ROTATION_SPEED: f32 = 3.0; // radians/sec
 pub const SHIP_THRUST: f32 = 250.0; // pixels/sec²
-pub const SHIP_DRAG: f32 = 0.97; // velocity multiplier per frame
+pub const SHIP_DRAG: f32 = 0.97; // per-frame factor at 60 fps; applied as SHIP_DRAG.powf(60*dt)
 pub const SHIP_MAX_SPEED: f32 = 400.0; // pixels/sec
 pub const SHIP_RADIUS: f32 = 12.0; // collision radius
 
@@ -149,25 +149,21 @@ fn main() {
             ..default()
         }))
         .init_state::<AppState>()
-        .insert_resource(GameData::default())
-        .init_resource::<ShootCooldown>()
-        // Establish execution order across all plugins:
-        //   Input → Movement → Collision → Cleanup
+        .init_resource::<GameData>()
+        // Input stays in Update (reads keyboard every rendered frame)
+        .configure_sets(Update, GameSet::Input.run_if(in_state(AppState::Playing)))
+        // Physics ordering in FixedUpdate: Movement → Collision → Cleanup
         .configure_sets(
-            Update,
-            (
-                GameSet::Input,
-                GameSet::Movement,
-                GameSet::Collision,
-                GameSet::Cleanup,
-            )
-                .chain(),
+            FixedUpdate,
+            (GameSet::Movement, GameSet::Collision, GameSet::Cleanup)
+                .chain()
+                .run_if(in_state(AppState::Playing)),
         )
         .add_systems(Startup, setup)
         // Generic movement is shared across all entity types, so it's
         // registered here rather than inside any specific plugin.
         .add_systems(
-            Update,
+            FixedUpdate,
             (movement_system, screen_wrap_system)
                 .chain()
                 .in_set(GameSet::Movement)

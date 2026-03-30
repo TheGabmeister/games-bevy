@@ -1,10 +1,10 @@
 use bevy::prelude::*;
 
+use crate::STARTING_LIVES;
 use crate::components::*;
 use crate::resources::{GameAssets, GameData};
 use crate::spawn::{spawn_ship, spawn_wave};
 use crate::state::AppState;
-use crate::{GameSet, STARTING_LIVES};
 
 pub struct UiPlugin;
 
@@ -14,9 +14,7 @@ impl Plugin for UiPlugin {
             .add_systems(OnEnter(AppState::GameOver), game_over_setup_system)
             .add_systems(
                 Update,
-                hud_update_system
-                    .in_set(GameSet::Cleanup)
-                    .run_if(in_state(AppState::Playing)),
+                hud_update_system.run_if(in_state(AppState::Playing)),
             )
             .add_systems(
                 Update,

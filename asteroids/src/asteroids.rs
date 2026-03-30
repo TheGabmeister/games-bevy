@@ -11,13 +11,13 @@ pub struct AsteroidPlugin;
 impl Plugin for AsteroidPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
-            Update,
+            FixedUpdate,
             asteroid_rotation_system
                 .in_set(GameSet::Movement)
                 .run_if(in_state(AppState::Playing)),
         )
         .add_systems(
-            Update,
+            FixedUpdate,
             wave_clear_system
                 .in_set(GameSet::Cleanup)
                 .run_if(in_state(AppState::Playing)),

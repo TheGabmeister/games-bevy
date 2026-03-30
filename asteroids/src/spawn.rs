@@ -41,6 +41,7 @@ pub fn spawn_ship(commands: &mut Commands, assets: &GameAssets) {
     commands.spawn((
         Ship,
         Velocity(Vec2::ZERO),
+        ShootCooldown::default(),
         Invincible(Timer::from_seconds(INVINCIBILITY_DURATION, TimerMode::Once)),
         Mesh2d(assets.ship_mesh.clone()),
         MeshMaterial2d(assets.ship_material.clone()),

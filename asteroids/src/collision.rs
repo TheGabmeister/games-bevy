@@ -11,7 +11,7 @@ pub struct CollisionPlugin;
 impl Plugin for CollisionPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
-            Update,
+            FixedUpdate,
             (
                 bullet_asteroid_collision_system,
                 ship_asteroid_collision_system,
@@ -19,7 +19,9 @@ impl Plugin for CollisionPlugin {
                 .chain()
                 .in_set(GameSet::Collision)
                 .run_if(in_state(AppState::Playing)),
-        );
+        )
+        .add_observer(on_asteroid_destroyed_score)
+        .add_observer(on_asteroid_destroyed_fragment);
     }
 }
 
@@ -29,8 +31,6 @@ impl Plugin for CollisionPlugin {
 /// Collisions are collected first, then processed, to avoid borrow conflicts.
 fn bullet_asteroid_collision_system(
     mut commands: Commands,
-    mut game_data: ResMut<GameData>,
-    assets: Res<GameAssets>,
     bullets: Query<(Entity, &Transform), With<Bullet>>,
     asteroids: Query<(Entity, &Transform, &Asteroid, &Velocity)>,
 ) {
@@ -66,9 +66,35 @@ fn bullet_asteroid_collision_system(
 
         commands.entity(bullet_entity).despawn();
         commands.entity(asteroid_entity).despawn();
-        game_data.score += asteroid_score(size);
-        spawn_fragments(&mut commands, &assets, pos, vel, size);
+        commands.trigger(AsteroidDestroyed {
+            position: pos,
+            velocity: vel,
+            size,
+        });
     }
+}
+
+// ── Observers ─────────────────────────────────────────────────────────────────
+
+/// Awards points when an asteroid is destroyed.
+fn on_asteroid_destroyed_score(trigger: On<AsteroidDestroyed>, mut game_data: ResMut<GameData>) {
+    game_data.score += asteroid_score(trigger.event().size);
+}
+
+/// Spawns fragment asteroids when a non-Small asteroid is destroyed.
+fn on_asteroid_destroyed_fragment(
+    trigger: On<AsteroidDestroyed>,
+    mut commands: Commands,
+    assets: Res<GameAssets>,
+) {
+    let event = trigger.event();
+    spawn_fragments(
+        &mut commands,
+        &assets,
+        event.position,
+        event.velocity,
+        event.size,
+    );
 }
 
 /// Circle-circle collision between the ship and asteroids.

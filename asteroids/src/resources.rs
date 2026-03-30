@@ -1,8 +1,6 @@
-use std::time::Duration;
-
 use bevy::prelude::*;
 
-use crate::{SHOOT_COOLDOWN, STARTING_LIVES};
+use crate::STARTING_LIVES;
 
 /// All mutable game state in one place.
 #[derive(Resource)]
@@ -19,18 +17,6 @@ impl Default for GameData {
             lives: STARTING_LIVES,
             wave: 1,
         }
-    }
-}
-
-/// Global weapon cooldown for the player ship.
-#[derive(Resource)]
-pub struct ShootCooldown(pub Timer);
-
-impl Default for ShootCooldown {
-    fn default() -> Self {
-        let mut timer = Timer::from_seconds(SHOOT_COOLDOWN, TimerMode::Once);
-        timer.tick(Duration::from_secs_f32(SHOOT_COOLDOWN));
-        Self(timer)
     }
 }
 
