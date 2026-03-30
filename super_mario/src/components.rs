@@ -20,9 +20,6 @@ pub enum FacingDirection {
 pub struct Grounded(pub bool);
 
 #[derive(Component)]
-pub struct Ground;
-
-#[derive(Component)]
 pub struct Tile;
 
 #[derive(Component, Clone, Copy, PartialEq, Eq)]

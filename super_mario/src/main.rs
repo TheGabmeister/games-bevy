@@ -6,7 +6,7 @@ mod level;
 
 use components::*;
 use constants::*;
-use level::{LEVEL_HEIGHT, LEVEL_WIDTH, level_1_1, tile_to_world};
+use level::{LEVEL_HEIGHT, LEVEL_WIDTH, LevelGrid, level_1_1, tile_to_world, world_to_col, world_to_row};
 
 fn main() {
     App::new()
@@ -23,7 +23,7 @@ fn main() {
         }))
         .insert_resource(ClearColor(Color::srgb(0.36, 0.53, 0.95)))
         .add_systems(Startup, setup)
-        .add_systems(Update, (player_input, apply_gravity, apply_velocity, ground_collision, camera_follow).chain())
+        .add_systems(Update, (player_input, apply_gravity, apply_velocity, tile_collision, camera_follow).chain())
         .run();
 }
 
@@ -43,6 +43,7 @@ fn setup(
 
     // Pre-allocate shared mesh/material handles for each tile type
     let tile_mesh = meshes.add(Rectangle::new(TILE_SIZE, TILE_SIZE));
+    let pipe_top_mesh = meshes.add(Rectangle::new(TILE_SIZE + PIPE_LIP_OVERHANG, TILE_SIZE));
     let ground_mat = materials.add(ColorMaterial::from_color(Color::srgb(0.55, 0.27, 0.07)));
     let brick_mat = materials.add(ColorMaterial::from_color(Color::srgb(0.72, 0.40, 0.10)));
     let question_mat = materials.add(ColorMaterial::from_color(Color::srgb(0.90, 0.75, 0.10)));
@@ -51,6 +52,7 @@ fn setup(
     let player_mat = materials.add(ColorMaterial::from_color(Color::srgb(0.8, 0.1, 0.1)));
 
     let grid = level_1_1();
+    commands.insert_resource(LevelGrid { grid });
     let mut spawn_pos = (0.0_f32, 0.0_f32);
 
     for row in 0..LEVEL_HEIGHT {
@@ -99,7 +101,7 @@ fn setup(
                     commands.spawn((
                         Tile,
                         TileType::PipeTopLeft,
-                        Mesh2d(tile_mesh.clone()),
+                        Mesh2d(pipe_top_mesh.clone()),
                         MeshMaterial2d(pipe_mat.clone()),
                         Transform::from_xyz(wx, wy, Z_PIPE),
                     ));
@@ -108,7 +110,7 @@ fn setup(
                     commands.spawn((
                         Tile,
                         TileType::PipeTopRight,
-                        Mesh2d(tile_mesh.clone()),
+                        Mesh2d(pipe_top_mesh.clone()),
                         MeshMaterial2d(pipe_mat.clone()),
                         Transform::from_xyz(wx, wy, Z_PIPE),
                     ));
@@ -244,23 +246,75 @@ fn apply_velocity(
     transform.translation.y += vel.y * time.delta_secs();
 }
 
-fn ground_collision(
+fn tile_collision(
+    level: Res<LevelGrid>,
     mut query: Query<(&mut Velocity, &mut Transform, &mut Grounded), With<Player>>,
 ) {
     let Ok((mut vel, mut transform, mut grounded)) = query.single_mut() else {
         return;
     };
 
-    let ground_surface = GROUND_Y + GROUND_HEIGHT / 2.0;
-    let player_bottom = transform.translation.y - PLAYER_SMALL_HEIGHT / 2.0;
+    let half_w = PLAYER_WIDTH / 2.0;
+    let half_h = PLAYER_SMALL_HEIGHT / 2.0;
+    let tile_half = TILE_SIZE / 2.0;
 
-    if player_bottom <= ground_surface && vel.y <= 0.0 {
-        transform.translation.y = ground_surface + PLAYER_SMALL_HEIGHT / 2.0;
-        vel.y = 0.0;
-        grounded.0 = true;
-    } else {
-        grounded.0 = false;
+    // Neighborhood: columns and rows that could overlap Mario's AABB (with 1-tile margin)
+    let col_min = world_to_col(transform.translation.x - half_w) - 1;
+    let col_max = world_to_col(transform.translation.x + half_w) + 1;
+    let row_min = world_to_row(transform.translation.y + half_h) - 1;
+    let row_max = world_to_row(transform.translation.y - half_h) + 1;
+
+    for row in row_min..=row_max {
+        for col in col_min..=col_max {
+            if !level.is_solid(col, row) {
+                continue;
+            }
+
+            let (tile_cx, tile_cy) = tile_to_world(col as usize, row as usize);
+
+            // Recompute player pos (may shift from prior resolution this frame)
+            let px = transform.translation.x;
+            let py = transform.translation.y;
+
+            let overlap_x = (half_w + tile_half) - (px - tile_cx).abs();
+            let overlap_y = (half_h + tile_half) - (py - tile_cy).abs();
+
+            if overlap_x <= 0.0 || overlap_y <= 0.0 {
+                continue;
+            }
+
+            // Push out on the axis with the smallest penetration
+            if overlap_y < overlap_x {
+                if py > tile_cy {
+                    // Landing — push up
+                    transform.translation.y += overlap_y;
+                    if vel.y < 0.0 {
+                        vel.y = 0.0;
+                    }
+                } else {
+                    // Ceiling bump — push down
+                    transform.translation.y -= overlap_y;
+                    if vel.y > 0.0 {
+                        vel.y = 0.0;
+                    }
+                }
+            } else {
+                if px > tile_cx {
+                    transform.translation.x += overlap_x;
+                } else {
+                    transform.translation.x -= overlap_x;
+                }
+                vel.x = 0.0;
+            }
+        }
     }
+
+    // Grounded probe: check 1 pixel below Mario's feet
+    let probe_y = transform.translation.y - half_h - 1.0;
+    let probe_row = world_to_row(probe_y);
+    let left_col = world_to_col(transform.translation.x - half_w + 1.0);
+    let right_col = world_to_col(transform.translation.x + half_w - 1.0);
+    grounded.0 = level.is_solid(left_col, probe_row) || level.is_solid(right_col, probe_row);
 }
 
 fn camera_follow(

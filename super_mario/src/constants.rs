@@ -26,10 +26,8 @@ pub const PLAYER_AIR_ACCELERATION: f32 = 400.0;
 pub const PLAYER_JUMP_IMPULSE: f32 = 330.0;
 pub const JUMP_CUT_MULTIPLIER: f32 = 0.4;
 
-// Ground (temporary — replaced by tile map in Phase 2)
-pub const GROUND_Y: f32 = -80.0;
-pub const GROUND_WIDTH: f32 = 800.0;
-pub const GROUND_HEIGHT: f32 = 16.0;
+// Pipe visual
+pub const PIPE_LIP_OVERHANG: f32 = 2.0;
 
 // Level origin — world position of tile (col=0, row=14) bottom-left corner.
 // Row 14 is the bottom row; row 0 is the top. Y increases upward in world space.

@@ -1,4 +1,25 @@
+use bevy::prelude::*;
+
 use crate::constants::*;
+
+/// The level grid stored as a resource for collision lookups.
+#[derive(Resource)]
+pub struct LevelGrid {
+    pub grid: [[char; LEVEL_WIDTH]; LEVEL_HEIGHT],
+}
+
+impl LevelGrid {
+    /// Returns true if the tile at (col, row) is solid. Out-of-bounds = not solid.
+    pub fn is_solid(&self, col: i32, row: i32) -> bool {
+        if col < 0 || row < 0 || col >= LEVEL_WIDTH as i32 || row >= LEVEL_HEIGHT as i32 {
+            return false;
+        }
+        matches!(
+            self.grid[row as usize][col as usize],
+            '#' | 'B' | '?' | 'M' | 'X' | '[' | ']' | '{' | '}'
+        )
+    }
+}
 
 /// Convert grid (col, row) to world-space center of that tile.
 /// Row 0 = top, Row 14 = bottom. Y increases upward.
@@ -6,6 +27,16 @@ pub fn tile_to_world(col: usize, row: usize) -> (f32, f32) {
     let x = LEVEL_ORIGIN_X + col as f32 * TILE_SIZE + TILE_SIZE / 2.0;
     let y = LEVEL_ORIGIN_Y + (LEVEL_HEIGHT - 1 - row) as f32 * TILE_SIZE + TILE_SIZE / 2.0;
     (x, y)
+}
+
+/// Convert world X to grid column.
+pub fn world_to_col(wx: f32) -> i32 {
+    ((wx - LEVEL_ORIGIN_X) / TILE_SIZE).floor() as i32
+}
+
+/// Convert world Y to grid row.
+pub fn world_to_row(wy: f32) -> i32 {
+    (LEVEL_HEIGHT as i32 - 1) - ((wy - LEVEL_ORIGIN_Y) / TILE_SIZE).floor() as i32
 }
 
 /// Level 1-1 tile grid (211 columns × 15 rows).
