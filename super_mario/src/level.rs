@@ -20,8 +20,28 @@ impl LevelGrid {
         }
         matches!(
             self.grid[row as usize][col as usize],
-            '#' | 'B' | '?' | 'M' | 'X' | '[' | ']' | '{' | '}'
+            '#' | 'B' | '?' | 'M' | 'X' | '[' | ']' | '{' | '}' | 'E'
         )
+    }
+
+    /// Returns the char at (col, row). Out-of-bounds = '.'.
+    pub fn get_char(&self, col: i32, row: i32) -> char {
+        if col < 0 || row < 0 || col >= LEVEL_WIDTH as i32 || row >= LEVEL_HEIGHT as i32 {
+            return '.';
+        }
+        self.grid[row as usize][col as usize]
+    }
+
+    /// Set the char at (col, row).
+    pub fn set_char(&mut self, col: i32, row: i32, ch: char) {
+        if col >= 0 && row >= 0 && col < LEVEL_WIDTH as i32 && row < LEVEL_HEIGHT as i32 {
+            self.grid[row as usize][col as usize] = ch;
+        }
+    }
+
+    /// Returns true if the tile can be hit from below (? or M or B, but not E/used).
+    pub fn is_hittable(&self, col: i32, row: i32) -> bool {
+        matches!(self.get_char(col, row), '?' | 'M' | 'B')
     }
 }
 
@@ -49,6 +69,7 @@ pub fn world_to_row(wy: f32) -> i32 {
 /// `.` empty   `#` ground   `B` brick   `?` question (coin)   `M` question (mushroom)
 /// `[` pipe-top-left   `]` pipe-top-right   `{` pipe-body-left   `}` pipe-body-right
 /// `X` solid (staircase)   `S` spawn   `G` Goomba   `K` Koopa   `F` flagpole
+/// `C` floating coin
 ///
 /// Row 0 = top of screen, Row 14 = bottom. Ground is 2 tiles thick (rows 13–14).
 
@@ -97,22 +118,21 @@ pub fn level_1_1() -> [[char; LEVEL_WIDTH]; LEVEL_HEIGHT] {
     ]);
 
     // ── Pipes — (left_col, top_row) ──
-    // Body fills from top_row+1 down to row 13 (ground surface).
-    pipe(&mut g, 28, 12);   // height 2
-    pipe(&mut g, 38, 11);   // height 3
-    pipe(&mut g, 46, 10);   // height 4
-    pipe(&mut g, 57, 10);   // height 4
-    pipe(&mut g, 163, 12);  // height 2
-    pipe(&mut g, 179, 12);  // height 2
+    pipe(&mut g, 28, 12);
+    pipe(&mut g, 38, 11);
+    pipe(&mut g, 46, 10);
+    pipe(&mut g, 57, 10);
+    pipe(&mut g, 163, 12);
+    pipe(&mut g, 179, 12);
 
     // ── Staircases ──
-    staircase(&mut g, 134, 4, true);   // ascending right
-    staircase(&mut g, 140, 4, false);  // descending right
-    staircase(&mut g, 148, 4, true);   // ascending right + flat top:
+    staircase(&mut g, 134, 4, true);
+    staircase(&mut g, 140, 4, false);
+    staircase(&mut g, 148, 4, true);
     for row in 9..=12 {
         g[row][152] = 'X';
     }
-    staircase(&mut g, 190, 8, true); // final grand staircase
+    staircase(&mut g, 190, 8, true);
 
     // ── Goombas ──
     set_tiles(&mut g, 'G', &[
@@ -124,6 +144,13 @@ pub fn level_1_1() -> [[char; LEVEL_WIDTH]; LEVEL_HEIGHT] {
 
     // ── Koopa Troopa ──
     g[12][107] = 'K';
+
+    // ── Floating coins ──
+    set_tiles(&mut g, 'C', &[
+        (41, 8), (42, 8), (43, 8),
+        (64, 8), (65, 8), (66, 8),
+        (155, 8), (156, 8),
+    ]);
 
     g
 }
@@ -186,6 +213,27 @@ pub fn spawn_level(
     let goomba_feet_mat =
         materials.add(ColorMaterial::from_color(Color::srgb(0.35, 0.18, 0.05)));
 
+    // Koopa meshes
+    let koopa_body_mesh = meshes.add(Rectangle::new(KOOPA_WIDTH, 16.0));
+    let koopa_body_mat =
+        materials.add(ColorMaterial::from_color(Color::srgb(0.2, 0.7, 0.2)));
+    let koopa_head_mesh = meshes.add(Circle::new(5.0));
+    let koopa_head_mat =
+        materials.add(ColorMaterial::from_color(Color::srgb(0.3, 0.8, 0.3)));
+
+    // Floating coin mesh
+    let floating_coin_mesh = meshes.add(Circle::new(FLOATING_COIN_SIZE / 2.0));
+    let floating_coin_mat =
+        materials.add(ColorMaterial::from_color(Color::srgb(1.0, 0.85, 0.0)));
+
+    // Player meshes
+    let player_small_mesh = meshes.add(Rectangle::new(PLAYER_WIDTH, PLAYER_SMALL_HEIGHT));
+    let player_big_mesh = meshes.add(Rectangle::new(PLAYER_WIDTH, PLAYER_BIG_HEIGHT));
+    commands.insert_resource(PlayerMeshes {
+        small: player_small_mesh.clone(),
+        big: player_big_mesh,
+    });
+
     let grid = level_1_1();
     commands.insert_resource(LevelGrid { grid });
 
@@ -209,6 +257,7 @@ pub fn spawn_level(
                 'B' => {
                     commands.spawn((
                         Tile, TileType::Brick,
+                        TilePos { col: col as i32, row: row as i32 },
                         Mesh2d(tile_mesh.clone()),
                         MeshMaterial2d(brick_mat.clone()),
                         Transform::from_xyz(wx, wy, Z_TILE),
@@ -218,6 +267,7 @@ pub fn spawn_level(
                 '?' | 'M' => {
                     commands.spawn((
                         Tile, TileType::QuestionBlock,
+                        TilePos { col: col as i32, row: row as i32 },
                         Mesh2d(tile_mesh.clone()),
                         MeshMaterial2d(question_mat.clone()),
                         Transform::from_xyz(wx, wy, Z_TILE),
@@ -273,6 +323,7 @@ pub fn spawn_level(
                     commands.spawn((
                         Goomba,
                         EnemyWalker { speed: GOOMBA_SPEED, direction: -1.0 },
+                        CollisionSize { width: GOOMBA_WIDTH, height: GOOMBA_HEIGHT },
                         Velocity::default(),
                         Grounded::default(),
                         Mesh2d(goomba_body_mesh.clone()),
@@ -287,6 +338,34 @@ pub fn spawn_level(
                         ));
                     });
                 }
+                'K' => {
+                    commands.spawn((
+                        KoopaTroopa,
+                        EnemyWalker { speed: KOOPA_SPEED, direction: -1.0 },
+                        CollisionSize { width: KOOPA_WIDTH, height: KOOPA_HEIGHT },
+                        Velocity::default(),
+                        Grounded::default(),
+                        Mesh2d(koopa_body_mesh.clone()),
+                        MeshMaterial2d(koopa_body_mat.clone()),
+                        Transform::from_xyz(wx, wy, Z_ENEMY),
+                        DespawnOnExit(AppState::Playing),
+                    )).with_children(|parent| {
+                        parent.spawn((
+                            Mesh2d(koopa_head_mesh.clone()),
+                            MeshMaterial2d(koopa_head_mat.clone()),
+                            Transform::from_xyz(0.0, 11.0, 0.0),
+                        ));
+                    });
+                }
+                'C' => {
+                    commands.spawn((
+                        FloatingCoin,
+                        Mesh2d(floating_coin_mesh.clone()),
+                        MeshMaterial2d(floating_coin_mat.clone()),
+                        Transform::from_xyz(wx, wy, Z_ITEM),
+                        DespawnOnExit(AppState::Playing),
+                    ));
+                }
                 'S' => {
                     sp = (wx, wy);
                 }
@@ -300,10 +379,12 @@ pub fn spawn_level(
     // Mario
     commands.spawn((
         Player,
+        PlayerSize::default(),
+        CollisionSize { width: PLAYER_WIDTH, height: PLAYER_SMALL_HEIGHT },
         Velocity::default(),
         FacingDirection::default(),
         Grounded::default(),
-        Mesh2d(meshes.add(Rectangle::new(PLAYER_WIDTH, PLAYER_SMALL_HEIGHT))),
+        Mesh2d(player_small_mesh),
         MeshMaterial2d(player_mat),
         Transform::from_xyz(sp.0, sp.1, Z_PLAYER),
         DespawnOnExit(AppState::Playing),

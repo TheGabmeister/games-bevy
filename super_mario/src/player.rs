@@ -35,13 +35,31 @@ impl Plugin for PlayerPlugin {
 fn player_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
-    mut query: Query<(&mut Velocity, &mut FacingDirection, &Grounded), With<Player>>,
+    mut query: Query<(&mut Velocity, &mut FacingDirection, &Grounded, Has<Ducking>), With<Player>>,
 ) {
-    let Ok((mut vel, mut facing, grounded)) = query.single_mut() else {
+    let Ok((mut vel, mut facing, grounded, is_ducking)) = query.single_mut() else {
         return;
     };
 
     let dt = time.delta_secs();
+
+    // Ducking: decelerate and block horizontal input, but allow jumping
+    if is_ducking {
+        let decel = PLAYER_DECELERATION * dt;
+        if vel.x.abs() < decel {
+            vel.x = 0.0;
+        } else {
+            vel.x -= decel * vel.x.signum();
+        }
+
+        // Jump cut still works
+        if (keyboard.just_released(KeyCode::Space) || keyboard.just_released(KeyCode::ArrowUp))
+            && vel.y > 0.0
+        {
+            vel.y *= JUMP_CUT_MULTIPLIER;
+        }
+        return;
+    }
 
     let mut dir = 0.0;
     if keyboard.pressed(KeyCode::KeyA) || keyboard.pressed(KeyCode::ArrowLeft) {
@@ -124,15 +142,20 @@ fn apply_velocity(
 
 fn tile_collision(
     level: Res<LevelGrid>,
-    mut query: Query<(&mut Velocity, &mut Transform, &mut Grounded), With<Player>>,
+    mut pending_hit: ResMut<PendingBlockHit>,
+    mut query: Query<
+        (&mut Velocity, &mut Transform, &mut Grounded, &CollisionSize, &PlayerSize),
+        With<Player>,
+    >,
     camera_query: Query<&Transform, (With<Camera2d>, Without<Player>)>,
 ) {
-    let Ok((mut vel, mut transform, mut grounded)) = query.single_mut() else {
+    let Ok((mut vel, mut transform, mut grounded, coll_size, player_size)) = query.single_mut()
+    else {
         return;
     };
 
-    let half_w = PLAYER_WIDTH / 2.0;
-    let half_h = PLAYER_SMALL_HEIGHT / 2.0;
+    let half_w = coll_size.width / 2.0;
+    let half_h = coll_size.height / 2.0;
     let tile_half = TILE_SIZE / 2.0;
 
     if let Ok(camera_tf) = camera_query.single() {
@@ -150,6 +173,8 @@ fn tile_collision(
     let col_max = world_to_col(transform.translation.x + half_w) + 1;
     let row_min = world_to_row(transform.translation.y + half_h) - 1;
     let row_max = world_to_row(transform.translation.y - half_h) + 1;
+
+    let mut best_head_hit: Option<(i32, i32, f32)> = None;
 
     for row in row_min..=row_max {
         for col in col_min..=col_max {
@@ -179,6 +204,14 @@ fn tile_collision(
                     transform.translation.y -= overlap_y;
                     if vel.y > 0.0 {
                         vel.y = 0.0;
+
+                        // Head hit — track closest hittable block
+                        if level.is_hittable(col, row) {
+                            let dist = (px - tile_cx).abs();
+                            if best_head_hit.is_none() || dist < best_head_hit.unwrap().2 {
+                                best_head_hit = Some((col, row, dist));
+                            }
+                        }
                     }
                 }
             } else {
@@ -190,6 +223,15 @@ fn tile_collision(
                 vel.x = 0.0;
             }
         }
+    }
+
+    // Emit pending block hit
+    if let Some((col, row, _)) = best_head_hit {
+        pending_hit.hit = Some(BlockHitInfo {
+            col,
+            row,
+            is_big: *player_size == PlayerSize::Big,
+        });
     }
 
     let probe_y = transform.translation.y - half_h - 1.0;
@@ -233,16 +275,22 @@ fn death_animation_system(
     time: Res<Time>,
     mut commands: Commands,
     mut death_anim: ResMut<DeathAnimation>,
-    mut player_query: Query<(&mut Velocity, &mut Transform, &mut Grounded), With<Player>>,
+    mut player_query: Query<
+        (&mut Velocity, &mut Transform, &mut Grounded, &mut CollisionSize, &mut PlayerSize, &mut Mesh2d),
+        With<Player>,
+    >,
     mut game_data: ResMut<GameData>,
     mut next_play_state: ResMut<NextState<PlayState>>,
     mut next_app_state: ResMut<NextState<AppState>>,
     spawn_point: Res<SpawnPoint>,
     mut camera_query: Query<&mut Transform, (With<Camera2d>, Without<Player>)>,
+    player_meshes: Option<Res<PlayerMeshes>>,
 ) {
     death_anim.timer.tick(time.delta());
 
-    let Ok((mut vel, mut player_tf, mut grounded)) = player_query.single_mut() else {
+    let Ok((mut vel, mut player_tf, mut grounded, mut coll_size, mut player_size, mut mesh)) =
+        player_query.single_mut()
+    else {
         return;
     };
 
@@ -290,6 +338,13 @@ fn death_animation_system(
             vel.y = 0.0;
             grounded.0 = false;
             game_data.timer = TIMER_START;
+
+            // Reset to small Mario
+            *player_size = PlayerSize::Small;
+            coll_size.height = PLAYER_SMALL_HEIGHT;
+            if let Some(meshes) = player_meshes {
+                mesh.0 = meshes.small.clone();
+            }
 
             if let Ok(mut camera_tf) = camera_query.single_mut() {
                 camera_tf.translation.x = CAMERA_MIN_X;

@@ -16,6 +16,7 @@ pub enum PlayState {
     Dying,
     Paused,
     LevelComplete,
+    Growing,
 }
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]

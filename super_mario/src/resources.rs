@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::constants::TIMER_START;
+use crate::constants::{COINS_PER_LIFE, TIMER_START};
 
 #[derive(Resource)]
 pub struct GameData {
@@ -39,4 +39,33 @@ pub struct DeathAnimation {
 pub enum DeathPhase {
     Pause,
     Bouncing,
+}
+
+impl GameData {
+    pub fn add_coin(&mut self) {
+        self.coins += 1;
+        if self.coins >= COINS_PER_LIFE {
+            self.coins -= COINS_PER_LIFE;
+            self.lives += 1;
+        }
+    }
+}
+
+// Pending block hit from player head collision
+pub struct BlockHitInfo {
+    pub col: i32,
+    pub row: i32,
+    pub is_big: bool,
+}
+
+#[derive(Resource, Default)]
+pub struct PendingBlockHit {
+    pub hit: Option<BlockHitInfo>,
+}
+
+// Player mesh handles for size switching
+#[derive(Resource)]
+pub struct PlayerMeshes {
+    pub small: Handle<Mesh>,
+    pub big: Handle<Mesh>,
 }

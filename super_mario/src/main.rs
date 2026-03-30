@@ -1,11 +1,13 @@
 use bevy::prelude::*;
 
+mod block;
 mod camera;
 mod components;
 mod constants;
 mod enemy;
 mod level;
 mod player;
+mod powerup;
 mod resources;
 mod states;
 mod ui;
@@ -48,6 +50,8 @@ fn main() {
             camera::CameraPlugin,
             ui::UiPlugin,
             enemy::EnemyPlugin,
+            block::BlockPlugin,
+            powerup::PowerUpPlugin,
         ))
         .add_systems(OnEnter(AppState::Playing), level::spawn_level)
         .run();

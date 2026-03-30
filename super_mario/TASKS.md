@@ -107,13 +107,13 @@ Ordered for incremental learning. Each task produces a runnable game with visibl
 
 **You'll learn**: Entity-to-entity interaction, message passing, spawn-on-event patterns, component swapping.
 
-- [ ] **7.1** Detect Mario hitting a block from below (head collision while jumping). When head overlaps multiple blocks, activate the one whose center is closest to Mario's center. Only one block per jump.
-- [ ] **7.2** `?` Block hit: block bounces up briefly (visual feedback), then turns into Empty block
-- [ ] **7.3** `?` Block coin release: spawn a coin that arcs up and disappears, +1 coin counter, +200 score
-- [ ] **7.4** Brick block + Small Mario: bump animation (block shakes), enemies on top get killed
-- [ ] **7.5** Brick block + Big Mario: block breaks — spawn 4 small rectangle particles that scatter and fall
-- [ ] **7.6** Track coin count in HUD — 100 coins = +1 life, reset coin counter
-- [ ] **7.7** Add floating coins in the level (from `C` tiles) — collected on contact
+- [x] **7.1** Detect Mario hitting a block from below (head collision while jumping). When head overlaps multiple blocks, activate the one whose center is closest to Mario's center. Only one block per jump.
+- [x] **7.2** `?` Block hit: block bounces up briefly (visual feedback), then turns into Empty block
+- [x] **7.3** `?` Block coin release: spawn a coin that arcs up and disappears, +1 coin counter, +200 score
+- [x] **7.4** Brick block + Small Mario: bump animation (block shakes), enemies on top get killed
+- [x] **7.5** Brick block + Big Mario: block breaks — spawn 4 small rectangle particles that scatter and fall
+- [x] **7.6** Track coin count in HUD — 100 coins = +1 life, reset coin counter
+- [x] **7.7** Add floating coins in the level (from `C` tiles) — collected on contact
 
 **Milestone**: Blocks react to being hit — coins pop out, bricks break, `?` blocks empty.
 
@@ -123,15 +123,15 @@ Ordered for incremental learning. Each task produces a runnable game with visibl
 
 **You'll learn**: Item physics, state transitions on the player, hitbox changes, invincibility frames.
 
-- [ ] **8.1** `?` Blocks marked `M` in level data release a Mushroom instead of a coin
-- [ ] **8.2** Mushroom emerges from block (rises up), then slides along ground, bounces off walls, falls off edges (mushroom needs tile collision + gravity, same as enemies)
-- [ ] **8.3** Mario + Mushroom contact: Small → Big (double height to 14×32)
-- [ ] **8.4** Growth transition: freeze all gameplay for ~1s, flash between small/big sizes 3-4 times. Anchor growth from feet (bottom of sprite stays fixed) to avoid clipping into ceiling tiles.
-- [ ] **8.5** Big Mario: update collision box, camera offset
-- [ ] **8.6** Big Mario takes damage → shrink to Small (with ~2s invincibility, flashing sprite)
-- [ ] **8.7** During invincibility: Mario flashes (toggle visibility each frame), enemies pass through
-- [ ] **8.8** Retrofit Phase 6/9 enemy contact: Big/Fire Mario takes damage instead of dying
-- [ ] **8.9** Add ducking — Down key while Big Mario: shrink hitbox to half height, prevent horizontal movement
+- [x] **8.1** `?` Blocks marked `M` in level data release a Mushroom instead of a coin
+- [x] **8.2** Mushroom emerges from block (rises up), then slides along ground, bounces off walls, falls off edges (mushroom needs tile collision + gravity, same as enemies)
+- [x] **8.3** Mario + Mushroom contact: Small → Big (double height to 14×32)
+- [x] **8.4** Growth transition: freeze all gameplay for ~1s, flash between small/big sizes 3-4 times. Anchor growth from feet (bottom of sprite stays fixed) to avoid clipping into ceiling tiles.
+- [x] **8.5** Big Mario: update collision box, camera offset
+- [x] **8.6** Big Mario takes damage → shrink to Small (with ~2s invincibility, flashing sprite)
+- [x] **8.7** During invincibility: Mario flashes (toggle visibility each frame), enemies pass through
+- [x] **8.8** Retrofit Phase 6/9 enemy contact: Big/Fire Mario takes damage instead of dying
+- [x] **8.9** Add ducking — Down key while Big Mario: shrink hitbox to half height, prevent horizontal movement
 
 **Milestone**: Mario collects mushrooms, grows big, shrinks on damage with invincibility frames, and can duck.
 
@@ -141,13 +141,13 @@ Ordered for incremental learning. Each task produces a runnable game with visibl
 
 **You'll learn**: Complex enemy states, entity reuse (Koopa → Shell), chain reactions.
 
-- [ ] **9.1** Create Koopa entity — green rectangle body + circle head, patrols like Goomba
-- [ ] **9.2** Stomp Koopa: transforms into stationary shell (static green rectangle). Shell has 3 states: Walking → Stationary → Moving (and back to Stationary via stomp).
-- [ ] **9.3** Kick shell: Mario walks into stationary shell → shell launches in Mario's facing direction
-- [ ] **9.4** Moving shell kills enemies it contacts (Goombas, other Koopas)
-- [ ] **9.5** Moving shell kills Mario on side contact (stomping a moving shell stops it → returns to Stationary)
-- [ ] **9.6** Shell bounces off walls
-- [ ] **9.7** Chain kill scoring — shell kills give 200, 400, 800... per consecutive enemy
+- [x] **9.1** Create Koopa entity — green rectangle body + circle head, patrols like Goomba
+- [x] **9.2** Stomp Koopa: transforms into stationary shell (static green rectangle). Shell has 3 states: Walking → Stationary → Moving (and back to Stationary via stomp).
+- [x] **9.3** Kick shell: Mario walks into stationary shell → shell launches in Mario's facing direction
+- [x] **9.4** Moving shell kills enemies it contacts (Goombas, other Koopas)
+- [x] **9.5** Moving shell kills Mario on side contact (stomping a moving shell stops it → returns to Stationary)
+- [x] **9.6** Shell bounces off walls
+- [x] **9.7** Chain kill scoring — shell kills give 200, 400, 800... per consecutive enemy
 
 **Milestone**: Koopas patrol, become kickable shells, and shells interact with everything.
 

@@ -75,3 +75,40 @@ pub const STOMP_SCORE: u32 = 100;
 // Score popup
 pub const SCORE_POPUP_DURATION: f32 = 1.0;
 pub const SCORE_POPUP_RISE_SPEED: f32 = 60.0;
+
+// Block interactions
+pub const BLOCK_BOUNCE_HEIGHT: f32 = 4.0;
+pub const BLOCK_BOUNCE_DURATION: f32 = 0.15;
+pub const COIN_POP_IMPULSE: f32 = 200.0;
+pub const COIN_POP_DURATION: f32 = 0.4;
+pub const COIN_SCORE: u32 = 200;
+pub const FLOATING_COIN_SCORE: u32 = 200;
+pub const FLOATING_COIN_SIZE: f32 = 8.0;
+pub const COINS_PER_LIFE: u32 = 100;
+pub const BRICK_PARTICLE_SIZE: f32 = 4.0;
+pub const BRICK_PARTICLE_SPEED: f32 = 100.0;
+pub const BRICK_PARTICLE_DURATION: f32 = 0.8;
+pub const BRICK_BUMP_KILL_RANGE: f32 = 18.0;
+
+// Mushroom
+pub const MUSHROOM_SPEED: f32 = 50.0;
+pub const MUSHROOM_EMERGE_SPEED: f32 = 30.0;
+pub const MUSHROOM_WIDTH: f32 = 14.0;
+pub const MUSHROOM_HEIGHT: f32 = 14.0;
+pub const MUSHROOM_SCORE: u32 = 1000;
+
+// Growth
+pub const GROWTH_DURATION: f32 = 1.0;
+pub const GROWTH_FLASH_INTERVAL: f32 = 0.125;
+
+// Invincibility (damage)
+pub const INVINCIBILITY_DURATION: f32 = 2.0;
+
+// Koopa
+pub const KOOPA_WIDTH: f32 = 14.0;
+pub const KOOPA_HEIGHT: f32 = 22.0;
+pub const KOOPA_SPEED: f32 = 30.0;
+pub const SHELL_SPEED: f32 = 180.0;
+pub const SHELL_WIDTH: f32 = 14.0;
+pub const SHELL_HEIGHT: f32 = 14.0;
+pub const SHELL_BASE_SCORE: u32 = 200;
