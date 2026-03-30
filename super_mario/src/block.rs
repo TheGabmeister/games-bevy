@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use crate::collision::aabb_overlap;
 use crate::components::*;
 use crate::constants::*;
 use crate::level::*;
@@ -284,36 +285,36 @@ fn floating_coin_collection(
         return;
     };
 
-    let p_half_w = player_size.width / 2.0;
-    let p_half_h = player_size.height / 2.0;
     let coin_half = FLOATING_COIN_SIZE / 2.0;
 
     for (entity, coin_tf) in &coin_query {
-        let overlap_x =
-            (p_half_w + coin_half) - (player_tf.translation.x - coin_tf.translation.x).abs();
-        let overlap_y =
-            (p_half_h + coin_half) - (player_tf.translation.y - coin_tf.translation.y).abs();
-
-        if overlap_x > 0.0 && overlap_y > 0.0 {
-            commands.entity(entity).despawn();
-            game_data.score += FLOATING_COIN_SCORE;
-            game_data.add_coin();
-
-            commands.spawn((
-                ScorePopup(Timer::from_seconds(SCORE_POPUP_DURATION, TimerMode::Once)),
-                Text2d::new(format!("+{FLOATING_COIN_SCORE}")),
-                TextFont {
-                    font_size: 8.0,
-                    ..default()
-                },
-                TextColor(Color::srgb(1.0, 0.85, 0.0)),
-                Transform::from_xyz(
-                    coin_tf.translation.x,
-                    coin_tf.translation.y + 10.0,
-                    Z_PLAYER + 1.0,
-                ),
-                DespawnOnExit(AppState::Playing),
-            ));
+        if aabb_overlap(
+            player_tf.translation.x, player_tf.translation.y,
+            player_size.width / 2.0, player_size.height / 2.0,
+            coin_tf.translation.x, coin_tf.translation.y,
+            coin_half, coin_half,
+        ).is_none() {
+            continue;
         }
+
+        commands.entity(entity).despawn();
+        game_data.score += FLOATING_COIN_SCORE;
+        game_data.add_coin();
+
+        commands.spawn((
+            ScorePopup(Timer::from_seconds(SCORE_POPUP_DURATION, TimerMode::Once)),
+            Text2d::new(format!("+{FLOATING_COIN_SCORE}")),
+            TextFont {
+                font_size: 8.0,
+                ..default()
+            },
+            TextColor(Color::srgb(1.0, 0.85, 0.0)),
+            Transform::from_xyz(
+                coin_tf.translation.x,
+                coin_tf.translation.y + 10.0,
+                Z_PLAYER + 1.0,
+            ),
+            DespawnOnExit(AppState::Playing),
+        ));
     }
 }

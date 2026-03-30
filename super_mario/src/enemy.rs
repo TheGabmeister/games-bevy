@@ -1,8 +1,9 @@
 use bevy::prelude::*;
 
+use crate::collision::{self, WallAction, aabb_overlap};
 use crate::components::*;
 use crate::constants::*;
-use crate::level::{LevelGrid, tile_to_world, world_to_col, world_to_row};
+use crate::level::LevelGrid;
 use crate::resources::GameData;
 use crate::states::*;
 
@@ -99,64 +100,17 @@ fn enemy_tile_collision(
         (With<EnemyActive>, Without<Squished>),
     >,
 ) {
-    let tile_half = TILE_SIZE / 2.0;
-
     for (mut vel, mut transform, mut grounded, mut walker, coll_size) in &mut query {
-        let half_w = coll_size.width / 2.0;
-        let half_h = coll_size.height / 2.0;
-
-        let col_min = world_to_col(transform.translation.x - half_w) - 1;
-        let col_max = world_to_col(transform.translation.x + half_w) + 1;
-        let row_min = world_to_row(transform.translation.y + half_h) - 1;
-        let row_max = world_to_row(transform.translation.y - half_h) + 1;
-
-        for row in row_min..=row_max {
-            for col in col_min..=col_max {
-                if !level.is_solid(col, row) {
-                    continue;
-                }
-
-                let (tile_cx, tile_cy) = tile_to_world(col as usize, row as usize);
-                let px = transform.translation.x;
-                let py = transform.translation.y;
-
-                let overlap_x = (half_w + tile_half) - (px - tile_cx).abs();
-                let overlap_y = (half_h + tile_half) - (py - tile_cy).abs();
-
-                if overlap_x <= 0.0 || overlap_y <= 0.0 {
-                    continue;
-                }
-
-                if overlap_y < overlap_x {
-                    if py > tile_cy {
-                        transform.translation.y += overlap_y;
-                        if vel.y < 0.0 {
-                            vel.y = 0.0;
-                        }
-                    } else {
-                        transform.translation.y -= overlap_y;
-                        if vel.y > 0.0 {
-                            vel.y = 0.0;
-                        }
-                    }
-                } else {
-                    walker.direction = -walker.direction;
-                    if px > tile_cx {
-                        transform.translation.x += overlap_x;
-                    } else {
-                        transform.translation.x -= overlap_x;
-                    }
-                    vel.x = 0.0;
-                }
-            }
-        }
-
-        // Grounded probe
-        let probe_y = transform.translation.y - half_h - 1.0;
-        let probe_row = world_to_row(probe_y);
-        let left_col = world_to_col(transform.translation.x - half_w + 1.0);
-        let right_col = world_to_col(transform.translation.x + half_w - 1.0);
-        grounded.0 = level.is_solid(left_col, probe_row) || level.is_solid(right_col, probe_row);
+        let result = collision::resolve_tile_collisions(
+            &level,
+            &mut transform.translation,
+            &mut vel,
+            coll_size.width / 2.0,
+            coll_size.height / 2.0,
+            WallAction::Reverse,
+            &mut walker.direction,
+        );
+        grounded.0 = result.grounded;
     }
 }
 
@@ -170,11 +124,11 @@ fn mario_enemy_collision(
     >,
     mut goomba_query: Query<
         (Entity, &mut Transform, &mut Velocity, &CollisionSize),
-        (With<Goomba>, With<EnemyActive>, Without<Squished>, Without<Player>),
+        (With<Goomba>, With<EnemyActive>, Without<Squished>, Without<Player>, Without<KoopaTroopa>, Without<Shell>),
     >,
     koopa_query: Query<
         (Entity, &Transform, &CollisionSize),
-        (With<KoopaTroopa>, With<EnemyActive>, Without<Player>),
+        (With<KoopaTroopa>, With<EnemyActive>, Without<Player>, Without<Goomba>, Without<Shell>),
     >,
     mut shell_query: Query<
         (Entity, &Transform, &CollisionSize, &mut Shell, &mut Velocity, &mut EnemyWalker),
@@ -195,20 +149,17 @@ fn mario_enemy_collision(
         return;
     }
 
-    let p_half_w = player_coll.width / 2.0;
-    let p_half_h = player_coll.height / 2.0;
     let px = player_tf.translation.x;
     let py = player_tf.translation.y;
     let pvy = player_vel.y;
 
     // --- Goombas ---
     for (entity, mut enemy_tf, mut enemy_vel, enemy_coll) in &mut goomba_query {
-        let e_half_w = enemy_coll.width / 2.0;
-        let e_half_h = enemy_coll.height / 2.0;
-        let ox = (p_half_w + e_half_w) - (px - enemy_tf.translation.x).abs();
-        let oy = (p_half_h + e_half_h) - (py - enemy_tf.translation.y).abs();
-
-        if ox <= 0.0 || oy <= 0.0 {
+        if aabb_overlap(
+            px, py, player_coll.width / 2.0, player_coll.height / 2.0,
+            enemy_tf.translation.x, enemy_tf.translation.y,
+            enemy_coll.width / 2.0, enemy_coll.height / 2.0,
+        ).is_none() {
             continue;
         }
 
@@ -253,12 +204,11 @@ fn mario_enemy_collision(
 
     // --- Koopas ---
     for (entity, enemy_tf, enemy_coll) in &koopa_query {
-        let e_half_w = enemy_coll.width / 2.0;
-        let e_half_h = enemy_coll.height / 2.0;
-        let ox = (p_half_w + e_half_w) - (px - enemy_tf.translation.x).abs();
-        let oy = (p_half_h + e_half_h) - (py - enemy_tf.translation.y).abs();
-
-        if ox <= 0.0 || oy <= 0.0 {
+        if aabb_overlap(
+            px, py, player_coll.width / 2.0, player_coll.height / 2.0,
+            enemy_tf.translation.x, enemy_tf.translation.y,
+            enemy_coll.width / 2.0, enemy_coll.height / 2.0,
+        ).is_none() {
             continue;
         }
 
@@ -327,12 +277,11 @@ fn mario_enemy_collision(
 
     // --- Shells ---
     for (_entity, shell_tf, shell_coll, mut shell, mut shell_vel, mut walker) in &mut shell_query {
-        let s_half_w = shell_coll.width / 2.0;
-        let s_half_h = shell_coll.height / 2.0;
-        let ox = (p_half_w + s_half_w) - (px - shell_tf.translation.x).abs();
-        let oy = (p_half_h + s_half_h) - (py - shell_tf.translation.y).abs();
-
-        if ox <= 0.0 || oy <= 0.0 {
+        if aabb_overlap(
+            px, py, player_coll.width / 2.0, player_coll.height / 2.0,
+            shell_tf.translation.x, shell_tf.translation.y,
+            shell_coll.width / 2.0, shell_coll.height / 2.0,
+        ).is_none() {
             continue;
         }
 
@@ -415,20 +364,14 @@ fn shell_enemy_collision(
             continue;
         }
 
-        let s_half_w = shell_coll.width / 2.0;
-        let s_half_h = shell_coll.height / 2.0;
-
         // Kill Goombas
         for (entity, enemy_tf, enemy_coll) in &goomba_query {
-            let e_half_w = enemy_coll.width / 2.0;
-            let e_half_h = enemy_coll.height / 2.0;
-
-            let ox = (s_half_w + e_half_w)
-                - (shell_tf.translation.x - enemy_tf.translation.x).abs();
-            let oy = (s_half_h + e_half_h)
-                - (shell_tf.translation.y - enemy_tf.translation.y).abs();
-
-            if ox > 0.0 && oy > 0.0 {
+            if aabb_overlap(
+                shell_tf.translation.x, shell_tf.translation.y,
+                shell_coll.width / 2.0, shell_coll.height / 2.0,
+                enemy_tf.translation.x, enemy_tf.translation.y,
+                enemy_coll.width / 2.0, enemy_coll.height / 2.0,
+            ).is_some() {
                 commands.entity(entity).despawn();
 
                 shell.chain_kills += 1;
@@ -456,15 +399,12 @@ fn shell_enemy_collision(
 
         // Kill Koopas
         for (entity, enemy_tf, enemy_coll) in &koopa_query {
-            let e_half_w = enemy_coll.width / 2.0;
-            let e_half_h = enemy_coll.height / 2.0;
-
-            let ox = (s_half_w + e_half_w)
-                - (shell_tf.translation.x - enemy_tf.translation.x).abs();
-            let oy = (s_half_h + e_half_h)
-                - (shell_tf.translation.y - enemy_tf.translation.y).abs();
-
-            if ox > 0.0 && oy > 0.0 {
+            if aabb_overlap(
+                shell_tf.translation.x, shell_tf.translation.y,
+                shell_coll.width / 2.0, shell_coll.height / 2.0,
+                enemy_tf.translation.x, enemy_tf.translation.y,
+                enemy_coll.width / 2.0, enemy_coll.height / 2.0,
+            ).is_some() {
                 commands.entity(entity).despawn();
 
                 shell.chain_kills += 1;

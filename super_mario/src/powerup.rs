@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use crate::collision::aabb_overlap;
 use crate::components::*;
 use crate::constants::*;
 use crate::resources::*;
@@ -77,19 +78,13 @@ fn mushroom_collection(
         return;
     };
 
-    let p_half_w = player_coll.width / 2.0;
-    let p_half_h = player_coll.height / 2.0;
-
     for (mush_entity, mush_tf, mush_coll) in &mushroom_query {
-        let m_half_w = mush_coll.width / 2.0;
-        let m_half_h = mush_coll.height / 2.0;
-
-        let overlap_x = (p_half_w + m_half_w)
-            - (player_tf.translation.x - mush_tf.translation.x).abs();
-        let overlap_y = (p_half_h + m_half_h)
-            - (player_tf.translation.y - mush_tf.translation.y).abs();
-
-        if overlap_x > 0.0 && overlap_y > 0.0 {
+        if aabb_overlap(
+            player_tf.translation.x, player_tf.translation.y,
+            player_coll.width / 2.0, player_coll.height / 2.0,
+            mush_tf.translation.x, mush_tf.translation.y,
+            mush_coll.width / 2.0, mush_coll.height / 2.0,
+        ).is_some() {
             commands.entity(mush_entity).despawn();
             game_data.score += MUSHROOM_SCORE;
 

@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 mod block;
 mod camera;
+mod collision;
 mod components;
 mod constants;
 mod enemy;

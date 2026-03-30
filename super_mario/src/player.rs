@@ -1,8 +1,9 @@
 use bevy::prelude::*;
 
+use crate::collision::{self, WallAction};
 use crate::components::*;
 use crate::constants::*;
-use crate::level::{LevelGrid, tile_to_world, world_to_col, world_to_row};
+use crate::level::LevelGrid;
 use crate::resources::*;
 use crate::states::*;
 
@@ -156,8 +157,8 @@ fn tile_collision(
 
     let half_w = coll_size.width / 2.0;
     let half_h = coll_size.height / 2.0;
-    let tile_half = TILE_SIZE / 2.0;
 
+    // Clamp to left edge of camera
     if let Ok(camera_tf) = camera_query.single() {
         let camera_left = camera_tf.translation.x - CAMERA_VISIBLE_WIDTH / 2.0;
         let min_x = camera_left + half_w;
@@ -169,76 +170,26 @@ fn tile_collision(
         }
     }
 
-    let col_min = world_to_col(transform.translation.x - half_w) - 1;
-    let col_max = world_to_col(transform.translation.x + half_w) + 1;
-    let row_min = world_to_row(transform.translation.y + half_h) - 1;
-    let row_max = world_to_row(transform.translation.y - half_h) + 1;
+    let mut unused_dir = 0.0;
+    let result = collision::resolve_tile_collisions(
+        &level,
+        &mut transform.translation,
+        &mut vel,
+        half_w,
+        half_h,
+        WallAction::Stop,
+        &mut unused_dir,
+    );
 
-    let mut best_head_hit: Option<(i32, i32, f32)> = None;
+    grounded.0 = result.grounded;
 
-    for row in row_min..=row_max {
-        for col in col_min..=col_max {
-            if !level.is_solid(col, row) {
-                continue;
-            }
-
-            let (tile_cx, tile_cy) = tile_to_world(col as usize, row as usize);
-
-            let px = transform.translation.x;
-            let py = transform.translation.y;
-
-            let overlap_x = (half_w + tile_half) - (px - tile_cx).abs();
-            let overlap_y = (half_h + tile_half) - (py - tile_cy).abs();
-
-            if overlap_x <= 0.0 || overlap_y <= 0.0 {
-                continue;
-            }
-
-            if overlap_y < overlap_x {
-                if py > tile_cy {
-                    transform.translation.y += overlap_y;
-                    if vel.y < 0.0 {
-                        vel.y = 0.0;
-                    }
-                } else {
-                    transform.translation.y -= overlap_y;
-                    if vel.y > 0.0 {
-                        vel.y = 0.0;
-
-                        // Head hit — track closest hittable block
-                        if level.is_hittable(col, row) {
-                            let dist = (px - tile_cx).abs();
-                            if best_head_hit.is_none() || dist < best_head_hit.unwrap().2 {
-                                best_head_hit = Some((col, row, dist));
-                            }
-                        }
-                    }
-                }
-            } else {
-                if px > tile_cx {
-                    transform.translation.x += overlap_x;
-                } else {
-                    transform.translation.x -= overlap_x;
-                }
-                vel.x = 0.0;
-            }
-        }
-    }
-
-    // Emit pending block hit
-    if let Some((col, row, _)) = best_head_hit {
+    if let Some((col, row)) = result.head_hit {
         pending_hit.hit = Some(BlockHitInfo {
             col,
             row,
             is_big: *player_size == PlayerSize::Big,
         });
     }
-
-    let probe_y = transform.translation.y - half_h - 1.0;
-    let probe_row = world_to_row(probe_y);
-    let left_col = world_to_col(transform.translation.x - half_w + 1.0);
-    let right_col = world_to_col(transform.translation.x + half_w - 1.0);
-    grounded.0 = level.is_solid(left_col, probe_row) || level.is_solid(right_col, probe_row);
 }
 
 fn check_pit_death(
