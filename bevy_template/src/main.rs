@@ -2,9 +2,13 @@ use bevy::prelude::*;
 
 mod audio;
 mod collision;
+mod components;
+mod constants;
 mod enemy;
 mod input;
 mod player;
+mod resources;
+mod states;
 mod ui;
 
 fn main() {

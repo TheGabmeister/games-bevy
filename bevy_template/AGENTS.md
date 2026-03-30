@@ -13,7 +13,7 @@ Guidance for coding agents working in `c:\dev\games-bevy\bevy_template`.
 - Rust edition `2024`
 - Bevy `0.18.1`
 - `bevy` is enabled with the `dynamic_linking` feature
-- Current app state: modular Bevy prototype with a starter scene and input scaffolding, not a full game yet
+- Current app state: modular Bevy prototype with starter scene wiring plus early shared foundation modules, not a full game yet
 
 ## Build And Validation
 
@@ -43,6 +43,10 @@ Validation expectations:
 
 - `src/main.rs`: app bootstrap, plugin registration, and starter scene setup
 - `src/input.rs`: `InputPlugin` plus the `InputActions` resource populated from keyboard and gamepad input
+- `src/constants.rs`: shared tunables such as window size
+- `src/components.rs`: shared ECS components such as `Velocity`
+- `src/resources.rs`: shared resources such as `Score`
+- `src/states.rs`: `AppState` definition for future state-driven flow
 - `src/player.rs`: `PlayerPlugin` stub
 - `src/enemy.rs`: `EnemyPlugin` stub
 - `src/collision.rs`: `CollisionPlugin` stub
@@ -62,25 +66,29 @@ The current app is still a starter scene with early module wiring:
 - `InputPlugin` initializes an `InputActions` resource and updates it during `PreUpdate`.
 - Keyboard input supports left/right movement, clockwise/counterclockwise rotation, soft drop, and hard drop.
 - Gamepad input merges into the same `InputActions` resource.
+- `constants`, `components`, `resources`, and `states` modules exist, but their types are not meaningfully wired into app setup or gameplay yet.
 - `PlayerPlugin`, `EnemyPlugin`, `CollisionPlugin`, `UiPlugin`, and `AudioPlugin` are currently placeholders with no systems registered yet.
 
 When making changes, align your work with what actually exists in the repo rather than assuming a larger gameplay architecture is already implemented.
 
 ## Architecture Guidance For Near-Term Expansion
 
-The project has already started moving toward a plugin-per-domain layout. Prefer continuing that direction:
+The project has already started moving toward a plugin-per-domain layout with shared support modules. Prefer continuing that direction:
 
 - Keep `src/main.rs` focused on app setup, plugin registration, and high-level wiring.
 - Extend the existing domain modules before adding new ad hoc systems to `main.rs`.
 - Keep input concerns in `src/input.rs`.
+- Use the existing `src/constants.rs`, `src/components.rs`, `src/resources.rs`, and `src/states.rs` modules instead of recreating those concepts inside domain files.
 - Add new gameplay domains as separate modules/plugins when they own distinct behavior.
 
-If the codebase grows further, these extra modules are good next steps:
+The current shared foundation is intentionally small:
 
-- `src/constants.rs`: tunable values such as movement speeds, timings, and layout sizes
-- `src/components.rs`: shared ECS marker and data components
-- `src/resources.rs`: shared mutable game-wide state
-- `src/states.rs`: `AppState` and related helpers once a real state machine exists
+- `src/constants.rs` currently holds window sizing constants.
+- `src/components.rs` currently holds `Velocity`.
+- `src/resources.rs` currently holds `Score`.
+- `src/states.rs` currently defines `AppState` with `StartScreen`, `Playing`, and `GameOver`.
+
+If you add more gameplay, prefer extending those files before introducing parallel duplicates elsewhere.
 
 ## Bevy Conventions To Follow
 
@@ -97,7 +105,10 @@ If the codebase grows further, these extra modules are good next steps:
 - Do not rewrite working structure just to make it "cleaner".
 - Preserve the current plugin/module split unless the task clearly calls for a restructure.
 - Keep shared input mapping logic centralized in `src/input.rs`.
-- Introduce `constants.rs`, `components.rs`, `resources.rs`, or `states.rs` only when the code has grown enough to justify them.
+- Put new tunable values in `src/constants.rs` instead of scattering magic numbers.
+- Put shared ECS marker/data types in `src/components.rs`.
+- Put shared mutable game-wide state in `src/resources.rs`.
+- Extend `src/states.rs` when adding real state-driven flow.
 - When gameplay entities become state-scoped, define the matching cleanup path on `OnExit` or use Bevy's state-based despawn helpers.
 
 ## UI And Asset Notes
@@ -128,6 +139,7 @@ If the codebase grows further, these extra modules are good next steps:
 
 - App boot and plugin wiring: `src/main.rs`
 - Input mapping and action resource: `src/input.rs`
+- Shared constants/components/resources/state definitions: `src/constants.rs`, `src/components.rs`, `src/resources.rs`, `src/states.rs`
 - Build output location: `.cargo/config.toml`
 - Dependency/runtime configuration: `Cargo.toml`
 - Available assets, if any: `assets/`
