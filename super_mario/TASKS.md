@@ -45,10 +45,10 @@ Ordered for incremental learning. Each task produces a runnable game with visibl
 
 **You'll learn**: Camera systems, coordinate transforms, dead zones, one-way constraints.
 
-- [ ] **3.1** Make camera follow Mario horizontally (smooth lerp)
-- [ ] **3.2** Add dead zone — camera only scrolls when Mario reaches the right third
-- [ ] **3.3** Prevent camera from scrolling left (one-way scrolling)
-- [ ] **3.4** Clamp camera to level bounds (don't show empty space past level edges)
+- [x] **3.1** Make camera follow Mario horizontally (smooth lerp)
+- [x] **3.2** Add dead zone — camera only scrolls when Mario reaches the right third
+- [x] **3.3** Prevent camera from scrolling left (one-way scrolling)
+- [x] **3.4** Clamp camera to level bounds (don't show empty space past level edges)
 
 **Milestone**: Smooth side-scrolling camera that feels like the original game.
 

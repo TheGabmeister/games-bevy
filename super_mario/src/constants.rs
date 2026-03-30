@@ -44,6 +44,13 @@ pub const Z_ITEM: f32 = 4.0;
 pub const Z_ENEMY: f32 = 5.0;
 pub const Z_PLAYER: f32 = 6.0;
 
+// Camera scrolling
+pub const CAMERA_FIXED_Y: f32 = -20.0;
+pub const CAMERA_LERP_SPEED: f32 = 10.0;
+pub const CAMERA_DEAD_ZONE_OFFSET: f32 = CAMERA_VISIBLE_WIDTH / 6.0;
+pub const CAMERA_MIN_X: f32 = LEVEL_ORIGIN_X + CAMERA_VISIBLE_WIDTH / 2.0;
+pub const CAMERA_MAX_X: f32 = LEVEL_ORIGIN_X + 211.0 * TILE_SIZE - CAMERA_VISIBLE_WIDTH / 2.0;
+
 // Physics
 pub const GRAVITY_ASCENDING: f32 = 600.0;
 pub const GRAVITY_DESCENDING: f32 = 980.0;

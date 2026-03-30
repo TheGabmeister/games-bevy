@@ -23,7 +23,7 @@ fn main() {
         }))
         .insert_resource(ClearColor(Color::srgb(0.36, 0.53, 0.95)))
         .add_systems(Startup, setup)
-        .add_systems(Update, (player_input, apply_gravity, apply_velocity, ground_collision).chain())
+        .add_systems(Update, (player_input, apply_gravity, apply_velocity, ground_collision, camera_follow).chain())
         .run();
 }
 
@@ -38,6 +38,7 @@ fn setup(
     commands.spawn((
         Camera2d,
         Projection::from(projection),
+        Transform::from_xyz(CAMERA_MIN_X, CAMERA_FIXED_Y, 0.0),
     ));
 
     // Pre-allocate shared mesh/material handles for each tile type
@@ -260,4 +261,29 @@ fn ground_collision(
     } else {
         grounded.0 = false;
     }
+}
+
+fn camera_follow(
+    time: Res<Time>,
+    player_query: Query<&Transform, With<Player>>,
+    mut camera_query: Query<&mut Transform, (With<Camera2d>, Without<Player>)>,
+) {
+    let Ok(player_tf) = player_query.single() else { return };
+    let Ok(mut camera_tf) = camera_query.single_mut() else { return };
+
+    // Target: keep Mario at the dead zone line (2/3 from left edge of view)
+    let desired_x = player_tf.translation.x - CAMERA_DEAD_ZONE_OFFSET;
+
+    // One-way: never scroll left
+    let target_x = desired_x.max(camera_tf.translation.x);
+
+    // Clamp to level bounds
+    let target_x = target_x.clamp(CAMERA_MIN_X, CAMERA_MAX_X);
+
+    // Smooth lerp (frame-rate independent)
+    let t = 1.0 - (-CAMERA_LERP_SPEED * time.delta_secs()).exp();
+    camera_tf.translation.x += (target_x - camera_tf.translation.x) * t;
+
+    // Fixed vertical position
+    camera_tf.translation.y = CAMERA_FIXED_Y;
 }
