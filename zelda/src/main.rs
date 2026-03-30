@@ -12,6 +12,7 @@ mod input;
 mod player;
 mod rendering;
 mod resources;
+mod room;
 mod states;
 mod ui;
 
@@ -31,6 +32,7 @@ fn main() {
             game_state::GameStatePlugin,
             camera::CameraPlugin,
             rendering::PrimitiveRenderingPlugin,
+            room::RoomPlugin,
             input::InputPlugin,
             player::PlayerPlugin,
             enemy::EnemyPlugin,

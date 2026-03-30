@@ -56,7 +56,9 @@ fn spawn_title_screen(mut commands: Commands) {
 fn spawn_playing_overlay(mut commands: Commands) {
     commands.spawn((
         DespawnOnExit(AppState::Playing),
-        Text::new("Title: confirm to start | Playing: Tab to pause | Esc to return"),
+        Text::new(
+            "Move: WASD or arrows | Attack: Z | Reload room: Enter/Space | Pause: Tab | Title: Esc",
+        ),
         TextFont {
             font_size: 18.0,
             ..default()
@@ -65,6 +67,24 @@ fn spawn_playing_overlay(mut commands: Commands) {
         Node {
             position_type: PositionType::Absolute,
             top: px(14),
+            left: px(16),
+            ..default()
+        },
+    ));
+
+    commands.spawn((
+        DespawnOnExit(AppState::Playing),
+        Text::new(
+            "Yellow pickup persists. Orange pickup resets on reload. Attack near the orange bush to reveal the secret.",
+        ),
+        TextFont {
+            font_size: 16.0,
+            ..default()
+        },
+        TextColor(WorldColor::Accent.color()),
+        Node {
+            position_type: PositionType::Absolute,
+            top: px(38),
             left: px(16),
             ..default()
         },
