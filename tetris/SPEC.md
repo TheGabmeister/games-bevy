@@ -140,7 +140,8 @@ Lock → Clear lines → Spawn next piece (no spawn delay).
 ```
 
 - HUD text rendered with `Text2d` + `TextFont`.
-- Hold box and Next queue show pieces as mini grids of colored rectangles.
+- Hold box and Next queue show pieces as mini grids of colored rectangles at **70% scale** (cell size × 0.7).
+- Playfield is centered horizontally; sidebars are left/right of it with 20 px margins.
 
 ## Controls
 
