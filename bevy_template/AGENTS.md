@@ -13,7 +13,7 @@ Guidance for coding agents working in `c:\dev\games-bevy\bevy_template`.
 - Rust edition `2024`
 - Bevy `0.18.1`
 - `bevy` is enabled with the `dynamic_linking` feature
-- Current app state: minimal Bevy starter, not yet a full arcade/shooter implementation
+- Current app state: modular Bevy prototype with a starter scene and input scaffolding, not a full game yet
 
 ## Build And Validation
 
@@ -28,7 +28,7 @@ cargo clippy
 
 Validation expectations:
 
-- Run `cargo check` for most code changes.
+- Run `cargo check` for most Rust code changes.
 - Run `cargo clippy` when changing patterns that may affect API usage or code quality broadly.
 - If you cannot run validation, say so explicitly.
 
@@ -41,59 +41,71 @@ Validation expectations:
 
 ## Current Project Layout
 
-- `src/main.rs`: current app bootstrap and all gameplay/UI code that exists today
-- `assets/`: space-shooter themed sprite and audio assets available for future gameplay work
+- `src/main.rs`: app bootstrap, plugin registration, and starter scene setup
+- `src/input.rs`: `InputPlugin` plus the `InputActions` resource populated from keyboard and gamepad input
+- `src/player.rs`: `PlayerPlugin` stub
+- `src/enemy.rs`: `EnemyPlugin` stub
+- `src/collision.rs`: `CollisionPlugin` stub
+- `src/ui.rs`: `UiPlugin` stub
+- `src/audio.rs`: `AudioPlugin` stub
+- `assets/`: currently present but empty
 - `.cargo/config.toml`: shared cargo target-dir configuration
 
 ## Current Runtime Behavior
 
-The current app is a starter scene:
+The current app is still a starter scene with early module wiring:
 
-- `DefaultPlugins` are registered with no custom plugin split yet.
-- A `Camera2d` is spawned at startup.
-- A centered `Hello, World!` UI text node is spawned at startup.
-- There is no state machine, gameplay loop, audio lifecycle, or asset loading wired up yet.
+- `DefaultPlugins` are registered.
+- The app registers `InputPlugin`, `PlayerPlugin`, `EnemyPlugin`, `CollisionPlugin`, `UiPlugin`, and `AudioPlugin`.
+- `setup` spawns a `Camera2d`.
+- `setup` also spawns a centered `Hello, World!` UI text node.
+- `InputPlugin` initializes an `InputActions` resource and updates it during `PreUpdate`.
+- Keyboard input supports left/right movement, clockwise/counterclockwise rotation, soft drop, and hard drop.
+- Gamepad input merges into the same `InputActions` resource.
+- `PlayerPlugin`, `EnemyPlugin`, `CollisionPlugin`, `UiPlugin`, and `AudioPlugin` are currently placeholders with no systems registered yet.
 
-When making changes, align your work with what actually exists in the repo rather than assuming the larger game architecture is already implemented.
+When making changes, align your work with what actually exists in the repo rather than assuming a larger gameplay architecture is already implemented.
 
-## Architecture Guidance For Future Expansion
+## Architecture Guidance For Near-Term Expansion
 
-If the user grows this starter into the intended arcade/shooter template, prefer this structure:
+The project has already started moving toward a plugin-per-domain layout. Prefer continuing that direction:
 
-- `src/main.rs`: app setup, plugin registration, high-level wiring
-- `src/constants.rs`: tunable values such as window size, speeds, cooldowns, UI sizing
-- `src/components.rs`: marker and data ECS components
+- Keep `src/main.rs` focused on app setup, plugin registration, and high-level wiring.
+- Extend the existing domain modules before adding new ad hoc systems to `main.rs`.
+- Keep input concerns in `src/input.rs`.
+- Add new gameplay domains as separate modules/plugins when they own distinct behavior.
+
+If the codebase grows further, these extra modules are good next steps:
+
+- `src/constants.rs`: tunable values such as movement speeds, timings, and layout sizes
+- `src/components.rs`: shared ECS marker and data components
 - `src/resources.rs`: shared mutable game-wide state
-- `src/states.rs`: `AppState` enum and state-related helpers
-- Domain modules such as `src/player.rs`, `src/enemy.rs`, `src/combat.rs`, `src/ui.rs`, and `src/audio.rs`
-
-Prefer small domain plugins over growing `main.rs` indefinitely once the game has more than a handful of systems.
+- `src/states.rs`: `AppState` and related helpers once a real state machine exists
 
 ## Bevy Conventions To Follow
 
+- Use resources for cross-system shared state such as input snapshots, score, or timers.
+- Use marker/data components for entity categories and per-entity state.
 - Use `OnEnter` and `OnExit` for spawn/cleanup symmetry once states are introduced.
 - Gate gameplay systems with `run_if(in_state(...))` once an `AppState` exists.
-- Use resources for cross-system shared state.
-- Use marker components for entity categories.
-- Use explicit system ordering with `.after(...)` where frame ordering matters.
+- Use explicit ordering with `.after(...)` where frame ordering matters.
+- Prefer `Timer` over frame counting for cooldowns and intervals.
 
 ## Coding Rules For This Repo
 
 - Make the smallest coherent change that solves the task.
 - Do not rewrite working structure just to make it "cleaner".
-- Keep module boundaries aligned to gameplay domains once modules are introduced.
-- Put new tunable values in `src/constants.rs` instead of scattering magic numbers once that module exists.
-- Add new shared mutable game state to `src/resources.rs` once that module exists.
-- Add shared marker/data ECS types to `src/components.rs` once that module exists.
-- Prefer extending an existing domain plugin over registering many ad hoc systems from `main.rs`.
-- When spawning entities tied to a state, define the matching cleanup path on `OnExit` if they should not persist.
+- Preserve the current plugin/module split unless the task clearly calls for a restructure.
+- Keep shared input mapping logic centralized in `src/input.rs`.
+- Introduce `constants.rs`, `components.rs`, `resources.rs`, or `states.rs` only when the code has grown enough to justify them.
+- When gameplay entities become state-scoped, define the matching cleanup path on `OnExit` or use Bevy's state-based despawn helpers.
 
 ## UI And Asset Notes
 
 - UI currently uses Bevy's component-based UI directly.
 - Asset paths should remain plain relative strings passed to `asset_server.load(...)`.
 - Keep asset references aligned with files under `assets/`.
-- Reuse the existing space-shooter asset naming pattern when adding related content.
+- Do not assume themed art or audio already exists; check `assets/` before wiring references.
 
 ## Bevy 0.18.1 Notes
 
@@ -102,18 +114,20 @@ Prefer small domain plugins over growing `main.rs` indefinitely once the game ha
 - `ScalingMode` is in `bevy::camera::ScalingMode`.
 - Use `ApplyDeferred` rather than a nonexistent `apply_deferred` helper function.
 - 2D rendering uses current Bevy APIs such as `Camera2d`, `Sprite`, `Mesh2d`, and `MeshMaterial2d`.
+- `WindowResolution` is not in the prelude; import it from `bevy::window::WindowResolution`.
 
 ## Preferred Change Pattern
 
 1. Inspect the current code and local module boundaries before making assumptions.
 2. Implement the change in the owning file or module.
-3. Extract constants/resources/components only when the code has grown enough to justify it.
-4. Run validation, usually `cargo check`.
+3. Extract shared constants/resources/components only when the added complexity is justified.
+4. Run validation, usually `cargo check`, for Rust code changes.
 5. Summarize what changed and any remaining risks.
 
 ## Good First Places To Look
 
-- App boot or current behavior: `src/main.rs`
+- App boot and plugin wiring: `src/main.rs`
+- Input mapping and action resource: `src/input.rs`
 - Build output location: `.cargo/config.toml`
 - Dependency/runtime configuration: `Cargo.toml`
-- Available art/audio for future gameplay work: `assets/`
+- Available assets, if any: `assets/`

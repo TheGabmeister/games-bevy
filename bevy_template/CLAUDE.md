@@ -28,14 +28,18 @@ Dependencies compile at `opt-level = 3` while the main crate uses `opt-level = 1
 
 ## Architecture
 
-This is a template for 2D arcade-style Bevy games. When building out from the hello world starter, follow this modular layout:
+This is a template for 2D arcade-style Bevy games. It uses one-plugin-per-domain organization.
 
-- **`main.rs`** — App setup, plugin registration, system scheduling with explicit ordering
+**What exists now:**
+- **`main.rs`** — App setup, plugin registration, camera + placeholder UI spawn
+- **`input.rs`** — `InputPlugin` with keyboard/gamepad input mapped to an `InputActions` resource
+- **`player.rs`**, **`enemy.rs`**, **`collision.rs`**, **`ui.rs`**, **`audio.rs`** — Stub domain plugins (empty `build()`) ready to be filled in
+
+**Create when needed:**
 - **`constants.rs`** — All tunable values as named constants (window size, speeds, radii, scoring)
 - **`components.rs`** — Marker components for entity types + data components (Velocity, FacingDirection, etc.)
 - **`resources.rs`** — Shared game state (score, lives, wave progression)
 - **`states.rs`** — `AppState` enum driving a state machine (StartScreen → Playing → GameOver)
-- **Domain modules** — One module per gameplay domain (player, enemy, combat, ui, audio, etc.), each exposing a Plugin
 
 ### State Machine Pattern
 
