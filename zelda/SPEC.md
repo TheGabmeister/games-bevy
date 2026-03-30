@@ -529,6 +529,7 @@ Use this as the main backlog. Each item should produce a playable improvement an
 - [x] Create a persistent `Inventory` resource and wire equipped-item selection.
 - [x] Implement pickups for rupees, hearts, bombs, keys, and heart containers.
 - [x] Add short text labels over entities to visually indicate what they represent.
+- [x] Define an item data table centralizing ID, label, description, color, and pickup effect for every item type.
 - [ ] Add enemy drop tables and temporary pickup behavior for common combat rewards.
 - [ ] Add a data format for overworld room definitions and spawn the overworld from data.
 - [ ] Define a shared room schema covering exits, spawn points, geometry, doors, secrets, encounters, rewards, and persistence flags.

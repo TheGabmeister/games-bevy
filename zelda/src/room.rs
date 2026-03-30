@@ -9,6 +9,7 @@ use crate::{
     },
     constants,
     input::InputActions,
+    items,
     resources::{
         CurrentRoom, ExitDirection, Inventory, PersistentRoomKey, PlayerVitals, RoomId,
         RoomPersistence, RoomPersistenceCategory, RoomTransitionState,
@@ -523,18 +524,19 @@ fn spawn_test_pickups(
         key: "unique_pickup",
     };
     if !persistence.contains(RoomPersistenceCategory::UniquePickup, unique_key) {
+        let data = items::lookup(unique_kind);
         commands.spawn((
             Name::new("UniquePickup"),
             RoomEntity,
             UniquePickup,
             unique_kind,
-            Label(unique_kind.label()),
+            Label(data.label),
             PersistentRoomEntity {
                 key: unique_key,
                 category: RoomPersistenceCategory::UniquePickup,
             },
-            circle_mesh(meshes, pickup_radius(unique_kind)),
-            MeshMaterial2d(materials.add(pickup_color(unique_kind))),
+            circle_mesh(meshes, data.radius),
+            MeshMaterial2d(materials.add(data.color)),
             Transform::from_xyz(
                 unique_position.x,
                 unique_position.y,
@@ -543,27 +545,30 @@ fn spawn_test_pickups(
         ));
     }
 
-    commands.spawn((
-        Name::new("TemporaryPickup"),
-        RoomEntity,
-        TemporaryPickup,
-        temporary_kind,
-        Label(temporary_kind.label()),
-        PersistentRoomEntity {
-            key: PersistentRoomKey {
-                room,
-                key: "temporary_pickup",
+    {
+        let data = items::lookup(temporary_kind);
+        commands.spawn((
+            Name::new("TemporaryPickup"),
+            RoomEntity,
+            TemporaryPickup,
+            temporary_kind,
+            Label(data.label),
+            PersistentRoomEntity {
+                key: PersistentRoomKey {
+                    room,
+                    key: "temporary_pickup",
+                },
+                category: RoomPersistenceCategory::ResetOnRoomLoad,
             },
-            category: RoomPersistenceCategory::ResetOnRoomLoad,
-        },
-        circle_mesh(meshes, pickup_radius(temporary_kind)),
-        MeshMaterial2d(materials.add(pickup_color(temporary_kind))),
-        Transform::from_xyz(
-            temporary_position.x,
-            temporary_position.y,
-            constants::render_layers::PICKUPS,
-        ),
-    ));
+            circle_mesh(meshes, data.radius),
+            MeshMaterial2d(materials.add(data.color)),
+            Transform::from_xyz(
+                temporary_position.x,
+                temporary_position.y,
+                constants::render_layers::PICKUPS,
+            ),
+        ));
+    }
 }
 
 fn spawn_test_enemies(
@@ -660,7 +665,7 @@ fn collect_unique_pickups(
 
     for (entity, transform, persistent, &kind) in &pickups {
         if player_pos.distance(transform.translation.truncate()) <= PICKUP_RADIUS + 8.0 {
-            apply_pickup_effect(kind, &mut inventory, &mut player_health, &mut player_vitals);
+            items::apply_pickup_effect(kind, &mut inventory, &mut player_health, &mut player_vitals);
             persistence.record(persistent.category, persistent.key);
             commands.entity(entity).despawn();
         }
@@ -681,7 +686,7 @@ fn collect_temporary_pickups(
 
     for (entity, transform, &kind) in &pickups {
         if player_pos.distance(transform.translation.truncate()) <= PICKUP_RADIUS + 8.0 {
-            apply_pickup_effect(kind, &mut inventory, &mut player_health, &mut player_vitals);
+            items::apply_pickup_effect(kind, &mut inventory, &mut player_health, &mut player_vitals);
             commands.entity(entity).despawn();
         }
     }
@@ -742,46 +747,6 @@ fn spawn_revealed_secret(
         color_material(materials, WorldColor::Accent),
         Transform::from_xyz(position.x, position.y, constants::render_layers::PICKUPS),
     ));
-}
-
-fn pickup_color(kind: PickupKind) -> Color {
-    match kind {
-        PickupKind::Rupee | PickupKind::FiveRupees => WorldColor::Pickup.color(),
-        PickupKind::Heart | PickupKind::HeartContainer => Color::srgb(0.85, 0.2, 0.25),
-        PickupKind::Bomb => WorldColor::Hazard.color(),
-        PickupKind::Key => WorldColor::Accent.color(),
-    }
-}
-
-fn pickup_radius(kind: PickupKind) -> f32 {
-    match kind {
-        PickupKind::FiveRupees | PickupKind::HeartContainer => PICKUP_RADIUS + 2.0,
-        _ => PICKUP_RADIUS,
-    }
-}
-
-fn apply_pickup_effect(
-    kind: PickupKind,
-    inventory: &mut Inventory,
-    health: &mut Health,
-    vitals: &mut PlayerVitals,
-) {
-    match kind {
-        PickupKind::Rupee => inventory.rupees = (inventory.rupees + 1).min(999),
-        PickupKind::FiveRupees => inventory.rupees = (inventory.rupees + 5).min(999),
-        PickupKind::Heart => {
-            health.current = (health.current + 2).min(health.max);
-            vitals.current_health = health.current;
-        }
-        PickupKind::Bomb => inventory.bombs = (inventory.bombs + 4).min(99),
-        PickupKind::Key => inventory.keys = (inventory.keys + 1).min(99),
-        PickupKind::HeartContainer => {
-            health.max += 2;
-            health.current = health.max;
-            vitals.max_health = health.max;
-            vitals.current_health = health.current;
-        }
-    }
 }
 
 fn detect_exit_direction(player_pos: Vec2) -> Option<ExitDirection> {

@@ -10,6 +10,7 @@ mod constants;
 mod enemy;
 mod game_state;
 mod input;
+mod items;
 mod player;
 mod rendering;
 mod resources;
