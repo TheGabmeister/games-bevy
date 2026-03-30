@@ -1,70 +1,20 @@
-use bevy::{
-    core_pipeline::tonemapping::{DebandDither, Tonemapping},
-    post_process::bloom::Bloom,
-    prelude::*,
-    window::WindowResolution,
-};
-
-mod blocks;
-mod components;
-mod constants;
-mod enemies;
-mod level;
-mod messages;
-mod player;
-mod resources;
-mod states;
-
-use blocks::BlocksPlugin;
-use constants::*;
-use enemies::EnemyPlugin;
-use level::LevelPlugin;
-use messages::*;
-use player::PlayerPlugin;
-use resources::{GameData, LevelState};
-use states::*;
+use bevy::prelude::*;
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "Super Mario Bros".to_string(),
-                resolution: WindowResolution::new(WINDOW_WIDTH as u32, WINDOW_HEIGHT as u32),
-                resizable: false,
-                ..default()
-            }),
-            ..default()
-        }))
-        // States
-        .init_state::<AppState>()
-        .add_sub_state::<PlayState>()
-        // Resources
-        .init_resource::<GameData>()
-        .init_resource::<LevelState>()
-        // Messages
-        .add_message::<AddScore>()
-        .add_message::<PlayerDamaged>()
-        .add_message::<PlayerDied>()
-        .add_message::<BlockHit>()
-        .add_message::<EnemyStomped>()
-        .add_message::<LevelCompleted>()
-        .add_message::<SpawnParticles>()
-        .add_message::<CameraShakeRequested>()
-        .add_plugins((LevelPlugin, PlayerPlugin, BlocksPlugin, EnemyPlugin))
-        // Startup
-        .add_systems(Startup, setup_camera)
+        .add_plugins(DefaultPlugins)
+        .add_systems(Startup, setup)
         .run();
 }
 
-fn setup_camera(mut commands: Commands) {
+fn setup(mut commands: Commands) {
+    commands.spawn(Camera2d);
     commands.spawn((
-        Camera2d,
-        Camera {
-            clear_color: ClearColorConfig::Custom(COLOR_SKY),
+        Text::new("Hello, World!"),
+        Node {
+            align_self: AlignSelf::Center,
+            justify_self: JustifySelf::Center,
             ..default()
         },
-        Tonemapping::TonyMcMapface,
-        Bloom::NATURAL,
-        DebandDither::Enabled,
     ));
 }

@@ -344,7 +344,6 @@ version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1fd310426290cec560221f9750c2f4484be4a8eeea7de3483c423329b465c40e"
 dependencies = [
- "bevy_dylib",
  "bevy_internal",
 ]
 
@@ -660,15 +659,6 @@ dependencies = [
  "log",
  "serde",
  "sysinfo",
-]
-
-[[package]]
-name = "bevy_dylib"
-version = "0.18.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f142f72bbbc1a61338bf6da5dc7cf6dcf223683b9d53bcd635ebff4bfeb5308f"
-dependencies = [
- "bevy_internal",
 ]
 
 [[package]]
@@ -1441,6 +1431,13 @@ dependencies = [
  "futures-lite",
  "heapless",
  "pin-project",
+]
+
+[[package]]
+name = "bevy_template"
+version = "0.1.0"
+dependencies = [
+ "bevy",
 ]
 
 [[package]]
@@ -4430,13 +4427,6 @@ name = "strict-num"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6637bab7722d379c8b41ba849228d680cc12d0a45ba1fa2b48f2a30577a06731"
-
-[[package]]
-name = "super_mario"
-version = "0.1.0"
-dependencies = [
- "bevy",
-]
 
 [[package]]
 name = "svg_fmt"
