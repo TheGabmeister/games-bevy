@@ -2,30 +2,8 @@ use bevy::prelude::*;
 
 use crate::board::{spawn_line_flash, Board};
 use crate::constants::*;
+use crate::input::InputActions;
 use crate::tetromino::{ActivePiece, PieceBag, RotationState, TetrominoKind};
-
-// ---------------------------------------------------------------------------
-// Action layer — all key bindings live here, game systems read actions only
-// ---------------------------------------------------------------------------
-
-#[derive(Resource, Default)]
-pub struct InputActions {
-    pub move_left: bool,
-    pub move_right: bool,
-    pub rotate_cw: bool,
-    pub rotate_ccw: bool,
-    pub soft_drop: bool,
-    pub hard_drop: bool,
-}
-
-fn read_keyboard(keys: Res<ButtonInput<KeyCode>>, mut actions: ResMut<InputActions>) {
-    actions.move_left = keys.pressed(KeyCode::ArrowLeft) || keys.pressed(KeyCode::KeyA);
-    actions.move_right = keys.pressed(KeyCode::ArrowRight) || keys.pressed(KeyCode::KeyD);
-    actions.rotate_cw = keys.just_pressed(KeyCode::KeyX) || keys.just_pressed(KeyCode::KeyE);
-    actions.rotate_ccw = keys.just_pressed(KeyCode::KeyZ) || keys.just_pressed(KeyCode::KeyQ);
-    actions.soft_drop = keys.pressed(KeyCode::ArrowDown) || keys.pressed(KeyCode::KeyS);
-    actions.hard_drop = keys.just_pressed(KeyCode::ArrowUp) || keys.just_pressed(KeyCode::Space);
-}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -144,14 +122,12 @@ pub struct GameplayPlugin;
 
 impl Plugin for GameplayPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<InputActions>()
-            .init_resource::<DasState>()
+        app.init_resource::<DasState>()
             .init_resource::<GravityTimer>()
             .init_resource::<LockDelayState>()
             .add_systems(
                 Update,
                 (
-                    read_keyboard,
                     handle_horizontal_input,
                     handle_rotation,
                     handle_hard_drop,

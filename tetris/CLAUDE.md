@@ -28,14 +28,20 @@ Dependencies compile at `opt-level = 3` while the main crate uses `opt-level = 1
 
 ## Architecture
 
-This is a template for 2D arcade-style Bevy games. When building out from the hello world starter, follow this modular layout:
+Tetris built with Bevy using only primitive shapes (no textures, no audio). One module per domain, each exposing a Plugin registered in `main.rs`.
 
-- **`main.rs`** — App setup, plugin registration, system scheduling with explicit ordering
-- **`constants.rs`** — All tunable values as named constants (window size, speeds, radii, scoring)
-- **`components.rs`** — Marker components for entity types + data components (Velocity, FacingDirection, etc.)
-- **`resources.rs`** — Shared game state (score, lives, wave progression)
-- **`states.rs`** — `AppState` enum driving a state machine (StartScreen → Playing → GameOver)
-- **Domain modules** — One module per gameplay domain (player, enemy, combat, ui, audio, etc.), each exposing a Plugin
+- **`main.rs`** — App setup, plugin registration, camera with bloom/HDR
+- **`constants.rs`** — All tunable values as named constants (grid dimensions, speeds, scoring, DAS timings)
+- **`board.rs`** — `Board` resource (2D grid of `Option<Color>`), playfield border rendering, cell entity pool that syncs from board state, line-clear detection/collapse and flash animation
+- **`tetromino.rs`** — `TetrominoKind` enum, SRS rotation states and cell data, wall-kick tables, `ActivePiece` resource, `PieceBag` 7-bag randomizer, active piece sprite rendering
+- **`input.rs`** — `InputActions` resource and `InputPlugin`. Keyboard and gamepad bindings live here; game systems never read raw input. Runs in `PreUpdate` so actions are ready before gameplay systems
+- **`gameplay.rs`** — Core game loop: DAS, gravity, soft/hard drop, rotation with wall kicks, lock delay, line clears. Reads `InputActions` only
+
+### Data Flow
+
+`InputPlugin` (PreUpdate) → `InputActions` resource → `GameplayPlugin` (Update) mutates `ActivePiece` + `Board` → rendering systems sync sprites from those resources.
+
+Board coordinate convention: row 0 = bottom, row increases upward. Rows 0–19 are visible, rows 20–21 are buffer (spawn/rotation space). Tetromino cell offsets use the same bottom-up convention.
 
 ### State Machine Pattern
 
