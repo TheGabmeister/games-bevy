@@ -199,9 +199,9 @@ The tasks are ordered for incremental learning: each phase produces something vi
 - [x] Render filled cells as colored rounded-rectangles with gaps
 
 ### Phase 3: Tetromino Data & Spawning
-- [ ] Define the 7 tetromino shapes and their rotation states in `tetromino.rs`
-- [ ] Implement the 7-bag randomizer
-- [ ] Spawn a piece at the top of the board and render it
+- [x] Define the 7 tetromino shapes and their rotation states in `tetromino.rs`
+- [x] Implement the 7-bag randomizer
+- [x] Spawn a piece at the top of the board and render it
 
 ### Phase 4: Movement & Input
 - [ ] Implement left/right movement with collision detection against walls and filled cells
