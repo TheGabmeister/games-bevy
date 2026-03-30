@@ -18,3 +18,6 @@ pub enum FacingDirection {
 
 #[derive(Component, Default)]
 pub struct Grounded(pub bool);
+
+#[derive(Component)]
+pub struct Ground;

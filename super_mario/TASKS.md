@@ -8,9 +8,9 @@ Ordered for incremental learning. Each task produces a runnable game with visibl
 
 **You'll learn**: Bevy app setup, ECS basics (entities, components, systems), keyboard input, basic rendering with primitives.
 
-- [ ] **1.1** Set up window (800×600, title "Super Mario Bros"), spawn a 2D camera, set `ClearColor` to light blue sky
-- [ ] **1.2** Create `constants.rs` — window size, tile size (16×16), camera scale, ascending gravity (600), descending gravity (980), terminal velocity (500), player speeds (walk 130, run 200), jump impulse, jump cut multiplier (0.4)
-- [ ] **1.3** Create `components.rs` — `Player` marker, `Velocity` component, `FacingDirection` enum (Left/Right)
+- [x] **1.1** Set up window (800×600, title "Super Mario Bros"), spawn a 2D camera, set `ClearColor` to light blue sky
+- [x] **1.2** Create `constants.rs` — window size, tile size (16×16), camera scale, ascending gravity (600), descending gravity (980), terminal velocity (500), player speeds (walk 130, run 200), jump impulse, jump cut multiplier (0.4)
+- [x] **1.3** Create `components.rs` — `Player` marker, `Velocity` component, `FacingDirection` enum (Left/Right)
 - [ ] **1.4** Spawn Mario as a red rectangle (14×16) near the bottom of the screen
 - [ ] **1.5** Add horizontal movement (left/right input → velocity → position update). Track `FacingDirection`.
 - [ ] **1.6** Add gravity — Mario falls, add a ground line (single rectangle across the bottom)
