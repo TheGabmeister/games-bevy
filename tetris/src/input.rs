@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::board::Board;
 use crate::constants::*;
-use crate::tetromino::{ActivePiece, PieceBag, RotationState};
+use crate::tetromino::{ActivePiece, PieceBag, RotationState, TetrominoKind};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -81,7 +81,12 @@ impl Plugin for InputPlugin {
             .init_resource::<GravityTimer>()
             .add_systems(
                 Update,
-                (handle_horizontal_input, handle_gravity, handle_hard_drop),
+                (
+                    handle_horizontal_input,
+                    handle_rotation,
+                    handle_gravity,
+                    handle_hard_drop,
+                ),
             );
     }
 }
@@ -146,6 +151,44 @@ fn handle_horizontal_input(
                     break;
                 }
             }
+        }
+    }
+}
+
+fn handle_rotation(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut piece: ResMut<ActivePiece>,
+    board: Res<Board>,
+) {
+    // O piece doesn't rotate.
+    if piece.kind == TetrominoKind::O {
+        return;
+    }
+
+    let cw = keys.just_pressed(KeyCode::KeyX) || keys.just_pressed(KeyCode::KeyE);
+    let ccw = keys.just_pressed(KeyCode::KeyZ) || keys.just_pressed(KeyCode::KeyQ);
+
+    let target = if cw {
+        piece.rotation.cw()
+    } else if ccw {
+        piece.rotation.ccw()
+    } else {
+        return;
+    };
+
+    let kicks = piece.kind.kicks(piece.rotation, target);
+    for &(dc, dr) in kicks {
+        let new_row = piece.row + dr;
+        let new_col = piece.col + dc;
+        let cells = piece
+            .kind
+            .cells(target)
+            .map(|(r, c)| (new_row + r, new_col + c));
+        if board.is_valid_cells(&cells) {
+            piece.rotation = target;
+            piece.row = new_row;
+            piece.col = new_col;
+            return;
         }
     }
 }

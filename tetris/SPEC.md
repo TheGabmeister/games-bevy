@@ -210,9 +210,9 @@ The tasks are ordered for incremental learning: each phase produces something vi
 - [x] Implement hard drop (instant placement)
 
 ### Phase 5: Rotation & Wall Kicks
-- [ ] Implement SRS rotation (CW and CCW)
-- [ ] Add wall-kick offset tables
-- [ ] Test rotation near walls and floor
+- [x] Implement SRS rotation (CW and CCW)
+- [x] Add wall-kick offset tables
+- [x] Test rotation near walls and floor
 
 ### Phase 6: Gravity & Lock Delay
 - [ ] Implement gravity tick timer that moves piece down each interval

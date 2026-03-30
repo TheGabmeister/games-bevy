@@ -48,6 +48,15 @@ impl TetrominoKind {
         PIECE_CELLS[self as usize][rotation as usize]
     }
 
+    /// SRS wall-kick offsets `(col_offset, row_offset)` for rotating from `from` to `to`.
+    pub fn kicks(self, from: RotationState, to: RotationState) -> &'static [(i32, i32); 5] {
+        let table = match self {
+            TetrominoKind::I => &I_KICKS,
+            _ => &JLSTZ_KICKS,
+        };
+        &table[kick_index(from, to)]
+    }
+
     /// The spawn row so the piece starts in the buffer rows.
     pub fn spawn_row(self) -> i32 {
         match self {
@@ -64,6 +73,26 @@ pub enum RotationState {
     R1 = 1,
     R2 = 2,
     R3 = 3,
+}
+
+impl RotationState {
+    pub fn cw(self) -> Self {
+        match self {
+            Self::R0 => Self::R1,
+            Self::R1 => Self::R2,
+            Self::R2 => Self::R3,
+            Self::R3 => Self::R0,
+        }
+    }
+
+    pub fn ccw(self) -> Self {
+        match self {
+            Self::R0 => Self::R3,
+            Self::R1 => Self::R0,
+            Self::R2 => Self::R1,
+            Self::R3 => Self::R2,
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -122,6 +151,53 @@ const PIECE_CELLS: [[[(i32, i32); 4]; 4]; 7] = [
         [(1, 0), (1, 1), (1, 2), (0, 0)], // R2
         [(2, 0), (2, 1), (1, 1), (0, 1)], // R3
     ],
+];
+
+// ---------------------------------------------------------------------------
+// SRS wall-kick tables — offsets (col, row), row positive = up.
+// Computed from SRS offset data: kick[i] = offset_from[i] − offset_to[i].
+// Indexed via kick_index(from, to).
+// ---------------------------------------------------------------------------
+
+fn kick_index(from: RotationState, to: RotationState) -> usize {
+    use RotationState::*;
+    match (from, to) {
+        (R0, R1) => 0, // 0→R CW
+        (R1, R2) => 1, // R→2 CW
+        (R2, R3) => 2, // 2→L CW
+        (R3, R0) => 3, // L→0 CW
+        (R1, R0) => 4, // R→0 CCW
+        (R2, R1) => 5, // 2→R CCW
+        (R3, R2) => 6, // L→2 CCW
+        (R0, R3) => 7, // 0→L CCW
+        _ => unreachable!(),
+    }
+}
+
+const JLSTZ_KICKS: [[(i32, i32); 5]; 8] = [
+    // CW
+    [(0, 0), (-1, 0), (-1, -1), (0, 2), (-1, 2)],  // 0→R
+    [(0, 0), (1, 0), (1, 1), (0, -2), (1, -2)],     // R→2
+    [(0, 0), (1, 0), (1, -1), (0, 2), (1, 2)],      // 2→L
+    [(0, 0), (-1, 0), (-1, 1), (0, -2), (-1, -2)],  // L→0
+    // CCW
+    [(0, 0), (1, 0), (1, 1), (0, -2), (1, -2)],     // R→0
+    [(0, 0), (-1, 0), (-1, -1), (0, 2), (-1, 2)],   // 2→R
+    [(0, 0), (-1, 0), (-1, 1), (0, -2), (-1, -2)],  // L→2
+    [(0, 0), (1, 0), (1, -1), (0, 2), (1, 2)],      // 0→L
+];
+
+const I_KICKS: [[(i32, i32); 5]; 8] = [
+    // CW
+    [(1, 0), (-1, 0), (2, 0), (-1, 1), (2, -2)],    // 0→R
+    [(0, 1), (-1, 1), (2, 1), (-1, -1), (2, 2)],    // R→2
+    [(-1, 0), (1, 0), (-2, 0), (1, -1), (-2, 2)],   // 2→L
+    [(0, -1), (1, -1), (-2, -1), (1, 1), (-2, -2)], // L→0
+    // CCW
+    [(-1, 0), (1, 0), (-2, 0), (1, -1), (-2, 2)],   // R→0
+    [(0, -1), (1, -1), (-2, -1), (1, 1), (-2, -2)], // 2→R
+    [(1, 0), (-1, 0), (2, 0), (-1, 1), (2, -2)],    // L→2
+    [(0, 1), (-1, 1), (2, 1), (-1, -1), (2, 2)],    // 0→L
 ];
 
 // ---------------------------------------------------------------------------
