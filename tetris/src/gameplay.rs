@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use crate::board::{spawn_line_flash, Board};
 use crate::constants::*;
 use crate::input::InputActions;
+use crate::resources::{HardDropMsg, LevelChangedMsg, LineClearMsg, SoftDropMsg};
 use crate::tetromino::{ActivePiece, PieceBag, RotationState, TetrominoKind};
 
 // ---------------------------------------------------------------------------
@@ -133,6 +134,7 @@ impl Plugin for GameplayPlugin {
                     handle_hard_drop,
                     handle_gravity,
                     handle_lock_delay,
+                    handle_level_change,
                 )
                     .chain(),
             );
@@ -243,17 +245,24 @@ fn handle_hard_drop(
     mut bag: ResMut<PieceBag>,
     mut gravity: ResMut<GravityTimer>,
     mut lock: ResMut<LockDelayState>,
+    mut hard_drop_msgs: MessageWriter<HardDropMsg>,
+    mut line_clear_msgs: MessageWriter<LineClearMsg>,
 ) {
     if !actions.hard_drop {
         return;
     }
 
     // Drop to lowest valid row.
+    let start_row = piece.row;
     while can_place(&board, &piece, -1, 0) {
         piece.row -= 1;
     }
+    hard_drop_msgs.write(HardDropMsg((start_row - piece.row) as u32));
 
     let cleared = lock_and_spawn(&mut piece, &mut board, &mut bag, &mut gravity, &mut lock);
+    if !cleared.is_empty() {
+        line_clear_msgs.write(LineClearMsg(cleared.len() as u32));
+    }
     for &row in &cleared {
         spawn_line_flash(&mut commands, row);
     }
@@ -265,6 +274,7 @@ fn handle_gravity(
     mut timer: ResMut<GravityTimer>,
     mut piece: ResMut<ActivePiece>,
     board: Res<Board>,
+    mut soft_drop_msgs: MessageWriter<SoftDropMsg>,
 ) {
     let interval = if actions.soft_drop {
         timer.interval / SOFT_DROP_MULTIPLIER as f32
@@ -272,16 +282,25 @@ fn handle_gravity(
         timer.interval
     };
 
+    let mut soft_rows = 0u32;
+
     timer.elapsed += time.delta_secs();
     while timer.elapsed >= interval {
         timer.elapsed -= interval;
         if can_place(&board, &piece, -1, 0) {
             piece.row -= 1;
+            if actions.soft_drop {
+                soft_rows += 1;
+            }
         } else {
             // Can't move down — lock delay handles the rest.
             timer.elapsed = 0.0;
             break;
         }
+    }
+
+    if soft_rows > 0 {
+        soft_drop_msgs.write(SoftDropMsg(soft_rows));
     }
 }
 
@@ -293,6 +312,7 @@ fn handle_lock_delay(
     mut board: ResMut<Board>,
     mut bag: ResMut<PieceBag>,
     mut gravity: ResMut<GravityTimer>,
+    mut line_clear_msgs: MessageWriter<LineClearMsg>,
 ) {
     // Detect player-initiated actions (col or rotation changed).
     let player_acted = piece.col != lock.prev_col || piece.rotation != lock.prev_rotation;
@@ -316,8 +336,22 @@ fn handle_lock_delay(
     if lock.elapsed >= LOCK_DELAY_SECS {
         let cleared =
             lock_and_spawn(&mut piece, &mut board, &mut bag, &mut gravity, &mut lock);
+        if !cleared.is_empty() {
+            line_clear_msgs.write(LineClearMsg(cleared.len() as u32));
+        }
         for &row in &cleared {
             spawn_line_flash(&mut commands, row);
         }
+    }
+}
+
+fn handle_level_change(
+    mut gravity: ResMut<GravityTimer>,
+    mut level_msgs: MessageReader<LevelChangedMsg>,
+) {
+    for msg in level_msgs.read() {
+        let l = msg.0 as f64;
+        gravity.interval =
+            ((GRAVITY_BASE - (l - 1.0) * GRAVITY_FACTOR).powf(l - 1.0)).max(GRAVITY_FLOOR) as f32;
     }
 }

@@ -225,10 +225,10 @@ The tasks are ordered for incremental learning: each phase produces something vi
 - [x] Add line-clear flash animation
 
 ### Phase 8: Scoring, Level & HUD
-- [ ] Create `resources.rs` with Score, Level, Lines Cleared
-- [ ] Implement scoring table (single/double/triple/tetris + drop bonuses)
-- [ ] Implement leveling (every 10 lines) and gravity curve
-- [ ] Render HUD: score, level, lines cleared as `Text2d`
+- [x] Create `resources.rs` with Score, Level, Lines Cleared
+- [x] Implement scoring table (single/double/triple/tetris + drop bonuses)
+- [x] Implement leveling (every 10 lines) and gravity curve
+- [x] Render HUD: score, level, lines cleared as `Text2d`
 
 ### Phase 9: Ghost Piece, Hold & Next Queue
 - [ ] Render ghost piece (translucent copy at hard-drop position)

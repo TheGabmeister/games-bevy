@@ -8,13 +8,17 @@ use bevy::{
 mod board;
 mod constants;
 mod gameplay;
+mod hud;
 mod input;
+mod resources;
 mod tetromino;
 
 use board::BoardPlugin;
 use constants::*;
 use gameplay::GameplayPlugin;
+use hud::HudPlugin;
 use input::InputPlugin;
+use resources::StatsPlugin;
 use tetromino::TetrominoPlugin;
 
 fn main() {
@@ -28,7 +32,7 @@ fn main() {
             }),
             ..default()
         }))
-        .add_plugins((BoardPlugin, TetrominoPlugin, InputPlugin, GameplayPlugin))
+        .add_plugins((BoardPlugin, TetrominoPlugin, InputPlugin, GameplayPlugin, StatsPlugin, HudPlugin))
         .insert_resource(ClearColor(CLEAR_COLOR))
         .add_systems(Startup, setup_camera)
         .run();
