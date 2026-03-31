@@ -1,10 +1,76 @@
 use bevy::prelude::*;
+use bevy::asset::io::Reader as AssetReader;
+use bevy::asset::{AssetLoader, LoadContext};
+use serde::Deserialize;
 
 use crate::components::*;
 use crate::constants::*;
 use crate::resources::*;
 use crate::states::AppState;
 use crate::ui;
+
+// ── Level Data Asset ──
+
+/// Level data loaded from a RON file. Each row is a string of tile characters.
+#[derive(Asset, Reflect, Deserialize)]
+pub struct LevelData {
+    pub rows: Vec<String>,
+}
+
+impl LevelData {
+    /// Convert the loaded row strings into the fixed-size char grid used at runtime.
+    pub fn to_grid(&self) -> [[char; LEVEL_WIDTH]; LEVEL_HEIGHT] {
+        let mut grid = [['.'; LEVEL_WIDTH]; LEVEL_HEIGHT];
+        for (r, row_str) in self.rows.iter().enumerate() {
+            if r >= LEVEL_HEIGHT {
+                break;
+            }
+            for (c, ch) in row_str.chars().enumerate() {
+                if c >= LEVEL_WIDTH {
+                    break;
+                }
+                grid[r][c] = ch;
+            }
+        }
+        grid
+    }
+}
+
+/// Custom asset loader for `.level.ron` files.
+#[derive(Default, Reflect)]
+pub struct LevelAssetLoader;
+
+impl AssetLoader for LevelAssetLoader {
+    type Asset = LevelData;
+    type Settings = ();
+    type Error = Box<dyn std::error::Error + Send + Sync>;
+
+    async fn load(
+        &self,
+        reader: &mut dyn AssetReader,
+        _settings: &Self::Settings,
+        _load_context: &mut LoadContext<'_>,
+    ) -> Result<Self::Asset, Self::Error> {
+        let mut bytes = Vec::new();
+        bevy::asset::io::Reader::read_to_end(reader, &mut bytes).await?;
+        let data: LevelData = ron::de::from_bytes(&bytes)?;
+        Ok(data)
+    }
+
+    fn extensions(&self) -> &[&str] {
+        &["level.ron"]
+    }
+}
+
+/// Stores the handle to the currently active level asset.
+#[derive(Resource)]
+pub struct LevelHandle(pub Handle<LevelData>);
+
+/// Pre-load the level asset at the start of gameplay.
+pub fn load_level(mut commands: Commands, asset_server: Res<AssetServer>) {
+    let handle: Handle<LevelData> = asset_server.load("levels/test.level.ron");
+    commands.insert_resource(LevelHandle(handle));
+}
 
 /// The level grid stored as a resource for collision lookups.
 #[derive(Resource)]
@@ -254,10 +320,16 @@ pub fn spawn_level(
     assets: Res<crate::assets::GameAssets>,
     mut game_data: ResMut<GameData>,
     mut spawn_point: ResMut<SpawnPoint>,
+    level_handle: Res<LevelHandle>,
+    level_assets: Res<Assets<LevelData>>,
 ) {
     *game_data = GameData::default();
 
-    let grid = level_test();
+    // Load grid from the RON asset, fall back to hardcoded test level
+    let grid = level_assets
+        .get(&level_handle.0)
+        .map(|data| data.to_grid())
+        .unwrap_or_else(level_test);
     commands.insert_resource(LevelGrid { grid });
 
     let mut sp = (0.0_f32, 0.0_f32);
@@ -482,4 +554,34 @@ pub fn spawn_level(
 
     // HUD
     ui::spawn_hud(&mut commands, &game_data);
+}
+
+// ── RON file generation (dev helper) ──
+
+fn grid_to_ron(grid: &[[char; LEVEL_WIDTH]; LEVEL_HEIGHT]) -> String {
+    let rows: Vec<String> = grid
+        .iter()
+        .map(|row| {
+            let s: String = row.iter().collect();
+            format!("        \"{}\"", s)
+        })
+        .collect();
+    format!("(\n    rows: [\n{}\n    ]\n)\n", rows.join(",\n"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn generate_level_ron_files() {
+        let dir = std::path::Path::new("assets/levels");
+        std::fs::create_dir_all(dir).unwrap();
+
+        let test_grid = level_test();
+        std::fs::write(dir.join("test.level.ron"), grid_to_ron(&test_grid)).unwrap();
+
+        let grid_1_1 = level_1_1();
+        std::fs::write(dir.join("1-1.level.ron"), grid_to_ron(&grid_1_1)).unwrap();
+    }
 }

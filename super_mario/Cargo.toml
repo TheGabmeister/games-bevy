@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+ron = "0.9"
+serde = { version = "1", features = ["derive"] }
+
 [dependencies.bevy]
 version = "0.18.1"
 features = [

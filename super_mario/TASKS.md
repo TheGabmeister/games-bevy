@@ -204,7 +204,7 @@ Ordered for incremental learning. Each task produces a runnable game with visibl
 
 ## Phase 13: Second Level & Progression (Stretch)
 
-- [ ] **13.1** Extract level data into RON files — move the char grid out of `level.rs` into `assets/levels/1-1.ron`, load via `AssetServer`
+- [x] **13.1** Extract level data into RON files — move the char grid out of `level.rs` into `assets/levels/1-1.ron`, load via `AssetServer`
 - [ ] **13.2** Create Level 1-2 layout as a RON file (underground theme — dark background, different colors)
 - [ ] **13.3** Level transition system — load different level data based on world progression
 - [ ] **13.4** Increase difficulty — more enemies, trickier platforming

@@ -55,7 +55,9 @@ fn main() {
             block::BlockPlugin,
             powerup::PowerUpPlugin,
         ))
-        .add_systems(Startup, assets::init_game_assets)
+        .init_asset::<level::LevelData>()
+        .register_asset_loader(level::LevelAssetLoader)
+        .add_systems(Startup, (assets::init_game_assets, level::load_level))
         .add_systems(OnEnter(AppState::Playing), level::spawn_level)
         .run();
 }
