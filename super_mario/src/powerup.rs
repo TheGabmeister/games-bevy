@@ -278,7 +278,7 @@ fn fireball_enemy_collision(
         (With<KoopaTroopa>, With<EnemyActive>, Without<Fireball>, Without<Goomba>),
     >,
     mut score_events: MessageWriter<ScoreEvent>,
-    assets: Res<GameAssets>,
+    shell_assets: Res<crate::enemy::koopa::ShellAssets>,
 ) {
     for (fb_entity, fb_tf, fb_coll) in &fireball_query {
         let mut hit = false;
@@ -312,7 +312,7 @@ fn fireball_enemy_collision(
 
                 let shell_y = koopa_tf.translation.y - (KOOPA_HEIGHT - SHELL_HEIGHT) / 2.0;
 
-                assets.shell.spawn(&mut commands, koopa_tf.translation.x, shell_y);
+                shell_assets.spawn(&mut commands, koopa_tf.translation.x, shell_y);
 
                 ui::spawn_score_popup(
                     &mut commands, FIREBALL_SCORE,

@@ -6,6 +6,7 @@ use crate::states::AppState;
 
 // ── Sub-structs ──
 
+#[derive(Clone)]
 pub struct TileAssets {
     pub mesh: Handle<Mesh>,
     pub pipe_top_mesh: Handle<Mesh>,
@@ -88,115 +89,8 @@ impl PlayerAssets {
     }
 }
 
-pub struct GoombaAssets {
-    pub body_mesh: Handle<Mesh>,
-    pub body_mat: Handle<ColorMaterial>,
-    pub feet_mesh: Handle<Mesh>,
-    pub feet_mat: Handle<ColorMaterial>,
-}
 
-impl GoombaAssets {
-    pub fn spawn(&self, commands: &mut Commands, wx: f32, wy: f32) -> Entity {
-        commands
-            .spawn((
-                Goomba,
-                EnemyWalker {
-                    speed: GOOMBA_SPEED,
-                    direction: -1.0,
-                },
-                CollisionSize {
-                    width: GOOMBA_WIDTH,
-                    height: GOOMBA_HEIGHT,
-                },
-                Velocity::default(),
-                Grounded::default(),
-                Mesh2d(self.body_mesh.clone()),
-                MeshMaterial2d(self.body_mat.clone()),
-                Transform::from_xyz(wx, wy, Z_ENEMY),
-                DespawnOnExit(AppState::Playing),
-            ))
-            .with_children(|parent| {
-                parent.spawn((
-                    Mesh2d(self.feet_mesh.clone()),
-                    MeshMaterial2d(self.feet_mat.clone()),
-                    Transform::from_xyz(0.0, -5.0, 0.0),
-                ));
-            })
-            .id()
-    }
-}
-
-pub struct KoopaAssets {
-    pub body_mesh: Handle<Mesh>,
-    pub body_mat: Handle<ColorMaterial>,
-    pub head_mesh: Handle<Mesh>,
-    pub head_mat: Handle<ColorMaterial>,
-}
-
-impl KoopaAssets {
-    pub fn spawn(&self, commands: &mut Commands, wx: f32, wy: f32) -> Entity {
-        commands
-            .spawn((
-                KoopaTroopa,
-                EnemyWalker {
-                    speed: KOOPA_SPEED,
-                    direction: -1.0,
-                },
-                CollisionSize {
-                    width: KOOPA_WIDTH,
-                    height: KOOPA_HEIGHT,
-                },
-                Velocity::default(),
-                Grounded::default(),
-                Mesh2d(self.body_mesh.clone()),
-                MeshMaterial2d(self.body_mat.clone()),
-                Transform::from_xyz(wx, wy, Z_ENEMY),
-                DespawnOnExit(AppState::Playing),
-            ))
-            .with_children(|parent| {
-                parent.spawn((
-                    Mesh2d(self.head_mesh.clone()),
-                    MeshMaterial2d(self.head_mat.clone()),
-                    Transform::from_xyz(0.0, 11.0, 0.0),
-                ));
-            })
-            .id()
-    }
-}
-
-pub struct ShellAssets {
-    pub mesh: Handle<Mesh>,
-    pub mat: Handle<ColorMaterial>,
-}
-
-impl ShellAssets {
-    pub fn spawn(&self, commands: &mut Commands, x: f32, y: f32) -> Entity {
-        commands
-            .spawn((
-                Shell {
-                    state: ShellState::Stationary,
-                    chain_kills: 0,
-                },
-                EnemyWalker {
-                    speed: 0.0,
-                    direction: 1.0,
-                },
-                CollisionSize {
-                    width: SHELL_WIDTH,
-                    height: SHELL_HEIGHT,
-                },
-                Velocity::default(),
-                Grounded(true),
-                EnemyActive,
-                Mesh2d(self.mesh.clone()),
-                MeshMaterial2d(self.mat.clone()),
-                Transform::from_xyz(x, y, Z_ENEMY),
-                DespawnOnExit(AppState::Playing),
-            ))
-            .id()
-    }
-}
-
+#[derive(Clone)]
 pub struct FloatingCoinAssets {
     pub mesh: Handle<Mesh>,
     pub mat: Handle<ColorMaterial>,
@@ -216,6 +110,7 @@ impl FloatingCoinAssets {
     }
 }
 
+#[derive(Clone)]
 pub struct FlagpoleAssets {
     pub pole_mesh: Handle<Mesh>,
     pub pole_mat: Handle<ColorMaterial>,
@@ -451,9 +346,6 @@ impl FireballAssets {
 pub struct GameAssets {
     pub tile: TileAssets,
     pub player: PlayerAssets,
-    pub goomba: GoombaAssets,
-    pub koopa: KoopaAssets,
-    pub shell: ShellAssets,
     pub floating_coin: FloatingCoinAssets,
     pub flagpole: FlagpoleAssets,
     pub castle: CastleAssets,
@@ -489,27 +381,6 @@ pub fn init_game_assets(
                 .add(ColorMaterial::from_color(Color::srgb(0.8, 0.1, 0.1))),
             fire_mat: materials
                 .add(ColorMaterial::from_color(Color::srgb(0.95, 0.95, 0.95))),
-        },
-
-        goomba: GoombaAssets {
-            body_mesh: meshes.add(Ellipse::new(6.0, 5.0)),
-            body_mat: materials
-                .add(ColorMaterial::from_color(Color::srgb(0.55, 0.30, 0.10))),
-            feet_mesh: meshes.add(Rectangle::new(12.0, 4.0)),
-            feet_mat: materials
-                .add(ColorMaterial::from_color(Color::srgb(0.35, 0.18, 0.05))),
-        },
-
-        koopa: KoopaAssets {
-            body_mesh: meshes.add(Rectangle::new(KOOPA_WIDTH, 16.0)),
-            body_mat: materials.add(ColorMaterial::from_color(Color::srgb(0.2, 0.7, 0.2))),
-            head_mesh: meshes.add(Circle::new(5.0)),
-            head_mat: materials.add(ColorMaterial::from_color(Color::srgb(0.3, 0.8, 0.3))),
-        },
-
-        shell: ShellAssets {
-            mesh: meshes.add(Rectangle::new(SHELL_WIDTH, SHELL_HEIGHT)),
-            mat: materials.add(ColorMaterial::from_color(Color::srgb(0.2, 0.65, 0.2))),
         },
 
         floating_coin: FloatingCoinAssets {

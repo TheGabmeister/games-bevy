@@ -108,9 +108,8 @@ pub struct LevelHandle(pub Handle<LevelData>);
 
 // ── Spawner Registry ──
 
-/// Function signature for tile/entity spawners.
-/// Receives `(assets, commands, world_x, world_y, grid_col, grid_row)`.
-pub type TileSpawner = fn(&crate::assets::GameAssets, &mut Commands, f32, f32, usize, usize);
+/// Closure-based spawner. Each closure captures its own asset handles at registration time.
+pub type TileSpawner = Box<dyn Fn(&mut Commands, f32, f32, usize, usize) + Send + Sync>;
 
 /// Data-driven registry mapping level characters to spawn functions.
 /// Modules register their spawners at startup; `spawn_level` looks them up.
@@ -130,32 +129,34 @@ impl SpawnerRegistry {
 }
 
 /// Register the built-in tile and entity spawners.
-pub fn init_spawner_registry(mut commands: Commands) {
-    let mut reg = SpawnerRegistry::default();
+/// Each closure captures the asset handles it needs so spawners are self-contained.
+pub fn init_spawner_registry(
+    mut reg: ResMut<SpawnerRegistry>,
+    assets: Res<crate::assets::GameAssets>,
+) {
+    // Tiles — capture tile handles once
+    let t = assets.tile.clone();
+    reg.register('#', { let t = t.clone(); Box::new(move |c, wx, wy, _, _| { t.spawn(c, TileType::Ground, wx, wy, None); }) });
+    reg.register('B', { let t = t.clone(); Box::new(move |c, wx, wy, col, row| { t.spawn(c, TileType::Brick, wx, wy, Some((col as i32, row as i32))); }) });
+    reg.register('?', { let t = t.clone(); Box::new(move |c, wx, wy, col, row| { t.spawn(c, TileType::QuestionBlock, wx, wy, Some((col as i32, row as i32))); }) });
+    reg.register('M', { let t = t.clone(); Box::new(move |c, wx, wy, col, row| { t.spawn(c, TileType::QuestionBlock, wx, wy, Some((col as i32, row as i32))); }) });
+    reg.register('X', { let t = t.clone(); Box::new(move |c, wx, wy, _, _| { t.spawn(c, TileType::Solid, wx, wy, None); }) });
+    reg.register('[', { let t = t.clone(); Box::new(move |c, wx, wy, _, _| { t.spawn(c, TileType::PipeTopLeft, wx, wy, None); }) });
+    reg.register(']', { let t = t.clone(); Box::new(move |c, wx, wy, _, _| { t.spawn(c, TileType::PipeTopRight, wx, wy, None); }) });
+    reg.register('{', { let t = t.clone(); Box::new(move |c, wx, wy, _, _| { t.spawn(c, TileType::PipeBodyLeft, wx, wy, None); }) });
+    reg.register('}', { let t = t.clone(); Box::new(move |c, wx, wy, _, _| { t.spawn(c, TileType::PipeBodyRight, wx, wy, None); }) });
 
-    // Tiles
-    reg.register('#', |a, c, wx, wy, _, _| { a.tile.spawn(c, TileType::Ground, wx, wy, None); });
-    reg.register('B', |a, c, wx, wy, col, row| { a.tile.spawn(c, TileType::Brick, wx, wy, Some((col as i32, row as i32))); });
-    reg.register('?', |a, c, wx, wy, col, row| { a.tile.spawn(c, TileType::QuestionBlock, wx, wy, Some((col as i32, row as i32))); });
-    reg.register('M', |a, c, wx, wy, col, row| { a.tile.spawn(c, TileType::QuestionBlock, wx, wy, Some((col as i32, row as i32))); });
-    reg.register('X', |a, c, wx, wy, _, _| { a.tile.spawn(c, TileType::Solid, wx, wy, None); });
-    reg.register('[', |a, c, wx, wy, _, _| { a.tile.spawn(c, TileType::PipeTopLeft, wx, wy, None); });
-    reg.register(']', |a, c, wx, wy, _, _| { a.tile.spawn(c, TileType::PipeTopRight, wx, wy, None); });
-    reg.register('{', |a, c, wx, wy, _, _| { a.tile.spawn(c, TileType::PipeBodyLeft, wx, wy, None); });
-    reg.register('}', |a, c, wx, wy, _, _| { a.tile.spawn(c, TileType::PipeBodyRight, wx, wy, None); });
+    // Non-enemy entities
+    let fc = assets.floating_coin.clone();
+    reg.register('C', Box::new(move |c, wx, wy, _, _| { fc.spawn(c, wx, wy); }));
 
-    // Entities
-    reg.register('G', |a, c, wx, wy, _, _| { a.goomba.spawn(c, wx, wy); });
-    reg.register('K', |a, c, wx, wy, _, _| { a.koopa.spawn(c, wx, wy); });
-    reg.register('C', |a, c, wx, wy, _, _| { a.floating_coin.spawn(c, wx, wy); });
-    reg.register('F', |a, c, wx, wy, _, row| {
-        a.flagpole.spawn_pole(c, wx, wy);
+    let fp = assets.flagpole.clone();
+    reg.register('F', Box::new(move |c, wx, wy, _, row| {
+        fp.spawn_pole(c, wx, wy);
         if row == FLAGPOLE_TOP_ROW {
-            a.flagpole.spawn_top(c, wx, wy);
+            fp.spawn_top(c, wx, wy);
         }
-    });
-
-    commands.insert_resource(reg);
+    }));
 }
 
 /// Pre-load the level asset at the start of gameplay.
@@ -460,7 +461,7 @@ pub fn spawn_level(
             if ch == 'S' {
                 sp = (wx, wy);
             } else if let Some(spawner) = registry.get(ch) {
-                spawner(&assets, &mut commands, wx, wy, col, row);
+                spawner(&mut commands, wx, wy, col, row);
             }
         }
     }

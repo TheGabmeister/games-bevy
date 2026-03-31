@@ -1,5 +1,5 @@
-mod goomba;
-mod koopa;
+pub mod goomba;
+pub mod koopa;
 
 use bevy::prelude::*;
 
@@ -13,6 +13,7 @@ pub struct EnemyPlugin;
 
 impl Plugin for EnemyPlugin {
     fn build(&self, app: &mut App) {
+        // Shared enemy physics and lifecycle
         app.add_systems(
             Update,
             enemy_activation.in_set(GameplaySet::Input),
@@ -25,20 +26,18 @@ impl Plugin for EnemyPlugin {
         )
         .add_systems(
             Update,
-            (
-                goomba::mario_goomba_collision,
-                koopa::mario_koopa_collision,
-                koopa::mario_shell_collision,
-                koopa::shell_enemy_collision,
-                enemy_despawn_out_of_bounds,
-            )
-                .in_set(GameplaySet::Late),
+            enemy_despawn_out_of_bounds.in_set(GameplaySet::Late),
         )
         .add_systems(
             Update,
             (squish_timer, score_popup_system)
                 .run_if(in_state(AppState::Playing)),
-        );
+        )
+        // Per-enemy sub-plugins
+        .add_plugins((
+            goomba::GoombaPlugin,
+            koopa::KoopaPlugin,
+        ));
     }
 }
 
