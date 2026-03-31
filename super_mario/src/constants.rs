@@ -112,3 +112,27 @@ pub const SHELL_SPEED: f32 = 180.0;
 pub const SHELL_WIDTH: f32 = 14.0;
 pub const SHELL_HEIGHT: f32 = 14.0;
 pub const SHELL_BASE_SCORE: u32 = 200;
+
+// Fire Flower
+pub const FIRE_FLOWER_SCORE: u32 = 1000;
+
+// Fireball
+pub const FIREBALL_SPEED: f32 = 200.0;
+pub const FIREBALL_BOUNCE_IMPULSE: f32 = 180.0;
+pub const FIREBALL_RADIUS: f32 = 3.0;
+pub const FIREBALL_SCORE: u32 = 100;
+pub const MAX_FIREBALLS: usize = 2;
+
+// Flagpole
+pub const FLAGPOLE_POLE_WIDTH: f32 = 4.0;
+pub const FLAGPOLE_FLAG_SIZE: f32 = 10.0;
+pub const FLAGPOLE_TOP_ROW: usize = 3;
+pub const FLAGPOLE_BOTTOM_ROW: usize = 12;
+pub const FLAGPOLE_TOP_SCORE: u32 = 5000;
+pub const FLAGPOLE_BOTTOM_SCORE: u32 = 100;
+pub const FLAGPOLE_SLIDE_SPEED: f32 = 120.0;
+pub const FLAGPOLE_WALK_SPEED: f32 = 80.0;
+pub const TIME_BONUS_PER_TICK: u32 = 50;
+pub const TIME_TALLY_RATE: f32 = 60.0;
+pub const LEVEL_COMPLETE_DONE_DELAY: f32 = 2.0;
+pub const CASTLE_OFFSET_TILES: usize = 4;

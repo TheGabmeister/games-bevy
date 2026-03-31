@@ -124,6 +124,7 @@ pub enum PlayerSize {
     #[default]
     Small,
     Big,
+    Fire,
 }
 
 // Growth/shrink animation
@@ -161,3 +162,26 @@ pub struct Shell {
     pub state: ShellState,
     pub chain_kills: u32,
 }
+
+// Fire Flower power-up
+#[derive(Component)]
+pub struct FireFlower;
+
+#[derive(Component)]
+pub struct FireFlowerEmerging {
+    pub remaining: f32,
+}
+
+// Fireball projectile
+#[derive(Component)]
+pub struct Fireball {
+    pub direction: f32,
+}
+
+// Flagpole flag (slides down during level complete)
+#[derive(Component)]
+pub struct FlagpoleFlag;
+
+// Castle marker
+#[derive(Component)]
+pub struct Castle;

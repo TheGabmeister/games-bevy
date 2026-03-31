@@ -71,7 +71,11 @@ fn process_block_hits(
 
             // Spawn content
             if ch == 'M' {
-                spawn_mushroom(&mut commands, &mut meshes, &mut materials, tile_pos);
+                if hit.player_size == PlayerSize::Small {
+                    spawn_mushroom(&mut commands, &mut meshes, &mut materials, tile_pos);
+                } else {
+                    spawn_fire_flower(&mut commands, &mut meshes, &mut materials, tile_pos);
+                }
             } else {
                 spawn_coin_pop(&mut commands, &mut meshes, &mut materials, tile_pos);
                 game_data.add_coin();
@@ -82,7 +86,7 @@ fn process_block_hits(
             level.set_char(col, row, 'E');
         }
         'B' => {
-            if hit.is_big {
+            if hit.player_size != PlayerSize::Small {
                 // Big Mario breaks brick
                 commands.entity(tile_entity).despawn();
                 level.set_char(col, row, '.');
@@ -210,6 +214,39 @@ fn spawn_mushroom(
                 Mesh2d(stem_mesh),
                 MeshMaterial2d(stem_mat),
                 Transform::from_xyz(0.0, -5.0, 0.0),
+            ));
+        });
+}
+
+fn spawn_fire_flower(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<ColorMaterial>>,
+    block_pos: Vec3,
+) {
+    let flower_mesh = meshes.add(Circle::new(5.0));
+    let flower_mat = materials.add(ColorMaterial::from_color(Color::srgb(1.0, 0.4, 0.1)));
+    let stem_mesh = meshes.add(Rectangle::new(4.0, 8.0));
+    let stem_mat = materials.add(ColorMaterial::from_color(Color::srgb(0.2, 0.7, 0.2)));
+
+    commands
+        .spawn((
+            FireFlower,
+            FireFlowerEmerging { remaining: TILE_SIZE },
+            CollisionSize {
+                width: MUSHROOM_WIDTH,
+                height: MUSHROOM_HEIGHT,
+            },
+            Mesh2d(flower_mesh),
+            MeshMaterial2d(flower_mat),
+            Transform::from_xyz(block_pos.x, block_pos.y, Z_ITEM),
+            DespawnOnExit(AppState::Playing),
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Mesh2d(stem_mesh),
+                MeshMaterial2d(stem_mat),
+                Transform::from_xyz(0.0, -6.0, 0.0),
             ));
         });
 }

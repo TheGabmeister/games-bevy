@@ -155,6 +155,68 @@ pub fn level_1_1() -> [[char; LEVEL_WIDTH]; LEVEL_HEIGHT] {
     g
 }
 
+/// Compact test level (~50 columns) with every mechanic near the spawn point.
+pub fn level_test() -> [[char; LEVEL_WIDTH]; LEVEL_HEIGHT] {
+    let mut g = [['.'; LEVEL_WIDTH]; LEVEL_HEIGHT];
+
+    // Ground (rows 13–14) with one pit at cols 24–25
+    for col in 0..58 {
+        if !matches!(col, 24..=25) {
+            g[13][col] = '#';
+            g[14][col] = '#';
+        }
+    }
+
+    // Spawn
+    g[12][3] = 'S';
+
+    // Overhead blocks: ? (coin), M (mushroom) x3, B (brick)
+    g[9][5] = 'M';
+    g[9][6] = 'M';
+    g[9][8] = '?';
+    g[9][9] = 'M';
+    g[9][10] = 'B';
+
+    // Goombas
+    g[12][13] = 'G';
+    g[12][14] = 'G';
+
+    // Short pipe (2 tiles tall)
+    pipe(&mut g, 17, 12);
+
+    // Floating coins
+    g[8][21] = 'C';
+    g[8][22] = 'C';
+    g[8][23] = 'C';
+
+    // Bricks for breaking as Big Mario + ? block above
+    g[9][28] = 'B';
+    g[9][29] = 'B';
+    g[9][30] = 'B';
+    g[5][29] = '?';
+
+    // Koopa
+    g[12][33] = 'K';
+
+    // Tall pipe (3 tiles tall)
+    pipe(&mut g, 36, 11);
+
+    // Staircase (ascending, 4 high)
+    staircase(&mut g, 39, 4, true);
+
+    // Goomba trio (shell-kick testing)
+    g[12][44] = 'G';
+    g[12][45] = 'G';
+    g[12][46] = 'G';
+
+    // Flagpole
+    for row in 3..=12 {
+        g[row][49] = 'F';
+    }
+
+    g
+}
+
 fn set_tiles(g: &mut [[char; LEVEL_WIDTH]; LEVEL_HEIGHT], ch: char, positions: &[(usize, usize)]) {
     for &(col, row) in positions {
         g[row][col] = ch;
@@ -229,12 +291,15 @@ pub fn spawn_level(
     // Player meshes
     let player_small_mesh = meshes.add(Rectangle::new(PLAYER_WIDTH, PLAYER_SMALL_HEIGHT));
     let player_big_mesh = meshes.add(Rectangle::new(PLAYER_WIDTH, PLAYER_BIG_HEIGHT));
+    let fire_player_mat = materials.add(ColorMaterial::from_color(Color::srgb(0.95, 0.95, 0.95)));
     commands.insert_resource(PlayerMeshes {
         small: player_small_mesh.clone(),
         big: player_big_mesh,
+        normal_mat: player_mat.clone(),
+        fire_mat: fire_player_mat,
     });
 
-    let grid = level_1_1();
+    let grid = level_test();
     commands.insert_resource(LevelGrid { grid });
 
     let mut sp = (0.0_f32, 0.0_f32);
@@ -366,12 +431,104 @@ pub fn spawn_level(
                         DespawnOnExit(AppState::Playing),
                     ));
                 }
+                'F' => {
+                    // Thin flagpole segment
+                    let pole_mesh = meshes.add(Rectangle::new(FLAGPOLE_POLE_WIDTH, TILE_SIZE));
+                    let pole_mat = materials.add(ColorMaterial::from_color(
+                        Color::srgb(0.5, 0.5, 0.5),
+                    ));
+                    commands.spawn((
+                        Tile,
+                        Mesh2d(pole_mesh),
+                        MeshMaterial2d(pole_mat),
+                        Transform::from_xyz(wx, wy, Z_TILE),
+                        DespawnOnExit(AppState::Playing),
+                    ));
+
+                    // Flag at topmost pole tile
+                    if row == FLAGPOLE_TOP_ROW {
+                        let flag_mesh =
+                            meshes.add(Rectangle::new(FLAGPOLE_FLAG_SIZE, FLAGPOLE_FLAG_SIZE));
+                        let flag_mat = materials.add(ColorMaterial::from_color(
+                            Color::srgb(0.2, 0.8, 0.2),
+                        ));
+                        commands.spawn((
+                            FlagpoleFlag,
+                            Mesh2d(flag_mesh),
+                            MeshMaterial2d(flag_mat),
+                            Transform::from_xyz(
+                                wx - FLAGPOLE_FLAG_SIZE / 2.0 - FLAGPOLE_POLE_WIDTH / 2.0,
+                                wy,
+                                Z_TILE + 0.1,
+                            ),
+                            DespawnOnExit(AppState::Playing),
+                        ));
+
+                        // Ball at top of pole
+                        let ball_mesh = meshes.add(Circle::new(3.0));
+                        let ball_mat = materials.add(ColorMaterial::from_color(
+                            Color::srgb(0.9, 0.9, 0.0),
+                        ));
+                        commands.spawn((
+                            Mesh2d(ball_mesh),
+                            MeshMaterial2d(ball_mat),
+                            Transform::from_xyz(wx, wy + TILE_SIZE / 2.0 + 3.0, Z_TILE + 0.1),
+                            DespawnOnExit(AppState::Playing),
+                        ));
+                    }
+                }
                 'S' => {
                     sp = (wx, wy);
                 }
                 _ => {}
             }
         }
+    }
+
+    // Castle — placed a few tiles right of the flagpole
+    let mut flagpole_col: Option<usize> = None;
+    for col in 0..LEVEL_WIDTH {
+        if grid[FLAGPOLE_BOTTOM_ROW][col] == 'F' {
+            flagpole_col = Some(col);
+            break;
+        }
+    }
+    if let Some(pole_col) = flagpole_col {
+        let castle_col = pole_col + CASTLE_OFFSET_TILES;
+        let (castle_x, _) = tile_to_world(castle_col, 12);
+        let (_, ground_center_y) = tile_to_world(castle_col, 13);
+        let ground_top_y = ground_center_y + TILE_SIZE / 2.0;
+
+        // Castle body
+        let body_mesh = meshes.add(Rectangle::new(48.0, 48.0));
+        let body_mat = materials.add(ColorMaterial::from_color(Color::srgb(0.5, 0.35, 0.2)));
+        commands.spawn((
+            Castle,
+            Mesh2d(body_mesh),
+            MeshMaterial2d(body_mat),
+            Transform::from_xyz(castle_x, ground_top_y + 24.0, Z_DECORATION),
+            DespawnOnExit(AppState::Playing),
+        ));
+
+        // Castle roof (triangle)
+        let roof_mesh = meshes.add(RegularPolygon::new(20.0, 3));
+        let roof_mat = materials.add(ColorMaterial::from_color(Color::srgb(0.6, 0.15, 0.15)));
+        commands.spawn((
+            Mesh2d(roof_mesh),
+            MeshMaterial2d(roof_mat),
+            Transform::from_xyz(castle_x, ground_top_y + 58.0, Z_DECORATION),
+            DespawnOnExit(AppState::Playing),
+        ));
+
+        // Castle door
+        let door_mesh = meshes.add(Rectangle::new(12.0, 16.0));
+        let door_mat = materials.add(ColorMaterial::from_color(Color::srgb(0.1, 0.1, 0.1)));
+        commands.spawn((
+            Mesh2d(door_mesh),
+            MeshMaterial2d(door_mat),
+            Transform::from_xyz(castle_x, ground_top_y + 8.0, Z_DECORATION + 0.1),
+            DespawnOnExit(AppState::Playing),
+        ));
     }
 
     *spawn_point = SpawnPoint { x: sp.0, y: sp.1 };

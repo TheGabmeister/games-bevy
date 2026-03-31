@@ -32,16 +32,22 @@ Super Mario Bros clone. Placeholder geometry (colored rectangles/ellipses), no s
 
 ### Module Structure
 
-- **`main.rs`** — App setup, plugin registration, `GameplaySet` ordering (~50 lines)
-- **`player.rs`** — `PlayerPlugin` — input, gravity, velocity, tile collision, death animation
+- **`main.rs`** — App setup, plugin registration, `GameplaySet` ordering (~60 lines)
+- **`player.rs`** — `PlayerPlugin` — input, gravity, velocity, tile collision, death animation, ducking gate
 - **`camera.rs`** — `CameraPlugin` — camera setup, reset on level enter, smooth follow
-- **`enemy.rs`** — `EnemyPlugin` — enemy activation, patrol AI, gravity, tile collision, stomp/death detection, score popups
+- **`enemy/`** — `EnemyPlugin` (registered from `enemy/mod.rs`)
+  - **`mod.rs`** — shared physics (walk, gravity, velocity, tile collision, activation, despawn), squish timer, score popups, `mario_take_damage` helper
+  - **`goomba.rs`** — `mario_goomba_collision` (stomp → squish)
+  - **`koopa.rs`** — `mario_koopa_collision` (stomp → shell), `mario_shell_collision` (kick/stop), `shell_enemy_collision` (chain kills)
+- **`block.rs`** — `BlockPlugin` — head-hit processing (`PendingBlockHit` resource), `?`/`M` block content release, brick bump/break, block bounce animation, coin pop, brick particles, floating coin collection
+- **`powerup.rs`** — `PowerUpPlugin` — mushroom emerge/collection, growth/shrink animation (`PlayState::Growing`), invincibility flashing, ducking (Big Mario)
+- **`collision.rs`** — Shared collision helpers: `aabb_overlap()` for entity-vs-entity overlap, `resolve_tile_collisions()` for AABB-vs-grid (used by both player and enemy tile collision)
 - **`ui.rs`** — `UiPlugin` — start screen, game over screen, HUD (score/coins/world/timer), pause overlay, countdown timer
 - **`level.rs`** — Level 1-1 grid (211×15 chars), `LevelGrid` resource, coordinate conversion, `spawn_level` system
 - **`states.rs`** — `AppState`, `PlayState` sub-state, `GameplaySet` enum
-- **`resources.rs`** — `GameData` (score, coins, lives, timer), `SpawnPoint`, `DeathAnimation`
-- **`components.rs`** — All ECS marker/data types (Player, Velocity, Grounded, Tile, Goomba, EnemyWalker, HUD markers, etc.)
-- **`constants.rs`** — All tunable values (window, camera, player, physics, enemies, z-layers)
+- **`resources.rs`** — `GameData` (score, coins, lives, timer), `SpawnPoint`, `DeathAnimation`, `PendingBlockHit`, `PlayerMeshes`
+- **`components.rs`** — All ECS marker/data types (Player, Velocity, Grounded, Tile, Goomba, KoopaTroopa, Shell, Mushroom, CollisionSize, PlayerSize, HUD markers, etc.)
+- **`constants.rs`** — All tunable values (window, camera, player, physics, enemies, blocks, power-ups, z-layers)
 
 ### Coordinate System
 
@@ -49,11 +55,23 @@ The level grid uses row 0 = top, row 14 = bottom. World space has Y increasing u
 
 ### Tile Collision
 
-Collision uses the `LevelGrid` resource (char grid) for O(1) tile lookups — not entity queries. `is_solid()` checks the char directly. Both player (`tile_collision` in `player.rs`) and enemy (`enemy_tile_collision` in `enemy.rs`) systems convert an entity's AABB to a grid neighborhood (~12 tiles), resolve overlaps by smallest-penetration-axis push-out, and use a 1-pixel grounded probe. Enemies reverse `EnemyWalker.direction` on wall hits instead of zeroing velocity.
+Collision uses the `LevelGrid` resource (char grid) for O(1) tile lookups — not entity queries. `is_solid()` checks the char directly. The shared `resolve_tile_collisions()` in `collision.rs` handles the AABB-vs-grid loop for both player and enemies: it converts an entity's AABB to a grid neighborhood (~12 tiles), resolves overlaps by smallest-penetration-axis push-out, uses a 1-pixel grounded probe, and returns head-hit info. A `WallAction` enum controls horizontal collision behavior (`Stop` for player, `Reverse` for enemies). Entity-vs-entity overlap uses `aabb_overlap()` from the same module.
 
 ### Enemy Activation
 
 Enemies are spawned inactive (no `EnemyActive` component). The `enemy_activation` system adds `EnemyActive` when an enemy scrolls within one tile of the camera's right edge. Once activated, enemies stay active permanently. All enemy physics systems filter `With<EnemyActive>`.
+
+### Block Interactions
+
+Mario hitting a block from below is detected in `player.rs` `tile_collision` and stored in the `PendingBlockHit` resource (single optional hit per frame, consumed by `process_block_hits` in `block.rs`). The `LevelGrid` char is the source of truth: `?` → coin pop, `M` → mushroom spawn, `B` → bump (small) or break (big). After hit, `?`/`M` become `E` (solid but not hittable). Brick break despawns the tile entity and sets grid to `.`. `TilePos` components on `?`/`M`/`B` tiles enable entity lookup by grid position.
+
+### Power-up System
+
+Mushrooms emerge from `M` blocks with a rising `MushroomEmerging` animation, then receive `EnemyWalker` + `EnemyActive` to reuse enemy physics (gravity, tile collision, wall bounce). Collection triggers `PlayState::Growing` which freezes gameplay while flashing between sizes. `PlayerMeshes` resource holds both small/big mesh handles for swapping. `CollisionSize` component on the player is updated dynamically (small=16, big=32, ducking=16). Damage shrink grants 2s `Invincible` (visibility flashing, enemy pass-through).
+
+### Koopa & Shell Mechanics
+
+Koopa Troopa patrols like Goomba. Stomp despawns the Koopa and spawns a `Shell` entity (stationary, `EnemyWalker` with speed=0). Kick sets speed=`SHELL_SPEED`, stomp sets speed=0. Moving shells kill enemies on contact with chain scoring (200×2^n). Shell reuses enemy physics via `EnemyWalker`/`EnemyActive` — wall bounce handled automatically by `enemy_tile_collision`.
 
 ### Physics Model
 
@@ -66,7 +84,7 @@ Uses `OrthographicProjection` scaled to show ~267×200 world units (NES-like res
 ### State Machine
 
 - **`AppState`**: `StartScreen → Playing → GameOver` (cycles via Enter key)
-- **`PlayState`** (sub-state of `Playing`): `Running`, `Dying`, `Paused`, `LevelComplete`
+- **`PlayState`** (sub-state of `Playing`): `Running`, `Dying`, `Paused`, `LevelComplete`, `Growing`
 - Gate gameplay systems with `.run_if(in_state(PlayState::Running))` (not just `AppState::Playing`)
 - Use `OnEnter`/`OnExit` for spawn/cleanup symmetry
 - Prefer `DespawnOnExit(AppState::Playing)` on entities that should auto-despawn when leaving a state
@@ -84,9 +102,9 @@ Each plugin drops its systems into the appropriate set:
 - **Input**: `player_input`, `enemy_activation`
 - **Physics**: player gravity/velocity/collision chain, enemy walk/gravity/velocity/collision chain
 - **Camera**: `camera_follow`
-- **Late**: `check_pit_death`, `countdown_timer`, `mario_enemy_collision`, `enemy_despawn_out_of_bounds`
+- **Late**: `check_pit_death`, `countdown_timer`, `mario_goomba_collision`, `mario_koopa_collision`, `mario_shell_collision`, `shell_enemy_collision`, `enemy_despawn_out_of_bounds`, `process_block_hits`, `floating_coin_collection`, `mushroom_collection`
 
-Systems outside the chain (HUD update, pause input, squish timer, score popups) use direct `run_if` conditions.
+Systems outside the chain (HUD update, pause input, squish timer, score popups, block/coin/brick animations, mushroom emerge, growth animation, invincibility, ducking) use direct `run_if` conditions.
 
 ### Messages and Observers
 
@@ -116,6 +134,7 @@ Use Bevy's query filters for performance and correctness:
 - `With<T>`/`Without<T>` to narrow queries without reading a component's data
 - `Changed<T>` to run logic only when a component is mutated
 - `Added<T>` to detect newly added components
+- **Disjoint queries**: When a system has multiple queries that access the same component (especially `&mut`), Bevy requires proof they can never match the same entity. `With<Goomba>` vs `With<KoopaTroopa>` is **not** sufficient — add explicit `Without<KoopaTroopa>` to the Goomba query and vice versa. Always cross-exclude enemy type markers (`Goomba`, `KoopaTroopa`, `Shell`) on queries that share mutable component access.
 
 ### Assets
 

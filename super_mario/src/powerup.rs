@@ -1,8 +1,9 @@
 use bevy::prelude::*;
 
-use crate::collision::aabb_overlap;
+use crate::collision::{self, aabb_overlap, WallAction};
 use crate::components::*;
 use crate::constants::*;
+use crate::level::LevelGrid;
 use crate::resources::*;
 use crate::states::*;
 
@@ -12,11 +13,24 @@ impl Plugin for PowerUpPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            mushroom_emerge.run_if(in_state(PlayState::Running)),
+            (mushroom_emerge, fire_flower_emerge).run_if(in_state(PlayState::Running)),
         )
         .add_systems(
             Update,
-            mushroom_collection.in_set(GameplaySet::Late),
+            (
+                mushroom_collection,
+                fire_flower_collection,
+                fireball_enemy_collision,
+            )
+                .in_set(GameplaySet::Late),
+        )
+        .add_systems(
+            Update,
+            fireball_shoot.in_set(GameplaySet::Input),
+        )
+        .add_systems(
+            Update,
+            fireball_physics.in_set(GameplaySet::Physics),
         )
         .add_systems(
             Update,
@@ -54,6 +68,25 @@ fn mushroom_emerge(
                 },
                 EnemyActive,
             ));
+        }
+    }
+}
+
+// ── Fire Flower Emerge ──
+
+fn fire_flower_emerge(
+    time: Res<Time>,
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut FireFlowerEmerging, &mut Transform), With<FireFlower>>,
+) {
+    for (entity, mut emerging, mut transform) in &mut query {
+        let move_amount = MUSHROOM_EMERGE_SPEED * time.delta_secs();
+        emerging.remaining -= move_amount;
+        transform.translation.y += move_amount;
+
+        if emerging.remaining <= 0.0 {
+            commands.entity(entity).remove::<FireFlowerEmerging>();
+            // Fire flower stays stationary — no EnemyWalker added
         }
     }
 }
@@ -123,6 +156,271 @@ fn mushroom_collection(
     }
 }
 
+// ── Fire Flower Collection ──
+
+fn fire_flower_collection(
+    mut commands: Commands,
+    mut game_data: ResMut<GameData>,
+    mut player_query: Query<
+        (Entity, &Transform, &CollisionSize, &mut PlayerSize, &mut MeshMaterial2d<ColorMaterial>),
+        With<Player>,
+    >,
+    flower_query: Query<
+        (Entity, &Transform, &CollisionSize),
+        (With<FireFlower>, Without<FireFlowerEmerging>, Without<Player>),
+    >,
+    player_meshes: Option<Res<PlayerMeshes>>,
+) {
+    let Ok((_entity, player_tf, player_coll, mut player_size, mut player_mat)) =
+        player_query.single_mut()
+    else {
+        return;
+    };
+
+    for (flower_entity, flower_tf, flower_coll) in &flower_query {
+        if aabb_overlap(
+            player_tf.translation.x, player_tf.translation.y,
+            player_coll.width / 2.0, player_coll.height / 2.0,
+            flower_tf.translation.x, flower_tf.translation.y,
+            flower_coll.width / 2.0, flower_coll.height / 2.0,
+        ).is_some() {
+            commands.entity(flower_entity).despawn();
+            game_data.score += FIRE_FLOWER_SCORE;
+
+            commands.spawn((
+                ScorePopup(Timer::from_seconds(SCORE_POPUP_DURATION, TimerMode::Once)),
+                Text2d::new(format!("+{FIRE_FLOWER_SCORE}")),
+                TextFont { font_size: 8.0, ..default() },
+                TextColor(Color::WHITE),
+                Transform::from_xyz(
+                    flower_tf.translation.x,
+                    flower_tf.translation.y + 10.0,
+                    Z_PLAYER + 1.0,
+                ),
+                DespawnOnExit(AppState::Playing),
+            ));
+
+            if *player_size == PlayerSize::Big {
+                *player_size = PlayerSize::Fire;
+                if let Some(ref meshes) = player_meshes {
+                    player_mat.0 = meshes.fire_mat.clone();
+                }
+            }
+            // If already Fire or Small, just score
+
+            break;
+        }
+    }
+}
+
+// ── Fireball Shooting ──
+
+fn fireball_shoot(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut commands: Commands,
+    player_query: Query<(&Transform, &FacingDirection, &PlayerSize), With<Player>>,
+    fireball_query: Query<&Fireball>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    if !(keyboard.just_pressed(KeyCode::KeyJ) || keyboard.just_pressed(KeyCode::KeyE)) {
+        return;
+    }
+
+    let Ok((player_tf, facing, player_size)) = player_query.single() else {
+        return;
+    };
+
+    if *player_size != PlayerSize::Fire {
+        return;
+    }
+
+    if fireball_query.iter().count() >= MAX_FIREBALLS {
+        return;
+    }
+
+    let dir = match facing {
+        FacingDirection::Left => -1.0,
+        FacingDirection::Right => 1.0,
+    };
+
+    let spawn_x = player_tf.translation.x + dir * (PLAYER_WIDTH / 2.0 + FIREBALL_RADIUS + 2.0);
+    let spawn_y = player_tf.translation.y;
+
+    let mesh = meshes.add(Circle::new(FIREBALL_RADIUS));
+    let mat = materials.add(ColorMaterial::from_color(Color::srgb(1.0, 0.5, 0.0)));
+
+    commands.spawn((
+        Fireball { direction: dir },
+        Velocity { x: FIREBALL_SPEED * dir, y: 0.0 },
+        CollisionSize { width: FIREBALL_RADIUS * 2.0, height: FIREBALL_RADIUS * 2.0 },
+        Mesh2d(mesh),
+        MeshMaterial2d(mat),
+        Transform::from_xyz(spawn_x, spawn_y, Z_ITEM),
+        DespawnOnExit(AppState::Playing),
+    ));
+}
+
+// ── Fireball Physics ──
+
+fn fireball_physics(
+    mut commands: Commands,
+    time: Res<Time>,
+    level: Res<LevelGrid>,
+    mut query: Query<(Entity, &Fireball, &mut Velocity, &mut Transform)>,
+) {
+    let dt = time.delta_secs();
+
+    for (entity, fireball, mut vel, mut transform) in &mut query {
+        // Gravity
+        vel.y -= GRAVITY_DESCENDING * dt;
+        vel.y = vel.y.max(-TERMINAL_VELOCITY);
+
+        // Set horizontal velocity (constant speed)
+        vel.x = FIREBALL_SPEED * fireball.direction;
+
+        // Movement
+        transform.translation.x += vel.x * dt;
+        transform.translation.y += vel.y * dt;
+
+        // Tile collision
+        let half = FIREBALL_RADIUS;
+        let mut dummy_dir = fireball.direction;
+        let result = collision::resolve_tile_collisions(
+            &level,
+            &mut transform.translation,
+            &mut vel,
+            half,
+            half,
+            WallAction::Stop,
+            &mut dummy_dir,
+        );
+
+        // Wall hit → despawn (vel.x was zeroed by collision)
+        if vel.x.abs() < 0.1 {
+            commands.entity(entity).despawn();
+            continue;
+        }
+
+        // Bounce on ground
+        if result.grounded && vel.y <= 0.0 {
+            vel.y = FIREBALL_BOUNCE_IMPULSE;
+        }
+
+        // Off screen → despawn
+        if transform.translation.y < DEATH_Y {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
+// ── Fireball–Enemy Collision ──
+
+fn fireball_enemy_collision(
+    mut commands: Commands,
+    fireball_query: Query<(Entity, &Transform, &CollisionSize), With<Fireball>>,
+    goomba_query: Query<
+        (Entity, &Transform, &CollisionSize),
+        (With<Goomba>, With<EnemyActive>, Without<Squished>, Without<Fireball>),
+    >,
+    koopa_query: Query<
+        (Entity, &Transform, &CollisionSize),
+        (With<KoopaTroopa>, With<EnemyActive>, Without<Fireball>, Without<Goomba>),
+    >,
+    mut game_data: ResMut<GameData>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    for (fb_entity, fb_tf, fb_coll) in &fireball_query {
+        let fb_x = fb_tf.translation.x;
+        let fb_y = fb_tf.translation.y;
+        let fb_hw = fb_coll.width / 2.0;
+        let fb_hh = fb_coll.height / 2.0;
+        let mut hit = false;
+
+        // Check Goombas
+        for (goomba_entity, goomba_tf, goomba_coll) in &goomba_query {
+            if aabb_overlap(
+                fb_x, fb_y, fb_hw, fb_hh,
+                goomba_tf.translation.x, goomba_tf.translation.y,
+                goomba_coll.width / 2.0, goomba_coll.height / 2.0,
+            ).is_some() {
+                commands.entity(goomba_entity).despawn();
+                commands.entity(fb_entity).despawn();
+                game_data.score += FIREBALL_SCORE;
+
+                commands.spawn((
+                    ScorePopup(Timer::from_seconds(SCORE_POPUP_DURATION, TimerMode::Once)),
+                    Text2d::new(format!("+{FIREBALL_SCORE}")),
+                    TextFont { font_size: 8.0, ..default() },
+                    TextColor(Color::WHITE),
+                    Transform::from_xyz(
+                        goomba_tf.translation.x,
+                        goomba_tf.translation.y + 10.0,
+                        Z_PLAYER + 1.0,
+                    ),
+                    DespawnOnExit(AppState::Playing),
+                ));
+
+                hit = true;
+                break;
+            }
+        }
+
+        if hit {
+            continue;
+        }
+
+        // Check Koopas → spawn shell
+        for (koopa_entity, koopa_tf, koopa_coll) in &koopa_query {
+            if aabb_overlap(
+                fb_x, fb_y, fb_hw, fb_hh,
+                koopa_tf.translation.x, koopa_tf.translation.y,
+                koopa_coll.width / 2.0, koopa_coll.height / 2.0,
+            ).is_some() {
+                commands.entity(koopa_entity).despawn();
+                commands.entity(fb_entity).despawn();
+                game_data.score += FIREBALL_SCORE;
+
+                // Spawn shell
+                let shell_y = koopa_tf.translation.y - (KOOPA_HEIGHT - SHELL_HEIGHT) / 2.0;
+                let shell_mesh = meshes.add(Rectangle::new(SHELL_WIDTH, SHELL_HEIGHT));
+                let shell_mat = materials.add(ColorMaterial::from_color(
+                    Color::srgb(0.2, 0.65, 0.2),
+                ));
+
+                commands.spawn((
+                    Shell { state: ShellState::Stationary, chain_kills: 0 },
+                    EnemyWalker { speed: 0.0, direction: 1.0 },
+                    CollisionSize { width: SHELL_WIDTH, height: SHELL_HEIGHT },
+                    Velocity::default(),
+                    Grounded(true),
+                    EnemyActive,
+                    Mesh2d(shell_mesh),
+                    MeshMaterial2d(shell_mat),
+                    Transform::from_xyz(koopa_tf.translation.x, shell_y, Z_ENEMY),
+                    DespawnOnExit(AppState::Playing),
+                ));
+
+                commands.spawn((
+                    ScorePopup(Timer::from_seconds(SCORE_POPUP_DURATION, TimerMode::Once)),
+                    Text2d::new(format!("+{FIREBALL_SCORE}")),
+                    TextFont { font_size: 8.0, ..default() },
+                    TextColor(Color::WHITE),
+                    Transform::from_xyz(
+                        koopa_tf.translation.x,
+                        koopa_tf.translation.y + 10.0,
+                        Z_PLAYER + 1.0,
+                    ),
+                    DespawnOnExit(AppState::Playing),
+                ));
+
+                break;
+            }
+        }
+    }
+}
+
 // ── Growth Animation ──
 
 fn growth_animation_system(
@@ -136,13 +434,14 @@ fn growth_animation_system(
             &mut CollisionSize,
             &mut PlayerSize,
             &mut Mesh2d,
+            &mut MeshMaterial2d<ColorMaterial>,
         ),
         With<Player>,
     >,
     mut next_play_state: ResMut<NextState<PlayState>>,
     player_meshes: Option<Res<PlayerMeshes>>,
 ) {
-    let Ok((entity, mut growth, mut transform, mut coll_size, mut player_size, mut mesh)) =
+    let Ok((entity, mut growth, mut transform, mut coll_size, mut player_size, mut mesh, mut mat)) =
         query.single_mut()
     else {
         return;
@@ -193,10 +492,11 @@ fn growth_animation_system(
         };
 
         if !growth.growing {
-            // Shrink complete — grant invincibility
+            // Shrink complete — grant invincibility and reset material
             commands.entity(entity).insert(Invincible {
                 timer: Timer::from_seconds(INVINCIBILITY_DURATION, TimerMode::Once),
             });
+            mat.0 = meshes.normal_mat.clone();
         }
 
         commands.entity(entity).remove::<GrowthAnimation>();
@@ -259,17 +559,17 @@ fn ducking_system(
     let wants_duck =
         keyboard.pressed(KeyCode::ArrowDown) || keyboard.pressed(KeyCode::KeyS);
 
-    if *player_size == PlayerSize::Big && grounded.0 && wants_duck && !is_ducking {
+    if *player_size != PlayerSize::Small && grounded.0 && wants_duck && !is_ducking {
         // Start ducking
         commands.entity(entity).insert(Ducking);
         let old_height = coll_size.height;
         coll_size.height = PLAYER_SMALL_HEIGHT;
         mesh.0 = meshes.small.clone();
         transform.translation.y -= (old_height - PLAYER_SMALL_HEIGHT) / 2.0;
-    } else if is_ducking && (!wants_duck || !grounded.0 || *player_size != PlayerSize::Big) {
+    } else if is_ducking && (!wants_duck || !grounded.0 || *player_size == PlayerSize::Small) {
         // Stop ducking
         commands.entity(entity).remove::<Ducking>();
-        if *player_size == PlayerSize::Big {
+        if *player_size != PlayerSize::Small {
             coll_size.height = PLAYER_BIG_HEIGHT;
             mesh.0 = meshes.big.clone();
             transform.translation.y += (PLAYER_BIG_HEIGHT - PLAYER_SMALL_HEIGHT) / 2.0;

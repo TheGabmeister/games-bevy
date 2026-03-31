@@ -338,6 +338,27 @@ StartScreen → Playing → LevelComplete → Playing (next level)
 - 2 pipes
 - Flagpole + castle at the end
 
+### Test Level (development)
+
+A compact ~50-column level that places every implemented mechanic within a few seconds of the spawn point, for rapid testing without traversing the full 1-1 layout. Ground ends at the level boundary — walking past is a natural death.
+
+```
+Col  0–5:   Flat ground + spawn (col 3)
+Col  8–10:  Overhead blocks — ? (coin), M (mushroom), B (brick) at row 9
+Col 13–14:  Goomba pair
+Col 17–18:  Short pipe (2 tiles)
+Col 21–23:  Floating coins at row 8
+Col 24–25:  Pit (gap in ground)
+Col 28–30:  Bricks for breaking as Big Mario, ? block above at row 5
+Col 33:     Koopa Troopa
+Col 36–37:  Tall pipe (3 tiles)
+Col 39–42:  Staircase (ascending, 4 high)
+Col 44–46:  Goomba trio (shell-kick testing)
+Col 49:     Flagpole
+```
+
+Activated by swapping `level_1_1()` → `level_test()` in `spawn_level`. The original level is preserved.
+
 ### Level 1-2 (stretch goal)
 - Underground theme (dark background, different block colors)
 - More platforming challenges

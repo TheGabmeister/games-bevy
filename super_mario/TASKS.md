@@ -157,14 +157,14 @@ Ordered for incremental learning. Each task produces a runnable game with visibl
 
 **You'll learn**: Projectile systems, max-entity constraints, bouncing physics, conditional power-ups.
 
-- [ ] **10.1** When Big/Fire Mario hits a `M` question block: release Fire Flower instead of Mushroom
-- [ ] **10.2** Fire Flower entity — circle on rectangle stem, orange/red, stationary (doesn't slide)
-- [ ] **10.3** Mario + Fire Flower: become Fire Mario (color change — white/red palette)
-- [ ] **10.4** Fire button shoots fireball (small orange circle) in facing direction
-- [ ] **10.5** Fireball physics: travels horizontally, bounces on ground (one bounce arc), then despawns
-- [ ] **10.6** Max 2 fireballs on screen at once
-- [ ] **10.7** Fireball kills enemies on contact (Goomba dies, Koopa goes to shell)
-- [ ] **10.8** Fire Mario takes damage → Small Mario (skips Big)
+- [x] **10.1** When Big/Fire Mario hits a `M` question block: release Fire Flower instead of Mushroom
+- [x] **10.2** Fire Flower entity — circle on rectangle stem, orange/red, stationary (doesn't slide)
+- [x] **10.3** Mario + Fire Flower: become Fire Mario (color change — white/red palette)
+- [x] **10.4** Fire button shoots fireball (small orange circle) in facing direction
+- [x] **10.5** Fireball physics: travels horizontally, bounces on ground (one bounce arc), then despawns
+- [x] **10.6** Max 2 fireballs on screen at once
+- [x] **10.7** Fireball kills enemies on contact (Goomba dies, Koopa goes to shell)
+- [x] **10.8** Fire Mario takes damage → Small Mario (skips Big)
 
 **Milestone**: Fire Mario shoots bouncing fireballs that kill enemies.
 
@@ -174,13 +174,13 @@ Ordered for incremental learning. Each task produces a runnable game with visibl
 
 **You'll learn**: Scripted sequences, disabling player input, score tallying, level transitions.
 
-- [ ] **11.1** Add flagpole at the end of the level (tall thin rectangle + triangle flag)
-- [ ] **11.2** Add castle after flagpole (rectangles + triangle roof)
-- [ ] **11.3** Mario touches flagpole → enter LevelComplete sub-state, disable all player input. Mario is now driven by scripted movement (direct transform control, not the input→velocity pipeline).
-- [ ] **11.4** Flagpole sequence: snap Mario to pole x-position, slide down at fixed speed, then walk right to castle entrance at fixed speed
-- [ ] **11.5** Score based on flagpole contact height (higher = more points, top = 5000)
-- [ ] **11.6** Time bonus: remaining time × 50, visibly count down on HUD
-- [ ] **11.7** After tally: transition to next level (or loop to Level 1-1)
+- [x] **11.1** Add flagpole at the end of the level (tall thin rectangle + triangle flag)
+- [x] **11.2** Add castle after flagpole (rectangles + triangle roof)
+- [x] **11.3** Mario touches flagpole → enter LevelComplete sub-state, disable all player input. Mario is now driven by scripted movement (direct transform control, not the input→velocity pipeline).
+- [x] **11.4** Flagpole sequence: snap Mario to pole x-position, slide down at fixed speed, then walk right to castle entrance at fixed speed
+- [x] **11.5** Score based on flagpole contact height (higher = more points, top = 5000)
+- [x] **11.6** Time bonus: remaining time × 50, visibly count down on HUD
+- [x] **11.7** After tally: transition to next level (or loop to Level 1-1)
 
 **Milestone**: Complete end-of-level sequence with scoring and level transitions.
 
@@ -204,10 +204,11 @@ Ordered for incremental learning. Each task produces a runnable game with visibl
 
 ## Phase 13: Second Level & Progression (Stretch)
 
-- [ ] **13.1** Create Level 1-2 layout (underground theme — dark background, different colors)
-- [ ] **13.2** Level transition system — load different level data based on world progression
-- [ ] **13.3** Increase difficulty — more enemies, trickier platforming
-- [ ] **13.4** Add level name display at start ("WORLD 1-2")
+- [ ] **13.1** Extract level data into RON files — move the char grid out of `level.rs` into `assets/levels/1-1.ron`, load via `AssetServer`
+- [ ] **13.2** Create Level 1-2 layout as a RON file (underground theme — dark background, different colors)
+- [ ] **13.3** Level transition system — load different level data based on world progression
+- [ ] **13.4** Increase difficulty — more enemies, trickier platforming
+- [ ] **13.5** Add level name display at start ("WORLD 1-2")
 
 ---
 

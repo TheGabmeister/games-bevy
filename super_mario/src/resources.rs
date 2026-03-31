@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use crate::components::PlayerSize;
 use crate::constants::{COINS_PER_LIFE, TIMER_START};
 
 #[derive(Resource)]
@@ -55,7 +56,7 @@ impl GameData {
 pub struct BlockHitInfo {
     pub col: i32,
     pub row: i32,
-    pub is_big: bool,
+    pub player_size: PlayerSize,
 }
 
 #[derive(Resource, Default)]
@@ -63,9 +64,29 @@ pub struct PendingBlockHit {
     pub hit: Option<BlockHitInfo>,
 }
 
-// Player mesh handles for size switching
+// Player mesh/material handles for size and color switching
 #[derive(Resource)]
 pub struct PlayerMeshes {
     pub small: Handle<Mesh>,
     pub big: Handle<Mesh>,
+    pub normal_mat: Handle<ColorMaterial>,
+    pub fire_mat: Handle<ColorMaterial>,
+}
+
+// Level complete animation state
+#[derive(Resource)]
+pub struct LevelCompleteAnimation {
+    pub phase: LevelCompletePhase,
+    pub pole_x: f32,
+    pub pole_base_y: f32,
+    pub castle_x: f32,
+    pub done_timer: Timer,
+    pub flagpole_score: u32,
+}
+
+pub enum LevelCompletePhase {
+    SlideDown,
+    WalkToCastle,
+    TimeTally,
+    Done,
 }
