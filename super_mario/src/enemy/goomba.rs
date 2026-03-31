@@ -79,6 +79,7 @@ pub fn mario_goomba_collision(
             &CollisionSize,
             &PlayerSize,
             Has<Invincible>,
+            Has<StarPower>,
         ),
         With<Player>,
     >,
@@ -96,18 +97,32 @@ pub fn mario_goomba_collision(
     mut score_events: MessageWriter<ScoreEvent>,
     mut next_play_state: ResMut<NextState<PlayState>>,
 ) {
-    let Ok((player_entity, mut player_vel, player_tf, player_coll, &player_size, is_invincible)) =
+    let Ok((player_entity, mut player_vel, player_tf, player_coll, &player_size, is_invincible, has_star_power)) =
         player_query.single_mut()
     else {
         return;
     };
 
-    if is_invincible {
-        return;
-    }
-
     for (entity, mut enemy_tf, mut enemy_vel, enemy_coll) in &mut goomba_query {
         if !entities_overlap(player_tf, player_coll, &enemy_tf, &enemy_coll) {
+            continue;
+        }
+
+        // Star power: kill on any contact
+        if has_star_power {
+            commands.entity(entity).despawn();
+            score_events.write(ScoreEvent { points: STAR_KILL_SCORE });
+
+            ui::spawn_score_popup(
+                &mut commands,
+                STAR_KILL_SCORE,
+                enemy_tf.translation.x,
+                enemy_tf.translation.y + GOOMBA_HEIGHT,
+            );
+            continue;
+        }
+
+        if is_invincible {
             continue;
         }
 

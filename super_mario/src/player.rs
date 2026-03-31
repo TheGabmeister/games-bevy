@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use crate::assets::GameAssets;
 use crate::collision::{self, WallAction};
 use crate::components::*;
 use crate::constants::*;
@@ -25,6 +26,10 @@ impl Plugin for PlayerPlugin {
         .add_systems(
             Update,
             check_pit_death.in_set(GameplaySet::Late),
+        )
+        .add_systems(
+            Update,
+            (skid_system, update_player_face).run_if(in_state(PlayState::Running)),
         );
     }
 }
@@ -181,6 +186,68 @@ fn check_pit_death(
     let Ok(player_tf) = player_query.single() else { return };
     if player_tf.translation.y < DEATH_Y {
         next_play_state.set(PlayState::Dying);
+    }
+}
+
+fn skid_system(
+    action: Res<ActionInput>,
+    mut commands: Commands,
+    mut query: Query<
+        (
+            Entity,
+            &Velocity,
+            &Grounded,
+            &PlayerSize,
+            &mut MeshMaterial2d<ColorMaterial>,
+            Has<Skidding>,
+            Has<StarPower>,
+        ),
+        With<Player>,
+    >,
+    assets: Res<GameAssets>,
+) {
+    let Ok((entity, vel, grounded, player_size, mut mat, is_skidding, has_star)) =
+        query.single_mut()
+    else {
+        return;
+    };
+
+    // Don't override star power visuals
+    if has_star {
+        if is_skidding {
+            commands.entity(entity).remove::<Skidding>();
+        }
+        return;
+    }
+
+    let should_skid = grounded.0
+        && vel.x.abs() > SKID_SPEED_THRESHOLD
+        && action.move_x != 0.0
+        && action.move_x * vel.x < 0.0;
+
+    if should_skid && !is_skidding {
+        commands.entity(entity).insert(Skidding);
+        mat.0 = assets.player.skid_mat.clone();
+    } else if !should_skid && is_skidding {
+        commands.entity(entity).remove::<Skidding>();
+        mat.0 = match player_size {
+            PlayerSize::Fire => assets.player.fire_mat.clone(),
+            _ => assets.player.normal_mat.clone(),
+        };
+    }
+}
+
+fn update_player_face(
+    player_query: Query<(&CollisionSize, &Children), With<Player>>,
+    mut face_query: Query<&mut Transform, With<PlayerFace>>,
+) {
+    let Ok((coll, children)) = player_query.single() else {
+        return;
+    };
+    for child in children.iter() {
+        if let Ok(mut tf) = face_query.get_mut(child) {
+            tf.translation.y = coll.height / 2.0 - 4.0;
+        }
     }
 }
 

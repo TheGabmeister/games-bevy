@@ -140,6 +140,8 @@ pub fn init_spawner_registry(
     reg.register('B', { let t = t.clone(); Box::new(move |c, wx, wy, col, row| { t.spawn(c, TileType::Brick, wx, wy, Some((col as i32, row as i32))); }) });
     reg.register('?', { let t = t.clone(); Box::new(move |c, wx, wy, col, row| { t.spawn(c, TileType::QuestionBlock, wx, wy, Some((col as i32, row as i32))); }) });
     reg.register('M', { let t = t.clone(); Box::new(move |c, wx, wy, col, row| { t.spawn(c, TileType::QuestionBlock, wx, wy, Some((col as i32, row as i32))); }) });
+    reg.register('T', { let t = t.clone(); Box::new(move |c, wx, wy, col, row| { t.spawn(c, TileType::QuestionBlock, wx, wy, Some((col as i32, row as i32))); }) });
+    reg.register('L', { let t = t.clone(); Box::new(move |c, wx, wy, col, row| { t.spawn(c, TileType::QuestionBlock, wx, wy, Some((col as i32, row as i32))); }) });
     reg.register('X', { let t = t.clone(); Box::new(move |c, wx, wy, _, _| { t.spawn(c, TileType::Solid, wx, wy, None); }) });
     reg.register('[', { let t = t.clone(); Box::new(move |c, wx, wy, _, _| { t.spawn(c, TileType::PipeTopLeft, wx, wy, None); }) });
     reg.register(']', { let t = t.clone(); Box::new(move |c, wx, wy, _, _| { t.spawn(c, TileType::PipeTopRight, wx, wy, None); }) });
@@ -159,9 +161,13 @@ pub fn init_spawner_registry(
     }));
 }
 
-/// Pre-load the level asset at the start of gameplay.
-pub fn load_level(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let handle: Handle<LevelData> = asset_server.load("levels/test.level.ron");
+/// Load the current level asset based on LevelList.
+pub fn load_level(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    level_list: Res<LevelList>,
+) {
+    let handle: Handle<LevelData> = asset_server.load(level_list.current_path());
     commands.insert_resource(LevelHandle(handle));
 }
 
@@ -179,7 +185,7 @@ impl LevelGrid {
         }
         matches!(
             self.grid[row as usize][col as usize],
-            '#' | 'B' | '?' | 'M' | 'X' | '[' | ']' | '{' | '}' | 'E'
+            '#' | 'B' | '?' | 'M' | 'X' | '[' | ']' | '{' | '}' | 'E' | 'T' | 'L'
         )
     }
 
@@ -200,7 +206,7 @@ impl LevelGrid {
 
     /// Returns true if the tile can be hit from below (? or M or B, but not E/used).
     pub fn is_hittable(&self, col: i32, row: i32) -> bool {
-        matches!(self.get_char(col, row), '?' | 'M' | 'B')
+        matches!(self.get_char(col, row), '?' | 'M' | 'B' | 'T' | 'L')
     }
 }
 
@@ -226,6 +232,7 @@ pub fn world_to_row(wy: f32) -> i32 {
 ///
 /// Tile legend:
 /// `.` empty   `#` ground   `B` brick   `?` question (coin)   `M` question (mushroom)
+/// `T` question (starman)   `L` question (1-up mushroom)
 /// `[` pipe-top-left   `]` pipe-top-right   `{` pipe-body-left   `}` pipe-body-right
 /// `X` solid (staircase)   `S` spawn   `G` Goomba   `K` Koopa   `F` flagpole
 /// `C` floating coin
@@ -329,12 +336,14 @@ pub fn level_test() -> [[char; LEVEL_WIDTH]; LEVEL_HEIGHT] {
     // Spawn
     g[12][3] = 'S';
 
-    // Overhead blocks: ? (coin), M (mushroom) x3, B (brick)
+    // Overhead blocks: ? (coin), M (mushroom) x2, T (star), L (1-up), B (brick)
     g[9][5] = 'M';
     g[9][6] = 'M';
     g[9][8] = '?';
-    g[9][9] = 'M';
-    g[9][10] = 'B';
+    g[9][9] = 'T';
+    g[9][10] = 'M';
+    g[9][11] = 'B';
+    g[9][12] = 'L';
 
     // Goombas
     g[12][13] = 'G';
@@ -417,6 +426,7 @@ pub fn spawn_level(
     level_handle: Res<LevelHandle>,
     level_assets: Res<Assets<LevelData>>,
     registry: Res<SpawnerRegistry>,
+    deco_assets: Res<crate::decoration::DecorationAssets>,
 ) {
     let level_data = level_assets.get(&level_handle.0);
 
@@ -487,6 +497,10 @@ pub fn spawn_level(
 
     // Mario
     assets.player.spawn(&mut commands, sp.0, sp.1);
+
+    // Decorations
+    let level_grid = LevelGrid { grid };
+    crate::decoration::spawn_decorations(&mut commands, &level_grid, &deco_assets);
 
     // HUD
     ui::spawn_hud(&mut commands, &game_data, &game_timer);

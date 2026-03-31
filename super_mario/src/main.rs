@@ -7,6 +7,7 @@ mod collision;
 mod components;
 mod constants;
 mod death;
+mod decoration;
 mod enemy;
 mod input;
 mod level;
@@ -40,6 +41,7 @@ fn main() {
         .init_resource::<GameData>()
         .init_resource::<GameTimer>()
         .init_resource::<SpawnPoint>()
+        .init_resource::<LevelList>()
         .add_message::<ScoreEvent>()
         .add_message::<CoinEvent>()
         .configure_sets(
@@ -63,6 +65,7 @@ fn main() {
             powerup::PowerUpPlugin,
             death::DeathPlugin,
             level_complete::LevelCompletePlugin,
+            decoration::DecorationPlugin,
         ))
         .init_asset::<level::LevelData>()
         .register_asset_loader(level::LevelAssetLoader)

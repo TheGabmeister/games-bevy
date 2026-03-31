@@ -105,6 +105,7 @@ fn level_complete_system(
     mut game_timer: ResMut<GameTimer>,
     mut score_events: MessageWriter<ScoreEvent>,
     mut next_app_state: ResMut<NextState<AppState>>,
+    mut level_list: ResMut<LevelList>,
 ) {
     let Ok((mut player_tf, mut vel)) = player_query.single_mut() else {
         return;
@@ -153,7 +154,8 @@ fn level_complete_system(
             anim.done_timer.tick(time.delta());
             if anim.done_timer.is_finished() {
                 commands.remove_resource::<LevelCompleteAnimation>();
-                next_app_state.set(AppState::StartScreen);
+                level_list.advance();
+                next_app_state.set(AppState::LevelTransition);
             }
         }
     }

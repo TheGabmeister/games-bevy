@@ -121,7 +121,7 @@ fn init_koopa(
 pub fn mario_koopa_collision(
     mut commands: Commands,
     mut player_query: Query<
-        (Entity, &mut Velocity, &Transform, &CollisionSize, &PlayerSize, Has<Invincible>),
+        (Entity, &mut Velocity, &Transform, &CollisionSize, &PlayerSize, Has<Invincible>, Has<StarPower>),
         With<Player>,
     >,
     koopa_query: Query<
@@ -132,18 +132,32 @@ pub fn mario_koopa_collision(
     mut next_play_state: ResMut<NextState<PlayState>>,
     shell_assets: Res<ShellAssets>,
 ) {
-    let Ok((player_entity, mut player_vel, player_tf, player_coll, &player_size, is_invincible)) =
+    let Ok((player_entity, mut player_vel, player_tf, player_coll, &player_size, is_invincible, has_star_power)) =
         player_query.single_mut()
     else {
         return;
     };
 
-    if is_invincible {
-        return;
-    }
-
     for (entity, enemy_tf, enemy_coll) in &koopa_query {
         if !entities_overlap(player_tf, player_coll, enemy_tf, enemy_coll) {
+            continue;
+        }
+
+        // Star power: kill on any contact
+        if has_star_power {
+            commands.entity(entity).despawn();
+            score_events.write(ScoreEvent { points: STAR_KILL_SCORE });
+
+            ui::spawn_score_popup(
+                &mut commands,
+                STAR_KILL_SCORE,
+                enemy_tf.translation.x,
+                enemy_tf.translation.y + KOOPA_HEIGHT / 2.0,
+            );
+            continue;
+        }
+
+        if is_invincible {
             continue;
         }
 
@@ -182,27 +196,42 @@ pub fn mario_koopa_collision(
 pub fn mario_shell_collision(
     mut commands: Commands,
     mut player_query: Query<
-        (Entity, &mut Velocity, &Transform, &CollisionSize, &PlayerSize, Has<Invincible>),
+        (Entity, &mut Velocity, &Transform, &CollisionSize, &PlayerSize, Has<Invincible>, Has<StarPower>),
         With<Player>,
     >,
     mut shell_query: Query<
         (Entity, &Transform, &CollisionSize, &mut Shell, &mut Velocity, &mut EnemyWalker),
         (With<Shell>, Without<Player>, Without<Goomba>, Without<KoopaTroopa>),
     >,
+    mut score_events: MessageWriter<ScoreEvent>,
     mut next_play_state: ResMut<NextState<PlayState>>,
 ) {
-    let Ok((player_entity, mut player_vel, player_tf, player_coll, &player_size, is_invincible)) =
+    let Ok((player_entity, mut player_vel, player_tf, player_coll, &player_size, is_invincible, has_star_power)) =
         player_query.single_mut()
     else {
         return;
     };
 
-    if is_invincible {
-        return;
-    }
-
-    for (_entity, shell_tf, shell_coll, mut shell, mut shell_vel, mut walker) in &mut shell_query {
+    for (shell_entity, shell_tf, shell_coll, mut shell, mut shell_vel, mut walker) in &mut shell_query {
         if !entities_overlap(player_tf, player_coll, &shell_tf, &shell_coll) {
+            continue;
+        }
+
+        // Star power: destroy shell on any contact
+        if has_star_power {
+            commands.entity(shell_entity).despawn();
+            score_events.write(ScoreEvent { points: STAR_KILL_SCORE });
+
+            ui::spawn_score_popup(
+                &mut commands,
+                STAR_KILL_SCORE,
+                shell_tf.translation.x,
+                shell_tf.translation.y + SHELL_HEIGHT / 2.0,
+            );
+            continue;
+        }
+
+        if is_invincible {
             continue;
         }
 

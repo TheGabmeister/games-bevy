@@ -106,3 +106,36 @@ pub enum LevelCompletePhase {
     TimeTally,
     Done,
 }
+
+// Level list for multi-level progression
+#[derive(Resource)]
+pub struct LevelList {
+    pub paths: Vec<String>,
+    pub current: usize,
+}
+
+impl Default for LevelList {
+    fn default() -> Self {
+        Self {
+            paths: vec![
+                "levels/1-1.level.ron".to_string(),
+                "levels/1-2.level.ron".to_string(),
+            ],
+            current: 0,
+        }
+    }
+}
+
+impl LevelList {
+    pub fn current_path(&self) -> String {
+        self.paths[self.current].clone()
+    }
+
+    pub fn advance(&mut self) {
+        self.current = (self.current + 1) % self.paths.len();
+    }
+}
+
+// Level transition timer
+#[derive(Resource)]
+pub struct LevelTransitionTimer(pub Timer);

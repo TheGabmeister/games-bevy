@@ -65,10 +65,16 @@ pub struct PlayerAssets {
     pub big_mesh: Handle<Mesh>,
     pub normal_mat: Handle<ColorMaterial>,
     pub fire_mat: Handle<ColorMaterial>,
+    pub skid_mat: Handle<ColorMaterial>,
+    pub face_mesh: Handle<Mesh>,
+    pub face_mat: Handle<ColorMaterial>,
 }
 
 impl PlayerAssets {
     pub fn spawn(&self, commands: &mut Commands, x: f32, y: f32) -> Entity {
+        let face_mesh = self.face_mesh.clone();
+        let face_mat = self.face_mat.clone();
+
         commands
             .spawn((
                 Player,
@@ -85,6 +91,14 @@ impl PlayerAssets {
                 Transform::from_xyz(x, y, Z_PLAYER),
                 DespawnOnExit(AppState::Playing),
             ))
+            .with_children(|parent| {
+                parent.spawn((
+                    PlayerFace,
+                    Mesh2d(face_mesh),
+                    MeshMaterial2d(face_mat),
+                    Transform::from_xyz(0.0, 4.0, 0.1),
+                ));
+            })
             .id()
     }
 }
@@ -310,6 +324,69 @@ impl BrickParticleAssets {
     }
 }
 
+#[derive(Clone)]
+pub struct StarmanAssets {
+    pub mesh: Handle<Mesh>,
+    pub mat: Handle<ColorMaterial>,
+}
+
+impl StarmanAssets {
+    pub fn spawn(&self, commands: &mut Commands, block_pos: Vec3) -> Entity {
+        commands
+            .spawn((
+                Starman,
+                StarmanEmerging { remaining: TILE_SIZE },
+                CollisionSize {
+                    width: STARMAN_WIDTH,
+                    height: STARMAN_HEIGHT,
+                },
+                Velocity::default(),
+                Grounded::default(),
+                Mesh2d(self.mesh.clone()),
+                MeshMaterial2d(self.mat.clone()),
+                Transform::from_xyz(block_pos.x, block_pos.y, Z_ITEM),
+                DespawnOnExit(AppState::Playing),
+            ))
+            .id()
+    }
+}
+
+#[derive(Clone)]
+pub struct OneUpMushroomAssets {
+    pub cap_mesh: Handle<Mesh>,
+    pub cap_mat: Handle<ColorMaterial>,
+    pub stem_mesh: Handle<Mesh>,
+    pub stem_mat: Handle<ColorMaterial>,
+}
+
+impl OneUpMushroomAssets {
+    pub fn spawn(&self, commands: &mut Commands, block_pos: Vec3) -> Entity {
+        commands
+            .spawn((
+                OneUpMushroom,
+                MushroomEmerging { remaining: TILE_SIZE },
+                CollisionSize {
+                    width: MUSHROOM_WIDTH,
+                    height: MUSHROOM_HEIGHT,
+                },
+                Velocity::default(),
+                Grounded::default(),
+                Mesh2d(self.cap_mesh.clone()),
+                MeshMaterial2d(self.cap_mat.clone()),
+                Transform::from_xyz(block_pos.x, block_pos.y, Z_ITEM),
+                DespawnOnExit(AppState::Playing),
+            ))
+            .with_children(|parent| {
+                parent.spawn((
+                    Mesh2d(self.stem_mesh.clone()),
+                    MeshMaterial2d(self.stem_mat.clone()),
+                    Transform::from_xyz(0.0, -5.0, 0.0),
+                ));
+            })
+            .id()
+    }
+}
+
 pub struct FireballAssets {
     pub mesh: Handle<Mesh>,
     pub mat: Handle<ColorMaterial>,
@@ -354,6 +431,8 @@ pub struct GameAssets {
     pub coin_pop: CoinPopAssets,
     pub brick_particle: BrickParticleAssets,
     pub fireball: FireballAssets,
+    pub starman: StarmanAssets,
+    pub one_up_mushroom: OneUpMushroomAssets,
 }
 
 pub fn init_game_assets(
@@ -381,6 +460,11 @@ pub fn init_game_assets(
                 .add(ColorMaterial::from_color(Color::srgb(0.8, 0.1, 0.1))),
             fire_mat: materials
                 .add(ColorMaterial::from_color(Color::srgb(0.95, 0.95, 0.95))),
+            skid_mat: materials
+                .add(ColorMaterial::from_color(Color::srgb(1.0, 0.6, 0.3))),
+            face_mesh: meshes.add(Rectangle::new(10.0, 5.0)),
+            face_mat: materials
+                .add(ColorMaterial::from_color(Color::srgb(0.95, 0.78, 0.58))),
         },
 
         floating_coin: FloatingCoinAssets {
@@ -434,6 +518,19 @@ pub fn init_game_assets(
         fireball: FireballAssets {
             mesh: meshes.add(Circle::new(FIREBALL_RADIUS)),
             mat: materials.add(ColorMaterial::from_color(Color::srgb(1.0, 0.5, 0.0))),
+        },
+
+        starman: StarmanAssets {
+            mesh: meshes.add(RegularPolygon::new(7.0, 5)),
+            mat: materials.add(ColorMaterial::from_color(Color::srgb(1.0, 0.9, 0.0))),
+        },
+
+        one_up_mushroom: OneUpMushroomAssets {
+            cap_mesh: meshes.add(Ellipse::new(7.0, 5.0)),
+            cap_mat: materials.add(ColorMaterial::from_color(Color::srgb(0.2, 0.75, 0.2))),
+            stem_mesh: meshes.add(Rectangle::new(8.0, 6.0)),
+            stem_mat: materials
+                .add(ColorMaterial::from_color(Color::srgb(0.95, 0.85, 0.7))),
         },
     });
 }

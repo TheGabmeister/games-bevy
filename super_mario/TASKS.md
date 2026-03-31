@@ -190,13 +190,13 @@ Ordered for incremental learning. Each task produces a runnable game with visibl
 
 **You'll learn**: Non-interactive entities, parallax hints, visual polish, background layers.
 
-- [ ] **12.1** Add clouds — groups of overlapping white circles, positioned above play area
-- [ ] **12.2** Add bushes — overlapping green circles at ground level
-- [ ] **12.3** Add hills — large dark green ellipses behind the ground
-- [ ] **12.4** Add visual variety to Mario (tan face rectangle on the red body)
-- [ ] **12.5** Skid visual — Mario flashes or changes color when reversing direction at speed
-- [ ] **12.6** Polish death animation timing and feel
-- [ ] **12.7** Add particle burst when breaking bricks (if not done in Phase 7)
+- [x] **12.1** Add clouds — groups of overlapping white circles, positioned above play area
+- [x] **12.2** Add bushes — overlapping green circles at ground level
+- [x] **12.3** Add hills — large dark green ellipses behind the ground
+- [x] **12.4** Add visual variety to Mario (tan face rectangle on the red body)
+- [x] **12.5** Skid visual — Mario flashes or changes color when reversing direction at speed
+- [x] **12.6** Polish death animation timing and feel
+- [x] **12.7** Add particle burst when breaking bricks (if not done in Phase 7)
 
 **Milestone**: The level looks alive with decorations and polished animations.
 
@@ -205,20 +205,20 @@ Ordered for incremental learning. Each task produces a runnable game with visibl
 ## Phase 13: Second Level & Progression (Stretch)
 
 - [x] **13.1** Extract level data into RON files — move the char grid out of `level.rs` into `assets/levels/1-1.ron`, load via `AssetServer`
-- [ ] **13.2** Create Level 1-2 layout as a RON file (underground theme — dark background, different colors)
-- [ ] **13.3** Level transition system — load different level data based on world progression
-- [ ] **13.4** Increase difficulty — more enemies, trickier platforming
-- [ ] **13.5** Add level name display at start ("WORLD 1-2")
+- [x] **13.2** Create Level 1-2 layout as a RON file (underground theme — dark background, different colors)
+- [x] **13.3** Level transition system — load different level data based on world progression
+- [x] **13.4** Increase difficulty — more enemies, trickier platforming
+- [x] **13.5** Add level name display at start ("WORLD 1-2")
 
 ---
 
 ## Phase 14: Advanced Features (Stretch)
 
-- [ ] **14.1** Starman power-up — bouncing star polygon, invincibility + flashing + kill on contact
+- [x] **14.1** Starman power-up — bouncing star polygon, invincibility + flashing + kill on contact
 - [ ] **14.2** Moving platforms — horizontally or vertically moving rectangles Mario can ride
 - [ ] **14.3** Warp pipes — press Down on certain pipes to teleport
 - [ ] **14.4** Screen shake on block break / big stomp
-- [ ] **14.5** 1-Up mushroom (green) — grants extra life
+- [x] **14.5** 1-Up mushroom (green) — grants extra life
 - [ ] **14.6** Combo stomp scoring (consecutive stomps without landing)
 
 ---

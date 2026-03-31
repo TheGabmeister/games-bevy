@@ -62,7 +62,7 @@ pub const TIMER_TICK_RATE: f32 = 2.5; // ticks per second
 pub const DEATH_Y: f32 = -160.0;
 pub const DEATH_BOUNCE_IMPULSE: f32 = 280.0;
 pub const DEATH_PAUSE_DURATION: f32 = 0.5;
-pub const DEATH_FALL_DURATION: f32 = 3.0;
+pub const DEATH_FALL_DURATION: f32 = 2.0;
 
 // Goomba
 pub const GOOMBA_WIDTH: f32 = 14.0;
@@ -136,6 +136,31 @@ pub const TIME_BONUS_PER_TICK: u32 = 50;
 pub const TIME_TALLY_RATE: f32 = 60.0;
 pub const LEVEL_COMPLETE_DONE_DELAY: f32 = 2.0;
 pub const CASTLE_OFFSET_TILES: usize = 4;
+
+// Decorations
+pub const CLOUD_CIRCLE_RADIUS: f32 = 10.0;
+pub const BUSH_CIRCLE_RADIUS: f32 = 8.0;
+pub const SMALL_HILL_WIDTH: f32 = 40.0;
+pub const SMALL_HILL_HEIGHT: f32 = 18.0;
+pub const BIG_HILL_WIDTH: f32 = 72.0;
+pub const BIG_HILL_HEIGHT: f32 = 30.0;
+pub const DECORATION_PERIOD: usize = 48;
+
+// Skid
+pub const SKID_SPEED_THRESHOLD: f32 = 40.0;
+
+// Level transition
+pub const LEVEL_TRANSITION_DURATION: f32 = 2.5;
+
+// Starman
+pub const STARMAN_SPEED: f32 = 60.0;
+pub const STARMAN_BOUNCE_IMPULSE: f32 = 200.0;
+pub const STARMAN_WIDTH: f32 = 14.0;
+pub const STARMAN_HEIGHT: f32 = 14.0;
+pub const STARMAN_SCORE: u32 = 1000;
+pub const STAR_POWER_DURATION: f32 = 10.0;
+pub const STAR_POWER_FLASH_INTERVAL: f32 = 0.05;
+pub const STAR_KILL_SCORE: u32 = 200;
 
 // Gamepad
 pub const STICK_DEADZONE: f32 = 0.2;

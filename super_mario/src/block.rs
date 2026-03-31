@@ -56,7 +56,7 @@ fn process_block_hits(
     let tile_pos = tile_tf.translation;
 
     match ch {
-        '?' | 'M' => {
+        '?' | 'M' | 'T' | 'L' => {
             // Bounce animation
             commands.entity(tile_entity).insert(BlockBounce {
                 timer: Timer::from_seconds(BLOCK_BOUNCE_DURATION, TimerMode::Once),
@@ -70,16 +70,26 @@ fn process_block_hits(
                 .insert(MeshMaterial2d(assets.tile.empty_block_mat.clone()));
 
             // Spawn content
-            if ch == 'M' {
-                if hit.player_size == PlayerSize::Small {
-                    assets.mushroom.spawn(&mut commands, tile_pos);
-                } else {
-                    assets.fire_flower.spawn(&mut commands, tile_pos);
+            match ch {
+                'M' => {
+                    if hit.player_size == PlayerSize::Small {
+                        assets.mushroom.spawn(&mut commands, tile_pos);
+                    } else {
+                        assets.fire_flower.spawn(&mut commands, tile_pos);
+                    }
                 }
-            } else {
-                assets.coin_pop.spawn(&mut commands, tile_pos);
-                coin_events.write(CoinEvent);
-                score_events.write(ScoreEvent { points: COIN_SCORE });
+                'T' => {
+                    assets.starman.spawn(&mut commands, tile_pos);
+                }
+                'L' => {
+                    assets.one_up_mushroom.spawn(&mut commands, tile_pos);
+                }
+                _ => {
+                    // '?' — coin
+                    assets.coin_pop.spawn(&mut commands, tile_pos);
+                    coin_events.write(CoinEvent);
+                    score_events.write(ScoreEvent { points: COIN_SCORE });
+                }
             }
 
             // Mark grid as used (solid but not hittable)

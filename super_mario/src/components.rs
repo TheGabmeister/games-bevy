@@ -185,3 +185,36 @@ pub struct FlagpoleFlag;
 // Castle marker
 #[derive(Component)]
 pub struct Castle;
+
+// Starman power-up (bouncing item)
+#[derive(Component)]
+pub struct Starman;
+
+#[derive(Component)]
+pub struct StarmanEmerging {
+    pub remaining: f32,
+}
+
+// Star power (invincibility granted by starman)
+#[derive(Component)]
+pub struct StarPower {
+    pub timer: Timer,
+    pub flash_timer: Timer,
+    pub color_index: usize,
+}
+
+// 1-Up Mushroom (green, grants extra life)
+#[derive(Component)]
+pub struct OneUpMushroom;
+
+// Player face (child entity for visual detail)
+#[derive(Component)]
+pub struct PlayerFace;
+
+// Skidding visual (reversing direction at speed)
+#[derive(Component)]
+pub struct Skidding;
+
+// Decoration marker
+#[derive(Component)]
+pub struct Decoration;

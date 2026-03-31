@@ -14,39 +14,45 @@ pub struct PowerUpPlugin;
 
 impl Plugin for PowerUpPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
-            Update,
-            (mushroom_emerge, fire_flower_emerge).run_if(in_state(PlayState::Running)),
-        )
-        .add_systems(
-            Update,
-            (
-                mushroom_collection,
-                fire_flower_collection,
-                fireball_enemy_collision,
+        app.add_systems(Startup, init_star_power_materials)
+            .add_systems(
+                Update,
+                (mushroom_emerge, fire_flower_emerge, starman_emerge)
+                    .run_if(in_state(PlayState::Running)),
             )
-                .in_set(GameplaySet::Late),
-        )
-        .add_systems(
-            Update,
-            fireball_shoot.in_set(GameplaySet::Input),
-        )
-        .add_systems(
-            Update,
-            fireball_physics.in_set(GameplaySet::Physics),
-        )
-        .add_systems(
-            Update,
-            growth_animation_system.run_if(in_state(PlayState::Growing)),
-        )
-        .add_systems(
-            Update,
-            invincibility_system.run_if(in_state(PlayState::Running)),
-        )
-        .add_systems(
-            Update,
-            ducking_system.run_if(in_state(PlayState::Running)),
-        );
+            .add_systems(
+                Update,
+                (
+                    mushroom_collection,
+                    fire_flower_collection,
+                    fireball_enemy_collision,
+                    starman_bounce,
+                    starman_collection,
+                    one_up_collection,
+                )
+                    .in_set(GameplaySet::Late),
+            )
+            .add_systems(
+                Update,
+                fireball_shoot.in_set(GameplaySet::Input),
+            )
+            .add_systems(
+                Update,
+                fireball_physics.in_set(GameplaySet::Physics),
+            )
+            .add_systems(
+                Update,
+                growth_animation_system.run_if(in_state(PlayState::Growing)),
+            )
+            .add_systems(
+                Update,
+                (invincibility_system, star_power_system)
+                    .run_if(in_state(PlayState::Running)),
+            )
+            .add_systems(
+                Update,
+                ducking_system.run_if(in_state(PlayState::Running)),
+            );
     }
 }
 
@@ -55,7 +61,7 @@ impl Plugin for PowerUpPlugin {
 fn mushroom_emerge(
     time: Res<Time>,
     mut commands: Commands,
-    mut query: Query<(Entity, &mut MushroomEmerging, &mut Transform), With<Mushroom>>,
+    mut query: Query<(Entity, &mut MushroomEmerging, &mut Transform)>,
 ) {
     for (entity, mut emerging, mut transform) in &mut query {
         let move_amount = MUSHROOM_EMERGE_SPEED * time.delta_secs();
@@ -469,6 +475,189 @@ fn ducking_system(
             coll_size.height = PLAYER_BIG_HEIGHT;
             mesh.0 = assets.player.big_mesh.clone();
             transform.translation.y += (PLAYER_BIG_HEIGHT - PLAYER_SMALL_HEIGHT) / 2.0;
+        }
+    }
+}
+
+// ── Star Power Materials ──
+
+#[derive(Resource)]
+pub struct StarPowerMaterials {
+    pub colors: Vec<Handle<ColorMaterial>>,
+}
+
+fn init_star_power_materials(
+    mut commands: Commands,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    commands.insert_resource(StarPowerMaterials {
+        colors: vec![
+            materials.add(ColorMaterial::from_color(Color::srgb(1.0, 0.9, 0.0))),
+            materials.add(ColorMaterial::from_color(Color::srgb(0.2, 0.9, 0.2))),
+            materials.add(ColorMaterial::from_color(Color::srgb(0.2, 0.7, 1.0))),
+            materials.add(ColorMaterial::from_color(Color::srgb(1.0, 1.0, 1.0))),
+        ],
+    });
+}
+
+// ── Starman Emerge ──
+
+fn starman_emerge(
+    time: Res<Time>,
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut StarmanEmerging, &mut Transform), With<Starman>>,
+) {
+    for (entity, mut emerging, mut transform) in &mut query {
+        let move_amount = MUSHROOM_EMERGE_SPEED * time.delta_secs();
+        emerging.remaining -= move_amount;
+        transform.translation.y += move_amount;
+
+        if emerging.remaining <= 0.0 {
+            commands.entity(entity).remove::<StarmanEmerging>();
+            commands.entity(entity).insert((
+                EnemyWalker {
+                    speed: STARMAN_SPEED,
+                    direction: 1.0,
+                },
+                EnemyActive,
+            ));
+        }
+    }
+}
+
+// ── Starman Bounce ──
+
+fn starman_bounce(
+    mut query: Query<
+        (&mut Velocity, &Grounded),
+        (With<Starman>, With<EnemyActive>, Without<StarmanEmerging>),
+    >,
+) {
+    for (mut vel, grounded) in &mut query {
+        if grounded.0 {
+            vel.y = STARMAN_BOUNCE_IMPULSE;
+        }
+    }
+}
+
+// ── Starman Collection ──
+
+fn starman_collection(
+    mut commands: Commands,
+    mut score_events: MessageWriter<ScoreEvent>,
+    player_query: Query<
+        (Entity, &Transform, &CollisionSize),
+        With<Player>,
+    >,
+    starman_query: Query<
+        (Entity, &Transform, &CollisionSize),
+        (With<Starman>, Without<StarmanEmerging>, Without<Player>),
+    >,
+) {
+    let Ok((player_entity, player_tf, player_coll)) = player_query.single() else {
+        return;
+    };
+
+    for (star_entity, star_tf, star_coll) in &starman_query {
+        if entities_overlap(player_tf, player_coll, star_tf, star_coll) {
+            commands.entity(star_entity).despawn();
+            score_events.write(ScoreEvent { points: STARMAN_SCORE });
+
+            ui::spawn_score_popup(
+                &mut commands, STARMAN_SCORE,
+                star_tf.translation.x,
+                star_tf.translation.y + 10.0,
+            );
+
+            commands.entity(player_entity).insert(StarPower {
+                timer: Timer::from_seconds(STAR_POWER_DURATION, TimerMode::Once),
+                flash_timer: Timer::from_seconds(
+                    STAR_POWER_FLASH_INTERVAL,
+                    TimerMode::Repeating,
+                ),
+                color_index: 0,
+            });
+
+            break;
+        }
+    }
+}
+
+// ── Star Power System ──
+
+fn star_power_system(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut query: Query<
+        (Entity, &mut StarPower, &mut MeshMaterial2d<ColorMaterial>, &PlayerSize),
+        With<Player>,
+    >,
+    star_mats: Res<StarPowerMaterials>,
+    assets: Res<GameAssets>,
+) {
+    let Ok((entity, mut star, mut mat, player_size)) = query.single_mut() else {
+        return;
+    };
+
+    star.timer.tick(time.delta());
+    star.flash_timer.tick(time.delta());
+
+    if star.timer.is_finished() {
+        // Restore original material
+        mat.0 = match player_size {
+            PlayerSize::Fire => assets.player.fire_mat.clone(),
+            _ => assets.player.normal_mat.clone(),
+        };
+        commands.entity(entity).remove::<StarPower>();
+        return;
+    }
+
+    // Color cycling
+    if star.flash_timer.is_finished() {
+        star.flash_timer.reset();
+        star.color_index = (star.color_index + 1) % star_mats.colors.len();
+        mat.0 = star_mats.colors[star.color_index].clone();
+    }
+}
+
+// ── 1-Up Mushroom Collection ──
+
+fn one_up_collection(
+    mut commands: Commands,
+    mut game_data: ResMut<GameData>,
+    player_query: Query<
+        (&Transform, &CollisionSize),
+        With<Player>,
+    >,
+    one_up_query: Query<
+        (Entity, &Transform, &CollisionSize),
+        (With<OneUpMushroom>, Without<MushroomEmerging>, Without<Player>),
+    >,
+) {
+    let Ok((player_tf, player_coll)) = player_query.single() else {
+        return;
+    };
+
+    for (entity, one_up_tf, one_up_coll) in &one_up_query {
+        if entities_overlap(player_tf, player_coll, one_up_tf, one_up_coll) {
+            commands.entity(entity).despawn();
+            game_data.lives += 1;
+
+            // "+1UP" popup in green
+            commands.spawn((
+                ScorePopup(Timer::from_seconds(SCORE_POPUP_DURATION, TimerMode::Once)),
+                Text2d::new("+1UP"),
+                TextFont { font_size: 8.0, ..default() },
+                TextColor(Color::srgb(0.2, 0.8, 0.2)),
+                Transform::from_xyz(
+                    one_up_tf.translation.x,
+                    one_up_tf.translation.y + 10.0,
+                    Z_PLAYER + 1.0,
+                ),
+                DespawnOnExit(AppState::Playing),
+            ));
+
+            break;
         }
     }
 }

@@ -67,6 +67,12 @@ impl Plugin for UiPlugin {
             .add_systems(
                 Update,
                 game_over_input.run_if(in_state(AppState::GameOver)),
+            )
+            // Level transition
+            .add_systems(OnEnter(AppState::LevelTransition), spawn_transition_screen)
+            .add_systems(
+                Update,
+                transition_screen_update.run_if(in_state(AppState::LevelTransition)),
             );
     }
 }
@@ -112,7 +118,7 @@ fn start_screen_input(
     mut next_state: ResMut<NextState<AppState>>,
 ) {
     if action.confirm_just_pressed {
-        next_state.set(AppState::Playing);
+        next_state.set(AppState::LevelTransition);
     }
 }
 
@@ -301,8 +307,81 @@ fn spawn_game_over_screen(mut commands: Commands) {
 fn game_over_input(
     action: Res<ActionInput>,
     mut next_state: ResMut<NextState<AppState>>,
+    mut level_list: ResMut<LevelList>,
 ) {
     if action.confirm_just_pressed {
+        level_list.current = 0;
         next_state.set(AppState::StartScreen);
+    }
+}
+
+// ── Level Transition Screen ──
+
+fn spawn_transition_screen(
+    mut commands: Commands,
+    level_list: Res<LevelList>,
+    game_data: Res<GameData>,
+) {
+    let path = level_list.current_path();
+    let world_name = if path.contains("1-2") {
+        "WORLD  1-2"
+    } else {
+        "WORLD  1-1"
+    };
+
+    commands.insert_resource(ClearColor(Color::BLACK));
+    commands.insert_resource(LevelTransitionTimer(
+        Timer::from_seconds(LEVEL_TRANSITION_DURATION, TimerMode::Once),
+    ));
+
+    commands
+        .spawn((
+            Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                flex_direction: FlexDirection::Column,
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                row_gap: Val::Px(20.0),
+                ..default()
+            },
+            DespawnOnExit(AppState::LevelTransition),
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                Text::new(world_name),
+                TextFont {
+                    font_size: 30.0,
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+            ));
+            parent.spawn((
+                Text::new(format!("x  {}", game_data.lives)),
+                TextFont {
+                    font_size: 20.0,
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+            ));
+        });
+}
+
+fn transition_screen_update(
+    time: Res<Time>,
+    mut commands: Commands,
+    mut timer: ResMut<LevelTransitionTimer>,
+    mut next_state: ResMut<NextState<AppState>>,
+    asset_server: Res<AssetServer>,
+    level_list: Res<LevelList>,
+) {
+    timer.0.tick(time.delta());
+    if timer.0.is_finished() {
+        // Reload the level asset for the current level
+        let handle: Handle<crate::level::LevelData> =
+            asset_server.load(level_list.current_path());
+        commands.insert_resource(crate::level::LevelHandle(handle));
+        commands.remove_resource::<LevelTransitionTimer>();
+        next_state.set(AppState::Playing);
     }
 }
