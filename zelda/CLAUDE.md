@@ -36,34 +36,56 @@ Zelda-like top-down action game using primitive 2D shapes (no sprite assets). On
 | Plugin | File | Role |
 |--------|------|------|
 | `GameStatePlugin` | `game_state.rs` | State transitions (Boot→Title→Playing⇄Paused/GameOver), `Inventory` init |
-| `ItemsPlugin` | `items.rs` | Loads `assets/data/items.ron` into `ItemTable` resource at startup |
+| `ItemsPlugin` | `items.rs` | Loads `items.ron` → `ItemTable`, `drops.ron` → `DropTable` at startup |
 | `CameraPlugin` | `camera.rs` | Fixed orthographic camera, `ScalingMode::FixedVertical(240)` |
 | `PrimitiveRenderingPlugin` | `rendering.rs` | Color palette, mesh/material spawn helpers, reactive `Label` → `Text2d` system |
-| `RoomPlugin` | `room.rs` | Room loading, transitions, perimeter walls, doors, obstacles, pickups, secrets |
+| `RoomPlugin` | `room.rs` | Room loading, transitions, walls/doors, pickups, staircases, NPCs, shops, secrets, dungeon doors, push blocks |
 | `InputPlugin` | `input.rs` | Keyboard + gamepad → `InputActions` resource |
-| `PlayerPlugin` | `player.rs` | Player spawn, movement, facing indicator |
-| `CombatPlugin` | `combat.rs` | Sword attacks, damage resolution, knockback, invulnerability, death |
+| `PlayerPlugin` | `player.rs` | Player spawn, movement, facing indicator, dialogue movement block |
+| `CombatPlugin` | `combat.rs` | Sword attacks (gated behind `has_sword`), damage, knockback, invulnerability, death, enemy drops |
 | `CollisionPlugin` | `collision.rs` | AABB overlap, split-axis movement vs `StaticBlocker` entities |
-| `UiPlugin` | `ui.rs` | HUD (hearts, counters, equipped item), title/pause/game-over overlays |
+| `UiPlugin` | `ui.rs` | HUD, title/pause/game-over overlays, dialogue text overlay, inventory subscreen |
 | `EnemyPlugin` | `enemy.rs` | Stub — enemies are spawned by rooms but have no AI |
 | `AudioPlugin` | `audio.rs` | Stub — no sound |
 
 ### Shared Modules (no plugin)
 
 - **`constants.rs`** — All tunable values: room dimensions (256×176), HUD height (64), window scale (4×), collision unit (8), door anchors, entry offsets, Z-depth layers
-- **`components.rs`** — All ECS components: `Player`, `Enemy`, `Wall`, `Door`, `StaticBlocker`, `Velocity`, `Health`, `Facing`, `Hitbox`/`Hurtbox`/`SolidBody`, `Damage`, `Knockback`, `SwordAttack`, `InvulnerabilityTimer`, `Lifetime`, `RoomEntity`, `Label`, `PickupKind`
-- **`resources.rs`** — Global state: `Score`, `PlayerVitals`, `Inventory`, `EquippedItem`, `CurrentRoom`, `RoomTransitionState`, `RoomPersistence`, `RoomId` enum, `ExitDirection` enum
+- **`components.rs`** — ECS components: `Player`, `Enemy`, `Wall`, `Door`, `StaticBlocker`, `Velocity`, `Health`, `Facing`, `Hitbox`/`Hurtbox`/`SolidBody`, `Damage`, `Knockback`, `SwordAttack`, `InvulnerabilityTimer`, `Lifetime`, `RoomEntity`, `Label`, `PickupKind`, `Npc`, `ShopItem`, `PushBlock`
+- **`resources.rs`** — Global state: `PlayerVitals`, `Inventory`, `EquippedItem`, `CurrentRoom`, `RoomTransitionState`, `RoomPersistence`, `RoomId`, `ExitDirection`, `RoomType`, `DoorKind`, `DungeonId`, `DungeonState`, `DialogueState`
 - **`states.rs`** — `AppState` enum: `Boot`, `Title`, `Playing`, `PausedInventory`, `GameOver`
 
-### Data-Driven Items
+### Data-Driven Content
 
-Item properties (label, description, color, radius, pickup effect) are defined in `assets/data/items.ron` and loaded at startup into `ItemTable` (a `Resource`). The `PickupKind` enum still lives in Rust (adding a new kind requires recompile), but all tunable data is in the RON file.
+Three RON data files in `assets/data/`:
+
+| File | Resource | Purpose |
+|------|----------|---------|
+| `items.ron` | `ItemTable` | Item properties (label, description, color, radius, pickup effect) per `PickupKind` |
+| `drops.ron` | `DropTable` | Enemy drop probabilities (kind + cumulative chance) |
+| `rooms.ron` | `RoomTable` | All room definitions (overworld, caves, dungeons) |
+
+#### Items
 
 - `items::ItemTable::lookup(kind)` → `&ItemData` (label, color, radius, effect)
-- `items::apply_pickup_effect(&effect, inventory, health, vitals)` — applies the data-driven `PickupEffect`
-- `PickupEffect` variants: `AddRupees(n)`, `RestoreHealth(n)`, `AddBombs(n)`, `AddKeys(n)`, `HeartContainer`
+- `items::apply_pickup_effect(&effect, inventory, health, vitals, dungeon_state)` — applies the data-driven `PickupEffect`
+- `PickupEffect` variants: `AddRupees(n)`, `RestoreHealth(n)`, `AddBombs(n)`, `AddKeys(n)`, `HeartContainer`, `AddDungeonKey`, `GrantDungeonMap`, `GrantCompass`, `GrantTriforce`, `GrantSword`
 
 When adding a new item type: add variant to `PickupKind`, add a `PickupEffect` variant if needed, add an entry to `items.ron`.
+
+#### Rooms
+
+Room definitions are loaded at startup into `RoomTable`. Each room specifies:
+
+- `id` (`RoomId` enum variant), `room_type` (`Overworld`/`Cave`/`Dungeon`/`Shop`/`Hint`)
+- `floor_color`, `exits` (direction + target + `DoorKind`), `staircases` (position + target room + spawn point)
+- `obstacles`, `enemies`, `unique_pickups`, `temporary_pickups`
+- `secrets` (trigger kind: `HiddenStaircase`/`BurnableBush`/`BombableWall`/`PushBlock`, optional staircase reveal)
+- `npcs` (position + dialogue lines), `shop_offers` (position + kind + price)
+
+All positions in RON are **room-local** (relative to room center 0,0). The spawn code adds `constants::ROOM_ORIGIN` during entity creation. Staircase `target_spawn` is converted to world coordinates during loading.
+
+When adding a new room: add a variant to `RoomId` enum in `resources.rs`, add the entry to `rooms.ron`. If it's a dungeon room, update `dungeon_for_room()` in `room.rs`.
 
 ### Label System
 
@@ -83,30 +105,70 @@ Boot → Title → Playing ⇄ PausedInventory
 
 ### Inventory & HUD
 
-- `Inventory` resource tracks `rupees`, `bombs`, `keys`, `equipped: Option<EquippedItem>`
+- `Inventory` resource tracks `rupees`, `bombs`, `keys`, `has_sword`, `equipped: Option<EquippedItem>`
 - `PlayerVitals` tracks `current_health`/`max_health` persistently across room transitions
 - HUD (UI nodes with absolute positioning) shows hearts, rupee/bomb/key counters, and equipped item
 - Inventory persists through death/continue, resets on new game (Title)
-- Equipped item cycles with attack key (Z) while paused
+- Sword attack gated behind `inventory.has_sword` — player must visit CaveSword first
 
 ### Room System
 
-5 overworld rooms (`RoomId` enum): Center, North, South, East, West. Each room spawns: floor, perimeter walls with door openings, obstacles (`StaticBlocker`), enemies, pickups.
+13 rooms across 3 types (`RoomId` enum):
+- **Overworld** (5): Center, North, South, East, West — connected via screen-edge transitions
+- **Caves** (3): CaveSword, CaveShop, CaveHint — accessed via staircases
+- **Dungeon 1** (4+1): Entry, East, Boss, Triforce — accessed via staircase in OverworldEast
 
-- **Transitions**: triggered when player crosses room edge (6-unit padding). Locked for 0.2s to prevent re-entry. Player repositioned at inverse door entry.
-- **Persistence** (`RoomPersistence`): unique pickups stay collected, secrets stay revealed, temporary pickups reset on re-entry.
-- **Messages**: `LoadRoomMessage` requests load, `RoomLoadedMessage` confirms completion.
-- **Typed pickups**: each pickup has a `PickupKind` component; visual properties and effects looked up from `ItemTable`.
+Room transitions:
+- **Screen-edge**: triggered when player crosses room edge (6-unit padding). Locked for 0.2s.
+- **Staircase**: triggered when player walks onto staircase entity (10-unit radius, requires player velocity > 0).
+
+Persistence (`RoomPersistence`): unique pickups stay collected, secrets stay revealed, dungeon door unlocks persist, temporary pickups reset on re-entry.
+
+Messages: `LoadRoomMessage` requests load, `RoomLoadedMessage` confirms completion.
+
+### Dungeon System
+
+- `DungeonState` resource tracks current dungeon, dungeon keys, map/compass per dungeon, triforce pieces, room clear state
+- **Locked doors**: consume a dungeon key, persist once opened
+- **Shutter doors**: auto-open when all enemies in room are defeated (tracked in `rooms_cleared`)
+- **Bombable doors**: consume a bomb from inventory, persist once destroyed
+- When leaving a dungeon (transitioning to non-Dungeon room), `rooms_cleared` resets but keys/map/compass/triforce persist
+- Dungeon death respawns at dungeon entry room instead of OverworldCenter
+
+### NPC Dialogue & Shops
+
+- `DialogueState` resource: when active, blocks player movement and consumes confirm input
+- NPCs: walk near + press confirm to start dialogue, press confirm to advance/dismiss
+- Shops: walk near shop item + confirm to purchase (deducts rupees, applies item effect)
+- Shop items use `UniquePickup` persistence — purchased items don't respawn
+
+### Secret Triggers
+
+Four trigger types defined by `SecretTriggerKind`:
+- **HiddenStaircase**: attack near trigger → reveal entity at reveal_position
+- **BurnableBush**: attack near trigger → despawn bush, reveal staircase
+- **BombableWall**: use bomb near trigger → reveal passage
+- **PushBlock**: walk into push block (30 frames sustained) → despawn block, reveal staircase
+
+Secrets can optionally reveal functional `StaircaseEntrance` entities (via `reveal_target`/`reveal_spawn` fields).
 
 ### Combat System Ordering
 
 Systems are grouped into `SystemSet`s executed in order:
-1. `AttackSpawn` — sword entity created on attack input
-2. `AttackResolve` — tick lifetimes, detect sword↔hurtbox AABB overlap
+1. `AttackSpawn` — sword entity created on attack input (requires `has_sword`)
+2. `AttackResolve` — tick lifetimes, detect sword↔hurtbox AABB overlap, spawn enemy drops on kill
 3. `Damage` — tick invulnerability, resolve enemy contact → player damage + knockback
 4. `Death` — check player health → GameOver transition
 
 Sword: lives 0.12s, despawns after one hit or timeout. Player invulnerability: 0.75s after hit. Knockback: 140 units/s, decayed via lerp.
+
+Enemy drops: on death, roll against `DropTable` (35% Rupee, 25% Heart, 10% Bomb, 30% nothing). Drops are temporary pickups with 8-second lifetime.
+
+### Room System Ordering
+
+`RoomSet` chain: `TransitionTick` → `RequestLoad` → `Load` → `Interact`
+
+Within `Interact`, dialogue-consuming systems (NPC interaction, shop purchase) run first via `.chain()`, then all other interactions (door unlocks, bomb use, pickup collection, secret triggers, push blocks, shutter door checks) run after.
 
 ### Collision
 
@@ -128,10 +190,11 @@ Background (-20) → Floor (0) → Walls (10) → Entities (20) → Pickups (30)
 
 - New tunable values go in `constants.rs`, not inline magic numbers
 - New shared mutable game state goes in `resources.rs`
-- New ECS marker/data types go in `components.rs`
+- New ECS marker/data types go in `components.rs`; room-specific components (e.g. `SecretTrigger`, `StaircaseEntrance`, `DungeonDoorBlocker`) can live in `room.rs`
 - New content data goes in `assets/data/*.ron`; keep game logic in Rust, tunables in RON
 - Prefer extending an existing domain plugin over registering ad hoc systems in `main.rs`
 - Use `.after()` chains where frame ordering matters; for 10+ systems, group into `SystemSet`s and order at the set level
+- `PersistentRoomKey` uses `&'static str` keys — use `Box::leak()` when converting RON `String` data during loading
 
 ## Bevy 0.18.1 API Notes
 
