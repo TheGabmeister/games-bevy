@@ -64,15 +64,6 @@ pub struct PendingBlockHit {
     pub hit: Option<BlockHitInfo>,
 }
 
-// Player mesh/material handles for size and color switching
-#[derive(Resource)]
-pub struct PlayerMeshes {
-    pub small: Handle<Mesh>,
-    pub big: Handle<Mesh>,
-    pub normal_mat: Handle<ColorMaterial>,
-    pub fire_mat: Handle<ColorMaterial>,
-}
-
 // Level complete animation state
 #[derive(Resource)]
 pub struct LevelCompleteAnimation {

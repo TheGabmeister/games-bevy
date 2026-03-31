@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use crate::assets::GameAssets;
 use crate::collision::{self, aabb_overlap, WallAction};
 use crate::components::*;
 use crate::constants::*;
@@ -86,7 +87,6 @@ fn fire_flower_emerge(
 
         if emerging.remaining <= 0.0 {
             commands.entity(entity).remove::<FireFlowerEmerging>();
-            // Fire flower stays stationary — no EnemyWalker added
         }
     }
 }
@@ -121,7 +121,6 @@ fn mushroom_collection(
             commands.entity(mush_entity).despawn();
             game_data.score += MUSHROOM_SCORE;
 
-            // Score popup
             commands.spawn((
                 ScorePopup(Timer::from_seconds(SCORE_POPUP_DURATION, TimerMode::Once)),
                 Text2d::new(format!("+{MUSHROOM_SCORE}")),
@@ -139,7 +138,6 @@ fn mushroom_collection(
             ));
 
             if player_size == PlayerSize::Small {
-                // Start growth animation
                 commands.entity(player_entity).insert(GrowthAnimation {
                     timer: Timer::from_seconds(GROWTH_DURATION, TimerMode::Once),
                     flash_timer: Timer::from_seconds(
@@ -169,7 +167,7 @@ fn fire_flower_collection(
         (Entity, &Transform, &CollisionSize),
         (With<FireFlower>, Without<FireFlowerEmerging>, Without<Player>),
     >,
-    player_meshes: Option<Res<PlayerMeshes>>,
+    assets: Res<GameAssets>,
 ) {
     let Ok((_entity, player_tf, player_coll, mut player_size, mut player_mat)) =
         player_query.single_mut()
@@ -202,11 +200,8 @@ fn fire_flower_collection(
 
             if *player_size == PlayerSize::Big {
                 *player_size = PlayerSize::Fire;
-                if let Some(ref meshes) = player_meshes {
-                    player_mat.0 = meshes.fire_mat.clone();
-                }
+                player_mat.0 = assets.player_fire_mat.clone();
             }
-            // If already Fire or Small, just score
 
             break;
         }
@@ -220,8 +215,7 @@ fn fireball_shoot(
     mut commands: Commands,
     player_query: Query<(&Transform, &FacingDirection, &PlayerSize), With<Player>>,
     fireball_query: Query<&Fireball>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    assets: Res<GameAssets>,
 ) {
     if !(keyboard.just_pressed(KeyCode::KeyJ) || keyboard.just_pressed(KeyCode::KeyE)) {
         return;
@@ -247,15 +241,12 @@ fn fireball_shoot(
     let spawn_x = player_tf.translation.x + dir * (PLAYER_WIDTH / 2.0 + FIREBALL_RADIUS + 2.0);
     let spawn_y = player_tf.translation.y;
 
-    let mesh = meshes.add(Circle::new(FIREBALL_RADIUS));
-    let mat = materials.add(ColorMaterial::from_color(Color::srgb(1.0, 0.5, 0.0)));
-
     commands.spawn((
         Fireball { direction: dir },
         Velocity { x: FIREBALL_SPEED * dir, y: 0.0 },
         CollisionSize { width: FIREBALL_RADIUS * 2.0, height: FIREBALL_RADIUS * 2.0 },
-        Mesh2d(mesh),
-        MeshMaterial2d(mat),
+        Mesh2d(assets.fireball_mesh.clone()),
+        MeshMaterial2d(assets.fireball_mat.clone()),
         Transform::from_xyz(spawn_x, spawn_y, Z_ITEM),
         DespawnOnExit(AppState::Playing),
     ));
@@ -272,18 +263,14 @@ fn fireball_physics(
     let dt = time.delta_secs();
 
     for (entity, fireball, mut vel, mut transform) in &mut query {
-        // Gravity
         vel.y -= GRAVITY_DESCENDING * dt;
         vel.y = vel.y.max(-TERMINAL_VELOCITY);
 
-        // Set horizontal velocity (constant speed)
         vel.x = FIREBALL_SPEED * fireball.direction;
 
-        // Movement
         transform.translation.x += vel.x * dt;
         transform.translation.y += vel.y * dt;
 
-        // Tile collision
         let half = FIREBALL_RADIUS;
         let mut dummy_dir = fireball.direction;
         let result = collision::resolve_tile_collisions(
@@ -296,18 +283,15 @@ fn fireball_physics(
             &mut dummy_dir,
         );
 
-        // Wall hit → despawn (vel.x was zeroed by collision)
         if vel.x.abs() < 0.1 {
             commands.entity(entity).despawn();
             continue;
         }
 
-        // Bounce on ground
         if result.grounded && vel.y <= 0.0 {
             vel.y = FIREBALL_BOUNCE_IMPULSE;
         }
 
-        // Off screen → despawn
         if transform.translation.y < DEATH_Y {
             commands.entity(entity).despawn();
         }
@@ -328,8 +312,7 @@ fn fireball_enemy_collision(
         (With<KoopaTroopa>, With<EnemyActive>, Without<Fireball>, Without<Goomba>),
     >,
     mut game_data: ResMut<GameData>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    assets: Res<GameAssets>,
 ) {
     for (fb_entity, fb_tf, fb_coll) in &fireball_query {
         let fb_x = fb_tf.translation.x;
@@ -338,7 +321,6 @@ fn fireball_enemy_collision(
         let fb_hh = fb_coll.height / 2.0;
         let mut hit = false;
 
-        // Check Goombas
         for (goomba_entity, goomba_tf, goomba_coll) in &goomba_query {
             if aabb_overlap(
                 fb_x, fb_y, fb_hw, fb_hh,
@@ -371,7 +353,6 @@ fn fireball_enemy_collision(
             continue;
         }
 
-        // Check Koopas → spawn shell
         for (koopa_entity, koopa_tf, koopa_coll) in &koopa_query {
             if aabb_overlap(
                 fb_x, fb_y, fb_hw, fb_hh,
@@ -382,12 +363,7 @@ fn fireball_enemy_collision(
                 commands.entity(fb_entity).despawn();
                 game_data.score += FIREBALL_SCORE;
 
-                // Spawn shell
                 let shell_y = koopa_tf.translation.y - (KOOPA_HEIGHT - SHELL_HEIGHT) / 2.0;
-                let shell_mesh = meshes.add(Rectangle::new(SHELL_WIDTH, SHELL_HEIGHT));
-                let shell_mat = materials.add(ColorMaterial::from_color(
-                    Color::srgb(0.2, 0.65, 0.2),
-                ));
 
                 commands.spawn((
                     Shell { state: ShellState::Stationary, chain_kills: 0 },
@@ -396,8 +372,8 @@ fn fireball_enemy_collision(
                     Velocity::default(),
                     Grounded(true),
                     EnemyActive,
-                    Mesh2d(shell_mesh),
-                    MeshMaterial2d(shell_mat),
+                    Mesh2d(assets.shell_mesh.clone()),
+                    MeshMaterial2d(assets.shell_mat.clone()),
                     Transform::from_xyz(koopa_tf.translation.x, shell_y, Z_ENEMY),
                     DespawnOnExit(AppState::Playing),
                 ));
@@ -439,32 +415,28 @@ fn growth_animation_system(
         With<Player>,
     >,
     mut next_play_state: ResMut<NextState<PlayState>>,
-    player_meshes: Option<Res<PlayerMeshes>>,
+    assets: Res<GameAssets>,
 ) {
     let Ok((entity, mut growth, mut transform, mut coll_size, mut player_size, mut mesh, mut mat)) =
         query.single_mut()
     else {
         return;
     };
-    let Some(meshes) = player_meshes else { return };
 
     growth.timer.tick(time.delta());
     growth.flash_timer.tick(time.delta());
 
-    // Flash between sizes on each interval
     if growth.flash_timer.is_finished() {
         growth.flash_timer.reset();
 
         if coll_size.height == PLAYER_SMALL_HEIGHT {
-            // Switch to big visual
             transform.translation.y += (PLAYER_BIG_HEIGHT - PLAYER_SMALL_HEIGHT) / 2.0;
             coll_size.height = PLAYER_BIG_HEIGHT;
-            mesh.0 = meshes.big.clone();
+            mesh.0 = assets.player_big_mesh.clone();
         } else {
-            // Switch to small visual
             transform.translation.y -= (PLAYER_BIG_HEIGHT - PLAYER_SMALL_HEIGHT) / 2.0;
             coll_size.height = PLAYER_SMALL_HEIGHT;
-            mesh.0 = meshes.small.clone();
+            mesh.0 = assets.player_small_mesh.clone();
         }
     }
 
@@ -475,7 +447,6 @@ fn growth_animation_system(
             PLAYER_SMALL_HEIGHT
         };
 
-        // Adjust position from current to target
         let height_diff = target_height - coll_size.height;
         transform.translation.y += height_diff / 2.0;
 
@@ -486,17 +457,16 @@ fn growth_animation_system(
             PlayerSize::Small
         };
         mesh.0 = if growth.growing {
-            meshes.big.clone()
+            assets.player_big_mesh.clone()
         } else {
-            meshes.small.clone()
+            assets.player_small_mesh.clone()
         };
 
         if !growth.growing {
-            // Shrink complete — grant invincibility and reset material
             commands.entity(entity).insert(Invincible {
                 timer: Timer::from_seconds(INVINCIBILITY_DURATION, TimerMode::Once),
             });
-            mat.0 = meshes.normal_mat.clone();
+            mat.0 = assets.player_normal_mat.clone();
         }
 
         commands.entity(entity).remove::<GrowthAnimation>();
@@ -547,31 +517,28 @@ fn ducking_system(
         ),
         With<Player>,
     >,
-    player_meshes: Option<Res<PlayerMeshes>>,
+    assets: Res<GameAssets>,
 ) {
     let Ok((entity, player_size, grounded, mut coll_size, mut transform, mut mesh, is_ducking)) =
         query.single_mut()
     else {
         return;
     };
-    let Some(meshes) = player_meshes else { return };
 
     let wants_duck =
         keyboard.pressed(KeyCode::ArrowDown) || keyboard.pressed(KeyCode::KeyS);
 
     if *player_size != PlayerSize::Small && grounded.0 && wants_duck && !is_ducking {
-        // Start ducking
         commands.entity(entity).insert(Ducking);
         let old_height = coll_size.height;
         coll_size.height = PLAYER_SMALL_HEIGHT;
-        mesh.0 = meshes.small.clone();
+        mesh.0 = assets.player_small_mesh.clone();
         transform.translation.y -= (old_height - PLAYER_SMALL_HEIGHT) / 2.0;
     } else if is_ducking && (!wants_duck || !grounded.0 || *player_size == PlayerSize::Small) {
-        // Stop ducking
         commands.entity(entity).remove::<Ducking>();
         if *player_size != PlayerSize::Small {
             coll_size.height = PLAYER_BIG_HEIGHT;
-            mesh.0 = meshes.big.clone();
+            mesh.0 = assets.player_big_mesh.clone();
             transform.translation.y += (PLAYER_BIG_HEIGHT - PLAYER_SMALL_HEIGHT) / 2.0;
         }
     }

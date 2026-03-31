@@ -251,53 +251,11 @@ fn staircase(
 
 pub fn spawn_level(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    assets: Res<crate::assets::GameAssets>,
     mut game_data: ResMut<GameData>,
     mut spawn_point: ResMut<SpawnPoint>,
 ) {
     *game_data = GameData::default();
-
-    let tile_mesh = meshes.add(Rectangle::new(TILE_SIZE, TILE_SIZE));
-    let pipe_top_mesh = meshes.add(Rectangle::new(TILE_SIZE + PIPE_LIP_OVERHANG, TILE_SIZE));
-    let ground_mat = materials.add(ColorMaterial::from_color(Color::srgb(0.55, 0.27, 0.07)));
-    let brick_mat = materials.add(ColorMaterial::from_color(Color::srgb(0.72, 0.40, 0.10)));
-    let question_mat = materials.add(ColorMaterial::from_color(Color::srgb(0.90, 0.75, 0.10)));
-    let solid_mat = materials.add(ColorMaterial::from_color(Color::srgb(0.45, 0.30, 0.15)));
-    let pipe_mat = materials.add(ColorMaterial::from_color(Color::srgb(0.0, 0.65, 0.15)));
-    let player_mat = materials.add(ColorMaterial::from_color(Color::srgb(0.8, 0.1, 0.1)));
-
-    // Goomba meshes
-    let goomba_body_mesh = meshes.add(Ellipse::new(6.0, 5.0));
-    let goomba_feet_mesh = meshes.add(Rectangle::new(12.0, 4.0));
-    let goomba_body_mat =
-        materials.add(ColorMaterial::from_color(Color::srgb(0.55, 0.30, 0.10)));
-    let goomba_feet_mat =
-        materials.add(ColorMaterial::from_color(Color::srgb(0.35, 0.18, 0.05)));
-
-    // Koopa meshes
-    let koopa_body_mesh = meshes.add(Rectangle::new(KOOPA_WIDTH, 16.0));
-    let koopa_body_mat =
-        materials.add(ColorMaterial::from_color(Color::srgb(0.2, 0.7, 0.2)));
-    let koopa_head_mesh = meshes.add(Circle::new(5.0));
-    let koopa_head_mat =
-        materials.add(ColorMaterial::from_color(Color::srgb(0.3, 0.8, 0.3)));
-
-    // Floating coin mesh
-    let floating_coin_mesh = meshes.add(Circle::new(FLOATING_COIN_SIZE / 2.0));
-    let floating_coin_mat =
-        materials.add(ColorMaterial::from_color(Color::srgb(1.0, 0.85, 0.0)));
-
-    // Player meshes
-    let player_small_mesh = meshes.add(Rectangle::new(PLAYER_WIDTH, PLAYER_SMALL_HEIGHT));
-    let player_big_mesh = meshes.add(Rectangle::new(PLAYER_WIDTH, PLAYER_BIG_HEIGHT));
-    let fire_player_mat = materials.add(ColorMaterial::from_color(Color::srgb(0.95, 0.95, 0.95)));
-    commands.insert_resource(PlayerMeshes {
-        small: player_small_mesh.clone(),
-        big: player_big_mesh,
-        normal_mat: player_mat.clone(),
-        fire_mat: fire_player_mat,
-    });
 
     let grid = level_test();
     commands.insert_resource(LevelGrid { grid });
@@ -313,8 +271,8 @@ pub fn spawn_level(
                 '#' => {
                     commands.spawn((
                         Tile, TileType::Ground,
-                        Mesh2d(tile_mesh.clone()),
-                        MeshMaterial2d(ground_mat.clone()),
+                        Mesh2d(assets.tile_mesh.clone()),
+                        MeshMaterial2d(assets.ground_mat.clone()),
                         Transform::from_xyz(wx, wy, Z_TILE),
                         DespawnOnExit(AppState::Playing),
                     ));
@@ -323,8 +281,8 @@ pub fn spawn_level(
                     commands.spawn((
                         Tile, TileType::Brick,
                         TilePos { col: col as i32, row: row as i32 },
-                        Mesh2d(tile_mesh.clone()),
-                        MeshMaterial2d(brick_mat.clone()),
+                        Mesh2d(assets.tile_mesh.clone()),
+                        MeshMaterial2d(assets.brick_mat.clone()),
                         Transform::from_xyz(wx, wy, Z_TILE),
                         DespawnOnExit(AppState::Playing),
                     ));
@@ -333,8 +291,8 @@ pub fn spawn_level(
                     commands.spawn((
                         Tile, TileType::QuestionBlock,
                         TilePos { col: col as i32, row: row as i32 },
-                        Mesh2d(tile_mesh.clone()),
-                        MeshMaterial2d(question_mat.clone()),
+                        Mesh2d(assets.tile_mesh.clone()),
+                        MeshMaterial2d(assets.question_mat.clone()),
                         Transform::from_xyz(wx, wy, Z_TILE),
                         DespawnOnExit(AppState::Playing),
                     ));
@@ -342,8 +300,8 @@ pub fn spawn_level(
                 'X' => {
                     commands.spawn((
                         Tile, TileType::Solid,
-                        Mesh2d(tile_mesh.clone()),
-                        MeshMaterial2d(solid_mat.clone()),
+                        Mesh2d(assets.tile_mesh.clone()),
+                        MeshMaterial2d(assets.solid_mat.clone()),
                         Transform::from_xyz(wx, wy, Z_TILE),
                         DespawnOnExit(AppState::Playing),
                     ));
@@ -351,8 +309,8 @@ pub fn spawn_level(
                 '[' => {
                     commands.spawn((
                         Tile, TileType::PipeTopLeft,
-                        Mesh2d(pipe_top_mesh.clone()),
-                        MeshMaterial2d(pipe_mat.clone()),
+                        Mesh2d(assets.pipe_top_mesh.clone()),
+                        MeshMaterial2d(assets.pipe_mat.clone()),
                         Transform::from_xyz(wx, wy, Z_PIPE),
                         DespawnOnExit(AppState::Playing),
                     ));
@@ -360,8 +318,8 @@ pub fn spawn_level(
                 ']' => {
                     commands.spawn((
                         Tile, TileType::PipeTopRight,
-                        Mesh2d(pipe_top_mesh.clone()),
-                        MeshMaterial2d(pipe_mat.clone()),
+                        Mesh2d(assets.pipe_top_mesh.clone()),
+                        MeshMaterial2d(assets.pipe_mat.clone()),
                         Transform::from_xyz(wx, wy, Z_PIPE),
                         DespawnOnExit(AppState::Playing),
                     ));
@@ -369,8 +327,8 @@ pub fn spawn_level(
                 '{' => {
                     commands.spawn((
                         Tile, TileType::PipeBodyLeft,
-                        Mesh2d(tile_mesh.clone()),
-                        MeshMaterial2d(pipe_mat.clone()),
+                        Mesh2d(assets.tile_mesh.clone()),
+                        MeshMaterial2d(assets.pipe_mat.clone()),
                         Transform::from_xyz(wx, wy, Z_PIPE),
                         DespawnOnExit(AppState::Playing),
                     ));
@@ -378,8 +336,8 @@ pub fn spawn_level(
                 '}' => {
                     commands.spawn((
                         Tile, TileType::PipeBodyRight,
-                        Mesh2d(tile_mesh.clone()),
-                        MeshMaterial2d(pipe_mat.clone()),
+                        Mesh2d(assets.tile_mesh.clone()),
+                        MeshMaterial2d(assets.pipe_mat.clone()),
                         Transform::from_xyz(wx, wy, Z_PIPE),
                         DespawnOnExit(AppState::Playing),
                     ));
@@ -391,14 +349,14 @@ pub fn spawn_level(
                         CollisionSize { width: GOOMBA_WIDTH, height: GOOMBA_HEIGHT },
                         Velocity::default(),
                         Grounded::default(),
-                        Mesh2d(goomba_body_mesh.clone()),
-                        MeshMaterial2d(goomba_body_mat.clone()),
+                        Mesh2d(assets.goomba_body_mesh.clone()),
+                        MeshMaterial2d(assets.goomba_body_mat.clone()),
                         Transform::from_xyz(wx, wy, Z_ENEMY),
                         DespawnOnExit(AppState::Playing),
                     )).with_children(|parent| {
                         parent.spawn((
-                            Mesh2d(goomba_feet_mesh.clone()),
-                            MeshMaterial2d(goomba_feet_mat.clone()),
+                            Mesh2d(assets.goomba_feet_mesh.clone()),
+                            MeshMaterial2d(assets.goomba_feet_mat.clone()),
                             Transform::from_xyz(0.0, -5.0, 0.0),
                         ));
                     });
@@ -410,14 +368,14 @@ pub fn spawn_level(
                         CollisionSize { width: KOOPA_WIDTH, height: KOOPA_HEIGHT },
                         Velocity::default(),
                         Grounded::default(),
-                        Mesh2d(koopa_body_mesh.clone()),
-                        MeshMaterial2d(koopa_body_mat.clone()),
+                        Mesh2d(assets.koopa_body_mesh.clone()),
+                        MeshMaterial2d(assets.koopa_body_mat.clone()),
                         Transform::from_xyz(wx, wy, Z_ENEMY),
                         DespawnOnExit(AppState::Playing),
                     )).with_children(|parent| {
                         parent.spawn((
-                            Mesh2d(koopa_head_mesh.clone()),
-                            MeshMaterial2d(koopa_head_mat.clone()),
+                            Mesh2d(assets.koopa_head_mesh.clone()),
+                            MeshMaterial2d(assets.koopa_head_mat.clone()),
                             Transform::from_xyz(0.0, 11.0, 0.0),
                         ));
                     });
@@ -425,37 +383,26 @@ pub fn spawn_level(
                 'C' => {
                     commands.spawn((
                         FloatingCoin,
-                        Mesh2d(floating_coin_mesh.clone()),
-                        MeshMaterial2d(floating_coin_mat.clone()),
+                        Mesh2d(assets.floating_coin_mesh.clone()),
+                        MeshMaterial2d(assets.floating_coin_mat.clone()),
                         Transform::from_xyz(wx, wy, Z_ITEM),
                         DespawnOnExit(AppState::Playing),
                     ));
                 }
                 'F' => {
-                    // Thin flagpole segment
-                    let pole_mesh = meshes.add(Rectangle::new(FLAGPOLE_POLE_WIDTH, TILE_SIZE));
-                    let pole_mat = materials.add(ColorMaterial::from_color(
-                        Color::srgb(0.5, 0.5, 0.5),
-                    ));
                     commands.spawn((
                         Tile,
-                        Mesh2d(pole_mesh),
-                        MeshMaterial2d(pole_mat),
+                        Mesh2d(assets.pole_mesh.clone()),
+                        MeshMaterial2d(assets.pole_mat.clone()),
                         Transform::from_xyz(wx, wy, Z_TILE),
                         DespawnOnExit(AppState::Playing),
                     ));
 
-                    // Flag at topmost pole tile
                     if row == FLAGPOLE_TOP_ROW {
-                        let flag_mesh =
-                            meshes.add(Rectangle::new(FLAGPOLE_FLAG_SIZE, FLAGPOLE_FLAG_SIZE));
-                        let flag_mat = materials.add(ColorMaterial::from_color(
-                            Color::srgb(0.2, 0.8, 0.2),
-                        ));
                         commands.spawn((
                             FlagpoleFlag,
-                            Mesh2d(flag_mesh),
-                            MeshMaterial2d(flag_mat),
+                            Mesh2d(assets.flag_mesh.clone()),
+                            MeshMaterial2d(assets.flag_mat.clone()),
                             Transform::from_xyz(
                                 wx - FLAGPOLE_FLAG_SIZE / 2.0 - FLAGPOLE_POLE_WIDTH / 2.0,
                                 wy,
@@ -464,14 +411,9 @@ pub fn spawn_level(
                             DespawnOnExit(AppState::Playing),
                         ));
 
-                        // Ball at top of pole
-                        let ball_mesh = meshes.add(Circle::new(3.0));
-                        let ball_mat = materials.add(ColorMaterial::from_color(
-                            Color::srgb(0.9, 0.9, 0.0),
-                        ));
                         commands.spawn((
-                            Mesh2d(ball_mesh),
-                            MeshMaterial2d(ball_mat),
+                            Mesh2d(assets.pole_ball_mesh.clone()),
+                            MeshMaterial2d(assets.pole_ball_mat.clone()),
                             Transform::from_xyz(wx, wy + TILE_SIZE / 2.0 + 3.0, Z_TILE + 0.1),
                             DespawnOnExit(AppState::Playing),
                         ));
@@ -499,33 +441,24 @@ pub fn spawn_level(
         let (_, ground_center_y) = tile_to_world(castle_col, 13);
         let ground_top_y = ground_center_y + TILE_SIZE / 2.0;
 
-        // Castle body
-        let body_mesh = meshes.add(Rectangle::new(48.0, 48.0));
-        let body_mat = materials.add(ColorMaterial::from_color(Color::srgb(0.5, 0.35, 0.2)));
         commands.spawn((
             Castle,
-            Mesh2d(body_mesh),
-            MeshMaterial2d(body_mat),
+            Mesh2d(assets.castle_body_mesh.clone()),
+            MeshMaterial2d(assets.castle_body_mat.clone()),
             Transform::from_xyz(castle_x, ground_top_y + 24.0, Z_DECORATION),
             DespawnOnExit(AppState::Playing),
         ));
 
-        // Castle roof (triangle)
-        let roof_mesh = meshes.add(RegularPolygon::new(20.0, 3));
-        let roof_mat = materials.add(ColorMaterial::from_color(Color::srgb(0.6, 0.15, 0.15)));
         commands.spawn((
-            Mesh2d(roof_mesh),
-            MeshMaterial2d(roof_mat),
+            Mesh2d(assets.castle_roof_mesh.clone()),
+            MeshMaterial2d(assets.castle_roof_mat.clone()),
             Transform::from_xyz(castle_x, ground_top_y + 58.0, Z_DECORATION),
             DespawnOnExit(AppState::Playing),
         ));
 
-        // Castle door
-        let door_mesh = meshes.add(Rectangle::new(12.0, 16.0));
-        let door_mat = materials.add(ColorMaterial::from_color(Color::srgb(0.1, 0.1, 0.1)));
         commands.spawn((
-            Mesh2d(door_mesh),
-            MeshMaterial2d(door_mat),
+            Mesh2d(assets.castle_door_mesh.clone()),
+            MeshMaterial2d(assets.castle_door_mat.clone()),
             Transform::from_xyz(castle_x, ground_top_y + 8.0, Z_DECORATION + 0.1),
             DespawnOnExit(AppState::Playing),
         ));
@@ -541,8 +474,8 @@ pub fn spawn_level(
         Velocity::default(),
         FacingDirection::default(),
         Grounded::default(),
-        Mesh2d(player_small_mesh),
-        MeshMaterial2d(player_mat),
+        Mesh2d(assets.player_small_mesh.clone()),
+        MeshMaterial2d(assets.player_normal_mat.clone()),
         Transform::from_xyz(sp.0, sp.1, Z_PLAYER),
         DespawnOnExit(AppState::Playing),
     ));

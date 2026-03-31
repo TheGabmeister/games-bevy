@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use crate::assets::GameAssets;
 use crate::collision::{self, WallAction};
 use crate::components::*;
 use crate::constants::*;
@@ -390,7 +391,7 @@ fn death_animation_system(
     mut next_app_state: ResMut<NextState<AppState>>,
     spawn_point: Res<SpawnPoint>,
     mut camera_query: Query<&mut Transform, (With<Camera2d>, Without<Player>)>,
-    player_meshes: Option<Res<PlayerMeshes>>,
+    assets: Res<GameAssets>,
 ) {
     death_anim.timer.tick(time.delta());
 
@@ -448,10 +449,8 @@ fn death_animation_system(
             // Reset to small Mario with normal appearance
             *player_size = PlayerSize::Small;
             coll_size.height = PLAYER_SMALL_HEIGHT;
-            if let Some(meshes) = player_meshes {
-                mesh.0 = meshes.small.clone();
-                mat.0 = meshes.normal_mat.clone();
-            }
+            mesh.0 = assets.player_small_mesh.clone();
+            mat.0 = assets.player_normal_mat.clone();
 
             if let Ok(mut camera_tf) = camera_query.single_mut() {
                 camera_tf.translation.x = CAMERA_MIN_X;

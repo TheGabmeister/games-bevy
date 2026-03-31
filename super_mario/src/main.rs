@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+mod assets;
 mod block;
 mod camera;
 mod collision;
@@ -54,6 +55,7 @@ fn main() {
             block::BlockPlugin,
             powerup::PowerUpPlugin,
         ))
+        .add_systems(Startup, assets::init_game_assets)
         .add_systems(OnEnter(AppState::Playing), level::spawn_level)
         .run();
 }

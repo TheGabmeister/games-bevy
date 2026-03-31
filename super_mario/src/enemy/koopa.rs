@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use crate::assets::GameAssets;
 use crate::collision::aabb_overlap;
 use crate::components::*;
 use crate::constants::*;
@@ -22,8 +23,7 @@ pub fn mario_koopa_collision(
     >,
     mut game_data: ResMut<GameData>,
     mut next_play_state: ResMut<NextState<PlayState>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    assets: Res<GameAssets>,
 ) {
     let Ok((player_entity, mut player_vel, player_tf, player_coll, &player_size, is_invincible)) =
         player_query.single_mut()
@@ -59,10 +59,6 @@ pub fn mario_koopa_collision(
             commands.entity(entity).despawn();
 
             // Spawn Shell
-            let shell_mesh = meshes.add(Rectangle::new(SHELL_WIDTH, SHELL_HEIGHT));
-            let shell_mat =
-                materials.add(ColorMaterial::from_color(Color::srgb(0.2, 0.65, 0.2)));
-
             commands.spawn((
                 Shell {
                     state: ShellState::Stationary,
@@ -79,8 +75,8 @@ pub fn mario_koopa_collision(
                 Velocity::default(),
                 Grounded(true),
                 EnemyActive,
-                Mesh2d(shell_mesh),
-                MeshMaterial2d(shell_mat),
+                Mesh2d(assets.shell_mesh.clone()),
+                MeshMaterial2d(assets.shell_mat.clone()),
                 Transform::from_xyz(enemy_tf.translation.x, shell_y, Z_ENEMY),
                 DespawnOnExit(AppState::Playing),
             ));

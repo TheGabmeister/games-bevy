@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use crate::assets::GameAssets;
 use crate::collision::aabb_overlap;
 use crate::components::*;
 use crate::constants::*;
@@ -30,13 +31,12 @@ fn process_block_hits(
     mut pending: ResMut<PendingBlockHit>,
     mut level: ResMut<LevelGrid>,
     mut game_data: ResMut<GameData>,
+    assets: Res<GameAssets>,
     tile_query: Query<(Entity, &TilePos, &Transform), With<Tile>>,
     enemy_query: Query<
         (Entity, &Transform),
         (With<EnemyActive>, Without<Squished>, Without<Tile>),
     >,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     let Some(hit) = pending.hit.take() else { return };
 
@@ -63,21 +63,19 @@ fn process_block_hits(
             commands.entity(tile_entity).insert(BlockUsed);
 
             // Change to used appearance
-            let empty_mat =
-                materials.add(ColorMaterial::from_color(Color::srgb(0.35, 0.25, 0.15)));
             commands
                 .entity(tile_entity)
-                .insert(MeshMaterial2d(empty_mat));
+                .insert(MeshMaterial2d(assets.empty_block_mat.clone()));
 
             // Spawn content
             if ch == 'M' {
                 if hit.player_size == PlayerSize::Small {
-                    spawn_mushroom(&mut commands, &mut meshes, &mut materials, tile_pos);
+                    spawn_mushroom(&mut commands, &assets, tile_pos);
                 } else {
-                    spawn_fire_flower(&mut commands, &mut meshes, &mut materials, tile_pos);
+                    spawn_fire_flower(&mut commands, &assets, tile_pos);
                 }
             } else {
-                spawn_coin_pop(&mut commands, &mut meshes, &mut materials, tile_pos);
+                spawn_coin_pop(&mut commands, &assets, tile_pos);
                 game_data.add_coin();
                 game_data.score += COIN_SCORE;
             }
@@ -90,12 +88,6 @@ fn process_block_hits(
                 // Big Mario breaks brick
                 commands.entity(tile_entity).despawn();
                 level.set_char(col, row, '.');
-
-                // Spawn 4 particles
-                let particle_mesh =
-                    meshes.add(Rectangle::new(BRICK_PARTICLE_SIZE, BRICK_PARTICLE_SIZE));
-                let particle_mat = materials
-                    .add(ColorMaterial::from_color(Color::srgb(0.72, 0.40, 0.10)));
 
                 let velocities = [
                     (-BRICK_PARTICLE_SPEED, BRICK_PARTICLE_SPEED * 1.5),
@@ -114,8 +106,8 @@ fn process_block_hits(
                                 TimerMode::Once,
                             ),
                         },
-                        Mesh2d(particle_mesh.clone()),
-                        MeshMaterial2d(particle_mat.clone()),
+                        Mesh2d(assets.brick_particle_mesh.clone()),
+                        MeshMaterial2d(assets.brick_particle_mat.clone()),
                         Transform::from_xyz(tile_pos.x, tile_pos.y, Z_ITEM),
                         DespawnOnExit(AppState::Playing),
                     ));
@@ -162,38 +154,20 @@ fn process_block_hits(
     }
 }
 
-fn spawn_coin_pop(
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<ColorMaterial>>,
-    block_pos: Vec3,
-) {
-    let coin_mesh = meshes.add(Circle::new(4.0));
-    let coin_mat = materials.add(ColorMaterial::from_color(Color::srgb(1.0, 0.85, 0.0)));
-
+fn spawn_coin_pop(commands: &mut Commands, assets: &GameAssets, block_pos: Vec3) {
     commands.spawn((
         CoinPop {
             vel_y: COIN_POP_IMPULSE,
             timer: Timer::from_seconds(COIN_POP_DURATION, TimerMode::Once),
         },
-        Mesh2d(coin_mesh),
-        MeshMaterial2d(coin_mat),
+        Mesh2d(assets.coin_pop_mesh.clone()),
+        MeshMaterial2d(assets.coin_pop_mat.clone()),
         Transform::from_xyz(block_pos.x, block_pos.y + TILE_SIZE, Z_ITEM),
         DespawnOnExit(AppState::Playing),
     ));
 }
 
-fn spawn_mushroom(
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<ColorMaterial>>,
-    block_pos: Vec3,
-) {
-    let cap_mesh = meshes.add(Ellipse::new(7.0, 5.0));
-    let cap_mat = materials.add(ColorMaterial::from_color(Color::srgb(0.8, 0.1, 0.1)));
-    let stem_mesh = meshes.add(Rectangle::new(8.0, 6.0));
-    let stem_mat = materials.add(ColorMaterial::from_color(Color::srgb(0.95, 0.85, 0.7)));
-
+fn spawn_mushroom(commands: &mut Commands, assets: &GameAssets, block_pos: Vec3) {
     commands
         .spawn((
             Mushroom,
@@ -204,31 +178,21 @@ fn spawn_mushroom(
             },
             Velocity::default(),
             Grounded::default(),
-            Mesh2d(cap_mesh),
-            MeshMaterial2d(cap_mat),
+            Mesh2d(assets.mushroom_cap_mesh.clone()),
+            MeshMaterial2d(assets.mushroom_cap_mat.clone()),
             Transform::from_xyz(block_pos.x, block_pos.y, Z_ITEM),
             DespawnOnExit(AppState::Playing),
         ))
         .with_children(|parent| {
             parent.spawn((
-                Mesh2d(stem_mesh),
-                MeshMaterial2d(stem_mat),
+                Mesh2d(assets.mushroom_stem_mesh.clone()),
+                MeshMaterial2d(assets.mushroom_stem_mat.clone()),
                 Transform::from_xyz(0.0, -5.0, 0.0),
             ));
         });
 }
 
-fn spawn_fire_flower(
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<ColorMaterial>>,
-    block_pos: Vec3,
-) {
-    let flower_mesh = meshes.add(Circle::new(5.0));
-    let flower_mat = materials.add(ColorMaterial::from_color(Color::srgb(1.0, 0.4, 0.1)));
-    let stem_mesh = meshes.add(Rectangle::new(4.0, 8.0));
-    let stem_mat = materials.add(ColorMaterial::from_color(Color::srgb(0.2, 0.7, 0.2)));
-
+fn spawn_fire_flower(commands: &mut Commands, assets: &GameAssets, block_pos: Vec3) {
     commands
         .spawn((
             FireFlower,
@@ -237,15 +201,15 @@ fn spawn_fire_flower(
                 width: MUSHROOM_WIDTH,
                 height: MUSHROOM_HEIGHT,
             },
-            Mesh2d(flower_mesh),
-            MeshMaterial2d(flower_mat),
+            Mesh2d(assets.fire_flower_mesh.clone()),
+            MeshMaterial2d(assets.fire_flower_mat.clone()),
             Transform::from_xyz(block_pos.x, block_pos.y, Z_ITEM),
             DespawnOnExit(AppState::Playing),
         ))
         .with_children(|parent| {
             parent.spawn((
-                Mesh2d(stem_mesh),
-                MeshMaterial2d(stem_mat),
+                Mesh2d(assets.fire_flower_stem_mesh.clone()),
+                MeshMaterial2d(assets.fire_flower_stem_mat.clone()),
                 Transform::from_xyz(0.0, -6.0, 0.0),
             ));
         });
