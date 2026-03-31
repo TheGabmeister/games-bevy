@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::components::Decoration;
 use crate::constants::*;
-use crate::level::{tile_to_world, LevelGrid, LEVEL_HEIGHT, LEVEL_WIDTH};
+use crate::level::{tile_to_world, LevelGrid};
 use crate::states::AppState;
 
 pub struct DecorationPlugin;

@@ -270,9 +270,6 @@ pub fn world_to_row(wy: f32) -> i32 {
 ///
 /// Row 0 = top of screen, Row 14 = bottom. Ground is 2 tiles thick (rows 13–14).
 
-pub const LEVEL_WIDTH: usize = 211;
-pub const LEVEL_HEIGHT: usize = 15;
-
 pub fn level_1_1() -> [[char; LEVEL_WIDTH]; LEVEL_HEIGHT] {
     let mut g = [['.'; LEVEL_WIDTH]; LEVEL_HEIGHT];
 

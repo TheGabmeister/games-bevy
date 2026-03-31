@@ -8,6 +8,8 @@ pub const CAMERA_VISIBLE_HEIGHT: f32 = 200.0;
 pub const CAMERA_SCALE: f32 = CAMERA_VISIBLE_HEIGHT / WINDOW_HEIGHT;
 
 // Grid
+pub const LEVEL_WIDTH: usize = 224;
+pub const LEVEL_HEIGHT: usize = 15;
 pub const TILE_SIZE: f32 = 16.0;
 
 // Player dimensions
@@ -47,7 +49,7 @@ pub const CAMERA_FIXED_Y: f32 = -20.0;
 pub const CAMERA_LERP_SPEED: f32 = 10.0;
 pub const CAMERA_DEAD_ZONE_OFFSET: f32 = CAMERA_VISIBLE_WIDTH / 6.0;
 pub const CAMERA_MIN_X: f32 = LEVEL_ORIGIN_X + CAMERA_VISIBLE_WIDTH / 2.0;
-pub const CAMERA_MAX_X: f32 = LEVEL_ORIGIN_X + 211.0 * TILE_SIZE - CAMERA_VISIBLE_WIDTH / 2.0;
+pub const CAMERA_MAX_X: f32 = LEVEL_ORIGIN_X + LEVEL_WIDTH as f32 * TILE_SIZE - CAMERA_VISIBLE_WIDTH / 2.0;
 
 // Physics
 pub const GRAVITY_ASCENDING: f32 = 600.0;
