@@ -370,11 +370,12 @@ fn spawn_transition_screen(
 fn transition_screen_update(
     time: Res<Time>,
     mut commands: Commands,
-    mut timer: ResMut<LevelTransitionTimer>,
+    timer: Option<ResMut<LevelTransitionTimer>>,
     mut next_state: ResMut<NextState<AppState>>,
     asset_server: Res<AssetServer>,
     level_list: Res<LevelList>,
 ) {
+    let Some(mut timer) = timer else { return };
     timer.0.tick(time.delta());
     if timer.0.is_finished() {
         // Reload the level asset for the current level

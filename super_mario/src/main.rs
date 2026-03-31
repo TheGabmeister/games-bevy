@@ -70,7 +70,10 @@ fn main() {
         .init_asset::<level::LevelData>()
         .register_asset_loader(level::LevelAssetLoader)
         .init_resource::<level::SpawnerRegistry>()
-        .add_systems(Startup, (assets::init_game_assets, level::load_level, level::init_spawner_registry))
+        .add_systems(Startup, (
+            assets::init_game_assets,
+            (level::load_level, level::init_spawner_registry).after(assets::init_game_assets),
+        ))
         .add_systems(OnEnter(AppState::Playing), level::spawn_level)
         .run();
 }
