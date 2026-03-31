@@ -7,6 +7,7 @@ use crate::constants::*;
 use crate::level::{LevelGrid, tile_to_world, world_to_col, world_to_row};
 use crate::resources::*;
 use crate::states::*;
+use crate::ui;
 
 pub struct PlayerPlugin;
 
@@ -214,7 +215,7 @@ fn flagpole_collision(
     mut commands: Commands,
     level: Res<LevelGrid>,
     player_query: Query<(Entity, &Transform, &CollisionSize), With<Player>>,
-    mut game_data: ResMut<GameData>,
+    mut score_events: MessageWriter<ScoreEvent>,
     mut next_play_state: ResMut<NextState<PlayState>>,
 ) {
     let Ok((player_entity, player_tf, player_coll)) = player_query.single() else { return };
@@ -244,21 +245,14 @@ fn flagpole_collision(
             let flagpole_score =
                 FLAGPOLE_BOTTOM_SCORE + score_range * rows_from_bottom / row_range;
 
-            game_data.score += flagpole_score;
+            score_events.write(ScoreEvent { points: flagpole_score });
 
             // Score popup
-            commands.spawn((
-                ScorePopup(Timer::from_seconds(SCORE_POPUP_DURATION, TimerMode::Once)),
-                Text2d::new(format!("+{flagpole_score}")),
-                TextFont { font_size: 8.0, ..default() },
-                TextColor(Color::WHITE),
-                Transform::from_xyz(
-                    player_tf.translation.x + 15.0,
-                    player_tf.translation.y,
-                    Z_PLAYER + 1.0,
-                ),
-                DespawnOnExit(AppState::Playing),
-            ));
+            ui::spawn_score_popup(
+                &mut commands, flagpole_score,
+                player_tf.translation.x + 15.0,
+                player_tf.translation.y,
+            );
 
             // Compute animation data
             let pole_col = col;
@@ -296,7 +290,8 @@ fn level_complete_system(
     mut anim: ResMut<LevelCompleteAnimation>,
     mut player_query: Query<(&mut Transform, &mut Velocity), With<Player>>,
     mut flag_query: Query<&mut Transform, (With<FlagpoleFlag>, Without<Player>)>,
-    mut game_data: ResMut<GameData>,
+    mut game_timer: ResMut<GameTimer>,
+    mut score_events: MessageWriter<ScoreEvent>,
     mut next_app_state: ResMut<NextState<AppState>>,
 ) {
     let Ok((mut player_tf, mut vel)) = player_query.single_mut() else { return };
@@ -329,12 +324,12 @@ fn level_complete_system(
             }
         }
         LevelCompletePhase::TimeTally => {
-            if game_data.timer > 0.0 {
-                let ticks = (TIME_TALLY_RATE * dt).ceil().min(game_data.timer) as u32;
-                game_data.timer -= ticks as f32;
-                game_data.score += ticks * TIME_BONUS_PER_TICK;
+            if game_timer.time > 0.0 {
+                let ticks = (TIME_TALLY_RATE * dt).ceil().min(game_timer.time) as u32;
+                game_timer.time -= ticks as f32;
+                score_events.write(ScoreEvent { points: ticks * TIME_BONUS_PER_TICK });
             } else {
-                game_data.timer = 0.0;
+                game_timer.time = 0.0;
                 anim.phase = LevelCompletePhase::Done;
             }
         }
@@ -387,6 +382,7 @@ fn death_animation_system(
         With<Player>,
     >,
     mut game_data: ResMut<GameData>,
+    mut game_timer: ResMut<GameTimer>,
     mut next_play_state: ResMut<NextState<PlayState>>,
     mut next_app_state: ResMut<NextState<AppState>>,
     spawn_point: Res<SpawnPoint>,
@@ -444,13 +440,13 @@ fn death_animation_system(
             vel.x = 0.0;
             vel.y = 0.0;
             grounded.0 = false;
-            game_data.timer = TIMER_START;
+            game_timer.time = TIMER_START;
 
             // Reset to small Mario with normal appearance
             *player_size = PlayerSize::Small;
             coll_size.height = PLAYER_SMALL_HEIGHT;
-            mesh.0 = assets.player_small_mesh.clone();
-            mat.0 = assets.player_normal_mat.clone();
+            mesh.0 = assets.player.small_mesh.clone();
+            mat.0 = assets.player.normal_mat.clone();
 
             if let Ok(mut camera_tf) = camera_query.single_mut() {
                 camera_tf.translation.x = CAMERA_MIN_X;

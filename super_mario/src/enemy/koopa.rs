@@ -4,8 +4,9 @@ use crate::assets::GameAssets;
 use crate::collision::aabb_overlap;
 use crate::components::*;
 use crate::constants::*;
-use crate::resources::GameData;
+use crate::resources::ScoreEvent;
 use crate::states::*;
+use crate::ui;
 
 use super::mario_take_damage;
 
@@ -21,7 +22,7 @@ pub fn mario_koopa_collision(
         (Entity, &Transform, &CollisionSize),
         (With<KoopaTroopa>, With<EnemyActive>, Without<Player>, Without<Goomba>, Without<Shell>),
     >,
-    mut game_data: ResMut<GameData>,
+    mut score_events: MessageWriter<ScoreEvent>,
     mut next_play_state: ResMut<NextState<PlayState>>,
     assets: Res<GameAssets>,
 ) {
@@ -51,7 +52,7 @@ pub fn mario_koopa_collision(
         if py > enemy_tf.translation.y && pvy <= 0.0 {
             // Stomp Koopa → Shell
             player_vel.y = STOMP_BOUNCE_IMPULSE;
-            game_data.score += STOMP_SCORE;
+            score_events.write(ScoreEvent { points: STOMP_SCORE });
 
             let shell_y = enemy_tf.translation.y - (KOOPA_HEIGHT - SHELL_HEIGHT) / 2.0;
 
@@ -59,40 +60,13 @@ pub fn mario_koopa_collision(
             commands.entity(entity).despawn();
 
             // Spawn Shell
-            commands.spawn((
-                Shell {
-                    state: ShellState::Stationary,
-                    chain_kills: 0,
-                },
-                EnemyWalker {
-                    speed: 0.0,
-                    direction: 1.0,
-                },
-                CollisionSize {
-                    width: SHELL_WIDTH,
-                    height: SHELL_HEIGHT,
-                },
-                Velocity::default(),
-                Grounded(true),
-                EnemyActive,
-                Mesh2d(assets.shell_mesh.clone()),
-                MeshMaterial2d(assets.shell_mat.clone()),
-                Transform::from_xyz(enemy_tf.translation.x, shell_y, Z_ENEMY),
-                DespawnOnExit(AppState::Playing),
-            ));
+            assets.shell.spawn(&mut commands, enemy_tf.translation.x, shell_y);
 
-            commands.spawn((
-                ScorePopup(Timer::from_seconds(SCORE_POPUP_DURATION, TimerMode::Once)),
-                Text2d::new(format!("+{STOMP_SCORE}")),
-                TextFont { font_size: 8.0, ..default() },
-                TextColor(Color::WHITE),
-                Transform::from_xyz(
-                    enemy_tf.translation.x,
-                    enemy_tf.translation.y + KOOPA_HEIGHT / 2.0,
-                    Z_PLAYER + 1.0,
-                ),
-                DespawnOnExit(AppState::Playing),
-            ));
+            ui::spawn_score_popup(
+                &mut commands, STOMP_SCORE,
+                enemy_tf.translation.x,
+                enemy_tf.translation.y + KOOPA_HEIGHT / 2.0,
+            );
 
             return;
         } else {
@@ -198,7 +172,7 @@ pub fn shell_enemy_collision(
         (Entity, &Transform, &CollisionSize),
         (With<KoopaTroopa>, With<EnemyActive>),
     >,
-    mut game_data: ResMut<GameData>,
+    mut score_events: MessageWriter<ScoreEvent>,
 ) {
     for (shell_tf, shell_coll, mut shell) in &mut shell_query {
         if shell.state != ShellState::Moving {
@@ -218,20 +192,13 @@ pub fn shell_enemy_collision(
                 shell.chain_kills += 1;
                 let score =
                     SHELL_BASE_SCORE * (1 << (shell.chain_kills - 1).min(5));
-                game_data.score += score;
+                score_events.write(ScoreEvent { points: score });
 
-                commands.spawn((
-                    ScorePopup(Timer::from_seconds(SCORE_POPUP_DURATION, TimerMode::Once)),
-                    Text2d::new(format!("+{score}")),
-                    TextFont { font_size: 8.0, ..default() },
-                    TextColor(Color::WHITE),
-                    Transform::from_xyz(
-                        enemy_tf.translation.x,
-                        enemy_tf.translation.y + 10.0,
-                        Z_PLAYER + 1.0,
-                    ),
-                    DespawnOnExit(AppState::Playing),
-                ));
+                ui::spawn_score_popup(
+                    &mut commands, score,
+                    enemy_tf.translation.x,
+                    enemy_tf.translation.y + 10.0,
+                );
             }
         }
 
@@ -248,20 +215,13 @@ pub fn shell_enemy_collision(
                 shell.chain_kills += 1;
                 let score =
                     SHELL_BASE_SCORE * (1 << (shell.chain_kills - 1).min(5));
-                game_data.score += score;
+                score_events.write(ScoreEvent { points: score });
 
-                commands.spawn((
-                    ScorePopup(Timer::from_seconds(SCORE_POPUP_DURATION, TimerMode::Once)),
-                    Text2d::new(format!("+{score}")),
-                    TextFont { font_size: 8.0, ..default() },
-                    TextColor(Color::WHITE),
-                    Transform::from_xyz(
-                        enemy_tf.translation.x,
-                        enemy_tf.translation.y + 10.0,
-                        Z_PLAYER + 1.0,
-                    ),
-                    DespawnOnExit(AppState::Playing),
-                ));
+                ui::spawn_score_popup(
+                    &mut commands, score,
+                    enemy_tf.translation.x,
+                    enemy_tf.translation.y + 10.0,
+                );
             }
         }
     }

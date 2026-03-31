@@ -3,13 +3,28 @@ use bevy::prelude::*;
 use crate::components::PlayerSize;
 use crate::constants::{COINS_PER_LIFE, TIMER_START};
 
+// ── Game Messages ──
+
+/// Emitted when points are awarded (stomp, powerup, fireball, etc.).
+/// Consumed by `apply_game_events` which updates `GameData.score`.
+#[derive(Message)]
+pub struct ScoreEvent {
+    pub points: u32,
+}
+
+/// Emitted when a coin is collected (block or floating).
+/// Consumed by `apply_game_events` which increments coins and awards extra lives.
+#[derive(Message)]
+pub struct CoinEvent;
+
+// ── Resources ──
+
 #[derive(Resource)]
 pub struct GameData {
     pub score: u32,
     pub coins: u32,
     pub lives: u32,
     pub world_name: String,
-    pub timer: f32,
 }
 
 impl Default for GameData {
@@ -19,8 +34,18 @@ impl Default for GameData {
             coins: 0,
             lives: 3,
             world_name: "1-1".to_string(),
-            timer: TIMER_START,
         }
+    }
+}
+
+#[derive(Resource)]
+pub struct GameTimer {
+    pub time: f32,
+}
+
+impl Default for GameTimer {
+    fn default() -> Self {
+        Self { time: TIMER_START }
     }
 }
 

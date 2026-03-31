@@ -7,6 +7,7 @@ use crate::constants::*;
 use crate::level::*;
 use crate::resources::*;
 use crate::states::*;
+use crate::ui;
 
 pub struct BlockPlugin;
 
@@ -30,7 +31,8 @@ fn process_block_hits(
     mut commands: Commands,
     mut pending: ResMut<PendingBlockHit>,
     mut level: ResMut<LevelGrid>,
-    mut game_data: ResMut<GameData>,
+    mut score_events: MessageWriter<ScoreEvent>,
+    mut coin_events: MessageWriter<CoinEvent>,
     assets: Res<GameAssets>,
     tile_query: Query<(Entity, &TilePos, &Transform), With<Tile>>,
     enemy_query: Query<
@@ -65,19 +67,19 @@ fn process_block_hits(
             // Change to used appearance
             commands
                 .entity(tile_entity)
-                .insert(MeshMaterial2d(assets.empty_block_mat.clone()));
+                .insert(MeshMaterial2d(assets.tile.empty_block_mat.clone()));
 
             // Spawn content
             if ch == 'M' {
                 if hit.player_size == PlayerSize::Small {
-                    spawn_mushroom(&mut commands, &assets, tile_pos);
+                    assets.mushroom.spawn(&mut commands, tile_pos);
                 } else {
-                    spawn_fire_flower(&mut commands, &assets, tile_pos);
+                    assets.fire_flower.spawn(&mut commands, tile_pos);
                 }
             } else {
-                spawn_coin_pop(&mut commands, &assets, tile_pos);
-                game_data.add_coin();
-                game_data.score += COIN_SCORE;
+                assets.coin_pop.spawn(&mut commands, tile_pos);
+                coin_events.write(CoinEvent);
+                score_events.write(ScoreEvent { points: COIN_SCORE });
             }
 
             // Mark grid as used (solid but not hittable)
@@ -97,20 +99,7 @@ fn process_block_hits(
                 ];
 
                 for (vx, vy) in velocities {
-                    commands.spawn((
-                        BrickParticle {
-                            vel_x: vx,
-                            vel_y: vy,
-                            timer: Timer::from_seconds(
-                                BRICK_PARTICLE_DURATION,
-                                TimerMode::Once,
-                            ),
-                        },
-                        Mesh2d(assets.brick_particle_mesh.clone()),
-                        MeshMaterial2d(assets.brick_particle_mat.clone()),
-                        Transform::from_xyz(tile_pos.x, tile_pos.y, Z_ITEM),
-                        DespawnOnExit(AppState::Playing),
-                    ));
+                    assets.brick_particle.spawn(&mut commands, tile_pos, vx, vy);
                 }
             } else {
                 // Small Mario bumps brick
@@ -133,87 +122,17 @@ fn process_block_hits(
 
         if dx < BRICK_BUMP_KILL_RANGE && dy < TILE_SIZE / 2.0 {
             commands.entity(entity).despawn();
-            game_data.score += STOMP_SCORE;
+            score_events.write(ScoreEvent { points: STOMP_SCORE });
 
-            commands.spawn((
-                ScorePopup(Timer::from_seconds(SCORE_POPUP_DURATION, TimerMode::Once)),
-                Text2d::new(format!("+{STOMP_SCORE}")),
-                TextFont {
-                    font_size: 8.0,
-                    ..default()
-                },
-                TextColor(Color::WHITE),
-                Transform::from_xyz(
-                    transform.translation.x,
-                    transform.translation.y + 10.0,
-                    Z_PLAYER + 1.0,
-                ),
-                DespawnOnExit(AppState::Playing),
-            ));
+            ui::spawn_score_popup(
+                &mut commands, STOMP_SCORE,
+                transform.translation.x,
+                transform.translation.y + 10.0,
+            );
         }
     }
 }
 
-fn spawn_coin_pop(commands: &mut Commands, assets: &GameAssets, block_pos: Vec3) {
-    commands.spawn((
-        CoinPop {
-            vel_y: COIN_POP_IMPULSE,
-            timer: Timer::from_seconds(COIN_POP_DURATION, TimerMode::Once),
-        },
-        Mesh2d(assets.coin_pop_mesh.clone()),
-        MeshMaterial2d(assets.coin_pop_mat.clone()),
-        Transform::from_xyz(block_pos.x, block_pos.y + TILE_SIZE, Z_ITEM),
-        DespawnOnExit(AppState::Playing),
-    ));
-}
-
-fn spawn_mushroom(commands: &mut Commands, assets: &GameAssets, block_pos: Vec3) {
-    commands
-        .spawn((
-            Mushroom,
-            MushroomEmerging { remaining: TILE_SIZE },
-            CollisionSize {
-                width: MUSHROOM_WIDTH,
-                height: MUSHROOM_HEIGHT,
-            },
-            Velocity::default(),
-            Grounded::default(),
-            Mesh2d(assets.mushroom_cap_mesh.clone()),
-            MeshMaterial2d(assets.mushroom_cap_mat.clone()),
-            Transform::from_xyz(block_pos.x, block_pos.y, Z_ITEM),
-            DespawnOnExit(AppState::Playing),
-        ))
-        .with_children(|parent| {
-            parent.spawn((
-                Mesh2d(assets.mushroom_stem_mesh.clone()),
-                MeshMaterial2d(assets.mushroom_stem_mat.clone()),
-                Transform::from_xyz(0.0, -5.0, 0.0),
-            ));
-        });
-}
-
-fn spawn_fire_flower(commands: &mut Commands, assets: &GameAssets, block_pos: Vec3) {
-    commands
-        .spawn((
-            FireFlower,
-            FireFlowerEmerging { remaining: TILE_SIZE },
-            CollisionSize {
-                width: MUSHROOM_WIDTH,
-                height: MUSHROOM_HEIGHT,
-            },
-            Mesh2d(assets.fire_flower_mesh.clone()),
-            MeshMaterial2d(assets.fire_flower_mat.clone()),
-            Transform::from_xyz(block_pos.x, block_pos.y, Z_ITEM),
-            DespawnOnExit(AppState::Playing),
-        ))
-        .with_children(|parent| {
-            parent.spawn((
-                Mesh2d(assets.fire_flower_stem_mesh.clone()),
-                MeshMaterial2d(assets.fire_flower_stem_mat.clone()),
-                Transform::from_xyz(0.0, -6.0, 0.0),
-            ));
-        });
-}
 
 // ── Animation Systems ──
 
@@ -278,7 +197,8 @@ fn brick_particle_system(
 
 fn floating_coin_collection(
     mut commands: Commands,
-    mut game_data: ResMut<GameData>,
+    mut score_events: MessageWriter<ScoreEvent>,
+    mut coin_events: MessageWriter<CoinEvent>,
     player_query: Query<(&Transform, &CollisionSize), With<Player>>,
     coin_query: Query<(Entity, &Transform), With<FloatingCoin>>,
 ) {
@@ -299,23 +219,14 @@ fn floating_coin_collection(
         }
 
         commands.entity(entity).despawn();
-        game_data.score += FLOATING_COIN_SCORE;
-        game_data.add_coin();
+        score_events.write(ScoreEvent { points: FLOATING_COIN_SCORE });
+        coin_events.write(CoinEvent);
 
-        commands.spawn((
-            ScorePopup(Timer::from_seconds(SCORE_POPUP_DURATION, TimerMode::Once)),
-            Text2d::new(format!("+{FLOATING_COIN_SCORE}")),
-            TextFont {
-                font_size: 8.0,
-                ..default()
-            },
-            TextColor(Color::srgb(1.0, 0.85, 0.0)),
-            Transform::from_xyz(
-                coin_tf.translation.x,
-                coin_tf.translation.y + 10.0,
-                Z_PLAYER + 1.0,
-            ),
-            DespawnOnExit(AppState::Playing),
-        ));
+        ui::spawn_score_popup_colored(
+            &mut commands, FLOATING_COIN_SCORE,
+            coin_tf.translation.x,
+            coin_tf.translation.y + 10.0,
+            Color::srgb(1.0, 0.85, 0.0),
+        );
     }
 }

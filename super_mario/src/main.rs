@@ -35,7 +35,10 @@ fn main() {
         .init_state::<AppState>()
         .add_sub_state::<PlayState>()
         .init_resource::<GameData>()
+        .init_resource::<GameTimer>()
         .init_resource::<SpawnPoint>()
+        .add_message::<ScoreEvent>()
+        .add_message::<CoinEvent>()
         .configure_sets(
             Update,
             (

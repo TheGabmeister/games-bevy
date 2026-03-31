@@ -6,7 +6,6 @@ use serde::Deserialize;
 use crate::components::*;
 use crate::constants::*;
 use crate::resources::*;
-use crate::states::AppState;
 use crate::ui;
 
 // ── Level Data Asset ──
@@ -319,11 +318,13 @@ pub fn spawn_level(
     mut commands: Commands,
     assets: Res<crate::assets::GameAssets>,
     mut game_data: ResMut<GameData>,
+    mut game_timer: ResMut<GameTimer>,
     mut spawn_point: ResMut<SpawnPoint>,
     level_handle: Res<LevelHandle>,
     level_assets: Res<Assets<LevelData>>,
 ) {
     *game_data = GameData::default();
+    *game_timer = GameTimer::default();
 
     // Load grid from the RON asset, fall back to hardcoded test level
     let grid = level_assets
@@ -340,155 +341,21 @@ pub fn spawn_level(
             let (wx, wy) = tile_to_world(col, row);
 
             match ch {
-                '#' => {
-                    commands.spawn((
-                        Tile, TileType::Ground,
-                        Mesh2d(assets.tile_mesh.clone()),
-                        MeshMaterial2d(assets.ground_mat.clone()),
-                        Transform::from_xyz(wx, wy, Z_TILE),
-                        DespawnOnExit(AppState::Playing),
-                    ));
-                }
-                'B' => {
-                    commands.spawn((
-                        Tile, TileType::Brick,
-                        TilePos { col: col as i32, row: row as i32 },
-                        Mesh2d(assets.tile_mesh.clone()),
-                        MeshMaterial2d(assets.brick_mat.clone()),
-                        Transform::from_xyz(wx, wy, Z_TILE),
-                        DespawnOnExit(AppState::Playing),
-                    ));
-                }
-                '?' | 'M' => {
-                    commands.spawn((
-                        Tile, TileType::QuestionBlock,
-                        TilePos { col: col as i32, row: row as i32 },
-                        Mesh2d(assets.tile_mesh.clone()),
-                        MeshMaterial2d(assets.question_mat.clone()),
-                        Transform::from_xyz(wx, wy, Z_TILE),
-                        DespawnOnExit(AppState::Playing),
-                    ));
-                }
-                'X' => {
-                    commands.spawn((
-                        Tile, TileType::Solid,
-                        Mesh2d(assets.tile_mesh.clone()),
-                        MeshMaterial2d(assets.solid_mat.clone()),
-                        Transform::from_xyz(wx, wy, Z_TILE),
-                        DespawnOnExit(AppState::Playing),
-                    ));
-                }
-                '[' => {
-                    commands.spawn((
-                        Tile, TileType::PipeTopLeft,
-                        Mesh2d(assets.pipe_top_mesh.clone()),
-                        MeshMaterial2d(assets.pipe_mat.clone()),
-                        Transform::from_xyz(wx, wy, Z_PIPE),
-                        DespawnOnExit(AppState::Playing),
-                    ));
-                }
-                ']' => {
-                    commands.spawn((
-                        Tile, TileType::PipeTopRight,
-                        Mesh2d(assets.pipe_top_mesh.clone()),
-                        MeshMaterial2d(assets.pipe_mat.clone()),
-                        Transform::from_xyz(wx, wy, Z_PIPE),
-                        DespawnOnExit(AppState::Playing),
-                    ));
-                }
-                '{' => {
-                    commands.spawn((
-                        Tile, TileType::PipeBodyLeft,
-                        Mesh2d(assets.tile_mesh.clone()),
-                        MeshMaterial2d(assets.pipe_mat.clone()),
-                        Transform::from_xyz(wx, wy, Z_PIPE),
-                        DespawnOnExit(AppState::Playing),
-                    ));
-                }
-                '}' => {
-                    commands.spawn((
-                        Tile, TileType::PipeBodyRight,
-                        Mesh2d(assets.tile_mesh.clone()),
-                        MeshMaterial2d(assets.pipe_mat.clone()),
-                        Transform::from_xyz(wx, wy, Z_PIPE),
-                        DespawnOnExit(AppState::Playing),
-                    ));
-                }
-                'G' => {
-                    commands.spawn((
-                        Goomba,
-                        EnemyWalker { speed: GOOMBA_SPEED, direction: -1.0 },
-                        CollisionSize { width: GOOMBA_WIDTH, height: GOOMBA_HEIGHT },
-                        Velocity::default(),
-                        Grounded::default(),
-                        Mesh2d(assets.goomba_body_mesh.clone()),
-                        MeshMaterial2d(assets.goomba_body_mat.clone()),
-                        Transform::from_xyz(wx, wy, Z_ENEMY),
-                        DespawnOnExit(AppState::Playing),
-                    )).with_children(|parent| {
-                        parent.spawn((
-                            Mesh2d(assets.goomba_feet_mesh.clone()),
-                            MeshMaterial2d(assets.goomba_feet_mat.clone()),
-                            Transform::from_xyz(0.0, -5.0, 0.0),
-                        ));
-                    });
-                }
-                'K' => {
-                    commands.spawn((
-                        KoopaTroopa,
-                        EnemyWalker { speed: KOOPA_SPEED, direction: -1.0 },
-                        CollisionSize { width: KOOPA_WIDTH, height: KOOPA_HEIGHT },
-                        Velocity::default(),
-                        Grounded::default(),
-                        Mesh2d(assets.koopa_body_mesh.clone()),
-                        MeshMaterial2d(assets.koopa_body_mat.clone()),
-                        Transform::from_xyz(wx, wy, Z_ENEMY),
-                        DespawnOnExit(AppState::Playing),
-                    )).with_children(|parent| {
-                        parent.spawn((
-                            Mesh2d(assets.koopa_head_mesh.clone()),
-                            MeshMaterial2d(assets.koopa_head_mat.clone()),
-                            Transform::from_xyz(0.0, 11.0, 0.0),
-                        ));
-                    });
-                }
-                'C' => {
-                    commands.spawn((
-                        FloatingCoin,
-                        Mesh2d(assets.floating_coin_mesh.clone()),
-                        MeshMaterial2d(assets.floating_coin_mat.clone()),
-                        Transform::from_xyz(wx, wy, Z_ITEM),
-                        DespawnOnExit(AppState::Playing),
-                    ));
-                }
+                '#' => { assets.tile.spawn(&mut commands, TileType::Ground, wx, wy, None); }
+                'B' => { assets.tile.spawn(&mut commands, TileType::Brick, wx, wy, Some((col as i32, row as i32))); }
+                '?' | 'M' => { assets.tile.spawn(&mut commands, TileType::QuestionBlock, wx, wy, Some((col as i32, row as i32))); }
+                'X' => { assets.tile.spawn(&mut commands, TileType::Solid, wx, wy, None); }
+                '[' => { assets.tile.spawn(&mut commands, TileType::PipeTopLeft, wx, wy, None); }
+                ']' => { assets.tile.spawn(&mut commands, TileType::PipeTopRight, wx, wy, None); }
+                '{' => { assets.tile.spawn(&mut commands, TileType::PipeBodyLeft, wx, wy, None); }
+                '}' => { assets.tile.spawn(&mut commands, TileType::PipeBodyRight, wx, wy, None); }
+                'G' => { assets.goomba.spawn(&mut commands, wx, wy); }
+                'K' => { assets.koopa.spawn(&mut commands, wx, wy); }
+                'C' => { assets.floating_coin.spawn(&mut commands, wx, wy); }
                 'F' => {
-                    commands.spawn((
-                        Tile,
-                        Mesh2d(assets.pole_mesh.clone()),
-                        MeshMaterial2d(assets.pole_mat.clone()),
-                        Transform::from_xyz(wx, wy, Z_TILE),
-                        DespawnOnExit(AppState::Playing),
-                    ));
-
+                    assets.flagpole.spawn_pole(&mut commands, wx, wy);
                     if row == FLAGPOLE_TOP_ROW {
-                        commands.spawn((
-                            FlagpoleFlag,
-                            Mesh2d(assets.flag_mesh.clone()),
-                            MeshMaterial2d(assets.flag_mat.clone()),
-                            Transform::from_xyz(
-                                wx - FLAGPOLE_FLAG_SIZE / 2.0 - FLAGPOLE_POLE_WIDTH / 2.0,
-                                wy,
-                                Z_TILE + 0.1,
-                            ),
-                            DespawnOnExit(AppState::Playing),
-                        ));
-
-                        commands.spawn((
-                            Mesh2d(assets.pole_ball_mesh.clone()),
-                            MeshMaterial2d(assets.pole_ball_mat.clone()),
-                            Transform::from_xyz(wx, wy + TILE_SIZE / 2.0 + 3.0, Z_TILE + 0.1),
-                            DespawnOnExit(AppState::Playing),
-                        ));
+                        assets.flagpole.spawn_top(&mut commands, wx, wy);
                     }
                 }
                 'S' => {
@@ -513,47 +380,16 @@ pub fn spawn_level(
         let (_, ground_center_y) = tile_to_world(castle_col, 13);
         let ground_top_y = ground_center_y + TILE_SIZE / 2.0;
 
-        commands.spawn((
-            Castle,
-            Mesh2d(assets.castle_body_mesh.clone()),
-            MeshMaterial2d(assets.castle_body_mat.clone()),
-            Transform::from_xyz(castle_x, ground_top_y + 24.0, Z_DECORATION),
-            DespawnOnExit(AppState::Playing),
-        ));
-
-        commands.spawn((
-            Mesh2d(assets.castle_roof_mesh.clone()),
-            MeshMaterial2d(assets.castle_roof_mat.clone()),
-            Transform::from_xyz(castle_x, ground_top_y + 58.0, Z_DECORATION),
-            DespawnOnExit(AppState::Playing),
-        ));
-
-        commands.spawn((
-            Mesh2d(assets.castle_door_mesh.clone()),
-            MeshMaterial2d(assets.castle_door_mat.clone()),
-            Transform::from_xyz(castle_x, ground_top_y + 8.0, Z_DECORATION + 0.1),
-            DespawnOnExit(AppState::Playing),
-        ));
+        assets.castle.spawn(&mut commands, castle_x, ground_top_y);
     }
 
     *spawn_point = SpawnPoint { x: sp.0, y: sp.1 };
 
     // Mario
-    commands.spawn((
-        Player,
-        PlayerSize::default(),
-        CollisionSize { width: PLAYER_WIDTH, height: PLAYER_SMALL_HEIGHT },
-        Velocity::default(),
-        FacingDirection::default(),
-        Grounded::default(),
-        Mesh2d(assets.player_small_mesh.clone()),
-        MeshMaterial2d(assets.player_normal_mat.clone()),
-        Transform::from_xyz(sp.0, sp.1, Z_PLAYER),
-        DespawnOnExit(AppState::Playing),
-    ));
+    assets.player.spawn(&mut commands, sp.0, sp.1);
 
     // HUD
-    ui::spawn_hud(&mut commands, &game_data);
+    ui::spawn_hud(&mut commands, &game_data, &game_timer);
 }
 
 // ── RON file generation (dev helper) ──

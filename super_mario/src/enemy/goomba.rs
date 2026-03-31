@@ -3,8 +3,9 @@ use bevy::prelude::*;
 use crate::collision::aabb_overlap;
 use crate::components::*;
 use crate::constants::*;
-use crate::resources::GameData;
+use crate::resources::ScoreEvent;
 use crate::states::*;
+use crate::ui;
 
 use super::mario_take_damage;
 
@@ -18,7 +19,7 @@ pub fn mario_goomba_collision(
         (Entity, &mut Transform, &mut Velocity, &CollisionSize),
         (With<Goomba>, With<EnemyActive>, Without<Squished>, Without<Player>, Without<KoopaTroopa>, Without<Shell>),
     >,
-    mut game_data: ResMut<GameData>,
+    mut score_events: MessageWriter<ScoreEvent>,
     mut next_play_state: ResMut<NextState<PlayState>>,
 ) {
     let Ok((player_entity, mut player_vel, player_tf, player_coll, &player_size, is_invincible)) =
@@ -47,7 +48,7 @@ pub fn mario_goomba_collision(
         if py > enemy_tf.translation.y && pvy <= 0.0 {
             // Stomp
             player_vel.y = STOMP_BOUNCE_IMPULSE;
-            game_data.score += STOMP_SCORE;
+            score_events.write(ScoreEvent { points: STOMP_SCORE });
 
             enemy_tf.scale.y = 0.3;
             enemy_vel.x = 0.0;
@@ -57,18 +58,11 @@ pub fn mario_goomba_collision(
                 .insert(Squished(Timer::from_seconds(SQUISH_DURATION, TimerMode::Once)))
                 .remove::<EnemyWalker>();
 
-            commands.spawn((
-                ScorePopup(Timer::from_seconds(SCORE_POPUP_DURATION, TimerMode::Once)),
-                Text2d::new(format!("+{STOMP_SCORE}")),
-                TextFont { font_size: 8.0, ..default() },
-                TextColor(Color::WHITE),
-                Transform::from_xyz(
-                    enemy_tf.translation.x,
-                    enemy_tf.translation.y + GOOMBA_HEIGHT,
-                    Z_PLAYER + 1.0,
-                ),
-                DespawnOnExit(AppState::Playing),
-            ));
+            ui::spawn_score_popup(
+                &mut commands, STOMP_SCORE,
+                enemy_tf.translation.x,
+                enemy_tf.translation.y + GOOMBA_HEIGHT,
+            );
 
             return;
         } else {

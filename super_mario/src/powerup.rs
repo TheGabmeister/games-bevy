@@ -7,6 +7,7 @@ use crate::constants::*;
 use crate::level::LevelGrid;
 use crate::resources::*;
 use crate::states::*;
+use crate::ui;
 
 pub struct PowerUpPlugin;
 
@@ -95,7 +96,7 @@ fn fire_flower_emerge(
 
 fn mushroom_collection(
     mut commands: Commands,
-    mut game_data: ResMut<GameData>,
+    mut score_events: MessageWriter<ScoreEvent>,
     player_query: Query<
         (Entity, &Transform, &CollisionSize, &PlayerSize),
         With<Player>,
@@ -119,23 +120,13 @@ fn mushroom_collection(
             mush_coll.width / 2.0, mush_coll.height / 2.0,
         ).is_some() {
             commands.entity(mush_entity).despawn();
-            game_data.score += MUSHROOM_SCORE;
+            score_events.write(ScoreEvent { points: MUSHROOM_SCORE });
 
-            commands.spawn((
-                ScorePopup(Timer::from_seconds(SCORE_POPUP_DURATION, TimerMode::Once)),
-                Text2d::new(format!("+{MUSHROOM_SCORE}")),
-                TextFont {
-                    font_size: 8.0,
-                    ..default()
-                },
-                TextColor(Color::WHITE),
-                Transform::from_xyz(
-                    mush_tf.translation.x,
-                    mush_tf.translation.y + 10.0,
-                    Z_PLAYER + 1.0,
-                ),
-                DespawnOnExit(AppState::Playing),
-            ));
+            ui::spawn_score_popup(
+                &mut commands, MUSHROOM_SCORE,
+                mush_tf.translation.x,
+                mush_tf.translation.y + 10.0,
+            );
 
             if player_size == PlayerSize::Small {
                 commands.entity(player_entity).insert(GrowthAnimation {
@@ -158,7 +149,7 @@ fn mushroom_collection(
 
 fn fire_flower_collection(
     mut commands: Commands,
-    mut game_data: ResMut<GameData>,
+    mut score_events: MessageWriter<ScoreEvent>,
     mut player_query: Query<
         (Entity, &Transform, &CollisionSize, &mut PlayerSize, &mut MeshMaterial2d<ColorMaterial>),
         With<Player>,
@@ -183,24 +174,17 @@ fn fire_flower_collection(
             flower_coll.width / 2.0, flower_coll.height / 2.0,
         ).is_some() {
             commands.entity(flower_entity).despawn();
-            game_data.score += FIRE_FLOWER_SCORE;
+            score_events.write(ScoreEvent { points: FIRE_FLOWER_SCORE });
 
-            commands.spawn((
-                ScorePopup(Timer::from_seconds(SCORE_POPUP_DURATION, TimerMode::Once)),
-                Text2d::new(format!("+{FIRE_FLOWER_SCORE}")),
-                TextFont { font_size: 8.0, ..default() },
-                TextColor(Color::WHITE),
-                Transform::from_xyz(
-                    flower_tf.translation.x,
-                    flower_tf.translation.y + 10.0,
-                    Z_PLAYER + 1.0,
-                ),
-                DespawnOnExit(AppState::Playing),
-            ));
+            ui::spawn_score_popup(
+                &mut commands, FIRE_FLOWER_SCORE,
+                flower_tf.translation.x,
+                flower_tf.translation.y + 10.0,
+            );
 
             if *player_size == PlayerSize::Big {
                 *player_size = PlayerSize::Fire;
-                player_mat.0 = assets.player_fire_mat.clone();
+                player_mat.0 = assets.player.fire_mat.clone();
             }
 
             break;
@@ -241,15 +225,7 @@ fn fireball_shoot(
     let spawn_x = player_tf.translation.x + dir * (PLAYER_WIDTH / 2.0 + FIREBALL_RADIUS + 2.0);
     let spawn_y = player_tf.translation.y;
 
-    commands.spawn((
-        Fireball { direction: dir },
-        Velocity { x: FIREBALL_SPEED * dir, y: 0.0 },
-        CollisionSize { width: FIREBALL_RADIUS * 2.0, height: FIREBALL_RADIUS * 2.0 },
-        Mesh2d(assets.fireball_mesh.clone()),
-        MeshMaterial2d(assets.fireball_mat.clone()),
-        Transform::from_xyz(spawn_x, spawn_y, Z_ITEM),
-        DespawnOnExit(AppState::Playing),
-    ));
+    assets.fireball.spawn(&mut commands, spawn_x, spawn_y, dir);
 }
 
 // ── Fireball Physics ──
@@ -311,7 +287,7 @@ fn fireball_enemy_collision(
         (Entity, &Transform, &CollisionSize),
         (With<KoopaTroopa>, With<EnemyActive>, Without<Fireball>, Without<Goomba>),
     >,
-    mut game_data: ResMut<GameData>,
+    mut score_events: MessageWriter<ScoreEvent>,
     assets: Res<GameAssets>,
 ) {
     for (fb_entity, fb_tf, fb_coll) in &fireball_query {
@@ -329,20 +305,13 @@ fn fireball_enemy_collision(
             ).is_some() {
                 commands.entity(goomba_entity).despawn();
                 commands.entity(fb_entity).despawn();
-                game_data.score += FIREBALL_SCORE;
+                score_events.write(ScoreEvent { points: FIREBALL_SCORE });
 
-                commands.spawn((
-                    ScorePopup(Timer::from_seconds(SCORE_POPUP_DURATION, TimerMode::Once)),
-                    Text2d::new(format!("+{FIREBALL_SCORE}")),
-                    TextFont { font_size: 8.0, ..default() },
-                    TextColor(Color::WHITE),
-                    Transform::from_xyz(
-                        goomba_tf.translation.x,
-                        goomba_tf.translation.y + 10.0,
-                        Z_PLAYER + 1.0,
-                    ),
-                    DespawnOnExit(AppState::Playing),
-                ));
+                ui::spawn_score_popup(
+                    &mut commands, FIREBALL_SCORE,
+                    goomba_tf.translation.x,
+                    goomba_tf.translation.y + 10.0,
+                );
 
                 hit = true;
                 break;
@@ -361,35 +330,17 @@ fn fireball_enemy_collision(
             ).is_some() {
                 commands.entity(koopa_entity).despawn();
                 commands.entity(fb_entity).despawn();
-                game_data.score += FIREBALL_SCORE;
+                score_events.write(ScoreEvent { points: FIREBALL_SCORE });
 
                 let shell_y = koopa_tf.translation.y - (KOOPA_HEIGHT - SHELL_HEIGHT) / 2.0;
 
-                commands.spawn((
-                    Shell { state: ShellState::Stationary, chain_kills: 0 },
-                    EnemyWalker { speed: 0.0, direction: 1.0 },
-                    CollisionSize { width: SHELL_WIDTH, height: SHELL_HEIGHT },
-                    Velocity::default(),
-                    Grounded(true),
-                    EnemyActive,
-                    Mesh2d(assets.shell_mesh.clone()),
-                    MeshMaterial2d(assets.shell_mat.clone()),
-                    Transform::from_xyz(koopa_tf.translation.x, shell_y, Z_ENEMY),
-                    DespawnOnExit(AppState::Playing),
-                ));
+                assets.shell.spawn(&mut commands, koopa_tf.translation.x, shell_y);
 
-                commands.spawn((
-                    ScorePopup(Timer::from_seconds(SCORE_POPUP_DURATION, TimerMode::Once)),
-                    Text2d::new(format!("+{FIREBALL_SCORE}")),
-                    TextFont { font_size: 8.0, ..default() },
-                    TextColor(Color::WHITE),
-                    Transform::from_xyz(
-                        koopa_tf.translation.x,
-                        koopa_tf.translation.y + 10.0,
-                        Z_PLAYER + 1.0,
-                    ),
-                    DespawnOnExit(AppState::Playing),
-                ));
+                ui::spawn_score_popup(
+                    &mut commands, FIREBALL_SCORE,
+                    koopa_tf.translation.x,
+                    koopa_tf.translation.y + 10.0,
+                );
 
                 break;
             }
@@ -432,11 +383,11 @@ fn growth_animation_system(
         if coll_size.height == PLAYER_SMALL_HEIGHT {
             transform.translation.y += (PLAYER_BIG_HEIGHT - PLAYER_SMALL_HEIGHT) / 2.0;
             coll_size.height = PLAYER_BIG_HEIGHT;
-            mesh.0 = assets.player_big_mesh.clone();
+            mesh.0 = assets.player.big_mesh.clone();
         } else {
             transform.translation.y -= (PLAYER_BIG_HEIGHT - PLAYER_SMALL_HEIGHT) / 2.0;
             coll_size.height = PLAYER_SMALL_HEIGHT;
-            mesh.0 = assets.player_small_mesh.clone();
+            mesh.0 = assets.player.small_mesh.clone();
         }
     }
 
@@ -457,16 +408,16 @@ fn growth_animation_system(
             PlayerSize::Small
         };
         mesh.0 = if growth.growing {
-            assets.player_big_mesh.clone()
+            assets.player.big_mesh.clone()
         } else {
-            assets.player_small_mesh.clone()
+            assets.player.small_mesh.clone()
         };
 
         if !growth.growing {
             commands.entity(entity).insert(Invincible {
                 timer: Timer::from_seconds(INVINCIBILITY_DURATION, TimerMode::Once),
             });
-            mat.0 = assets.player_normal_mat.clone();
+            mat.0 = assets.player.normal_mat.clone();
         }
 
         commands.entity(entity).remove::<GrowthAnimation>();
@@ -532,13 +483,13 @@ fn ducking_system(
         commands.entity(entity).insert(Ducking);
         let old_height = coll_size.height;
         coll_size.height = PLAYER_SMALL_HEIGHT;
-        mesh.0 = assets.player_small_mesh.clone();
+        mesh.0 = assets.player.small_mesh.clone();
         transform.translation.y -= (old_height - PLAYER_SMALL_HEIGHT) / 2.0;
     } else if is_ducking && (!wants_duck || !grounded.0 || *player_size == PlayerSize::Small) {
         commands.entity(entity).remove::<Ducking>();
         if *player_size != PlayerSize::Small {
             coll_size.height = PLAYER_BIG_HEIGHT;
-            mesh.0 = assets.player_big_mesh.clone();
+            mesh.0 = assets.player.big_mesh.clone();
             transform.translation.y += (PLAYER_BIG_HEIGHT - PLAYER_SMALL_HEIGHT) / 2.0;
         }
     }
