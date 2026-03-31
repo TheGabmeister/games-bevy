@@ -3,14 +3,16 @@ use bevy::prelude::*;
 use crate::{
     collision::CollisionSet,
     components::{
-        Damage, Enemy, Facing, Health, Hitbox, Hurtbox, InvulnerabilityTimer, Knockback, Lifetime,
-        Player, RoomEntity, SwordAttack,
+        Damage, Enemy, Facing, Health, Hitbox, Hurtbox, InvulnerabilityTimer, Knockback, Label,
+        Lifetime, PickupKind, Player, RoomEntity, SwordAttack,
     },
     constants,
     input::InputActions,
+    items::{DropTable, ItemTable},
     player::PlayerSet,
-    rendering::{color_material, rectangle_mesh, WorldColor},
-    resources::{CurrentRoom, Inventory, PlayerVitals, RoomId, RoomTransitionState},
+    rendering::{circle_mesh, color_material, rectangle_mesh, WorldColor},
+    resources::{CurrentRoom, DungeonId, DungeonState, Inventory, PlayerVitals, RoomId, RoomTransitionState},
+    room::TemporaryPickup,
     states::AppState,
 };
 
@@ -18,6 +20,7 @@ const SWORD_LIFETIME_SECS: f32 = 0.12;
 const PLAYER_INVULNERABILITY_SECS: f32 = 0.75;
 const PLAYER_KNOCKBACK_SPEED: f32 = 140.0;
 const SWORD_DAMAGE: u8 = 1;
+const ENEMY_DROP_LIFETIME_SECS: f32 = 8.0;
 
 pub struct CombatPlugin;
 
@@ -82,11 +85,16 @@ fn spawn_sword_attack(
     mut commands: Commands,
     actions: Res<InputActions>,
     transition: Res<RoomTransitionState>,
+    inventory: Res<Inventory>,
     player: Query<(&Transform, &Facing), With<Player>>,
     attacks: Query<Entity, With<SwordAttack>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
+    if !inventory.has_sword {
+        return;
+    }
+
     if !actions.attack || transition.locked || !attacks.is_empty() {
         return;
     }
@@ -138,6 +146,10 @@ fn resolve_sword_hits(
     mut commands: Commands,
     attacks: Query<(Entity, &Transform, &Hitbox, &Damage), With<SwordAttack>>,
     mut enemies: Query<(Entity, &Transform, &Hurtbox, &mut Health), (With<Enemy>, Without<SwordAttack>)>,
+    drop_table: Res<DropTable>,
+    item_table: Res<ItemTable>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     for (attack_entity, attack_transform, attack_hitbox, attack_damage) in &attacks {
         let attack_pos = attack_transform.translation.truncate();
@@ -156,6 +168,16 @@ fn resolve_sword_hits(
 
             enemy_health.current = enemy_health.current.saturating_sub(attack_damage.0);
             if enemy_health.current == 0 {
+                if let Some(kind) = roll_drop(&drop_table) {
+                    spawn_enemy_drop(
+                        &mut commands,
+                        &item_table,
+                        &mut meshes,
+                        &mut materials,
+                        enemy_pos,
+                        kind,
+                    );
+                }
                 commands.entity(enemy_entity).despawn();
             }
             hit_anything = true;
@@ -240,6 +262,7 @@ fn handle_player_death(
     mut current_room: ResMut<CurrentRoom>,
     mut transition: ResMut<RoomTransitionState>,
     mut next_state: ResMut<NextState<AppState>>,
+    dungeon_state: Res<DungeonState>,
 ) {
     let Ok(player_health) = player.single() else {
         return;
@@ -250,11 +273,67 @@ fn handle_player_death(
     }
 
     player_vitals.current_health = player_vitals.continue_health();
-    current_room.id = RoomId::OverworldCenter;
+    current_room.id = if let Some(dungeon) = dungeon_state.current_dungeon {
+        dungeon_entry_room(dungeon)
+    } else {
+        RoomId::OverworldCenter
+    };
     transition.locked = false;
     transition.direction = None;
     transition.timer.reset();
     next_state.set(AppState::GameOver);
+}
+
+fn dungeon_entry_room(dungeon: DungeonId) -> RoomId {
+    match dungeon {
+        DungeonId::Dungeon1 => RoomId::Dungeon1Entry,
+    }
+}
+
+fn pseudo_random() -> f32 {
+    use std::time::SystemTime;
+    let nanos = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .subsec_nanos();
+    let mixed = (nanos as u64)
+        .wrapping_mul(6364136223846793005)
+        .wrapping_add(1442695040888963407);
+    ((mixed >> 33) as f32) / (u32::MAX as f32)
+}
+
+fn roll_drop(table: &DropTable) -> Option<PickupKind> {
+    let roll = pseudo_random();
+    let mut cumulative = 0.0;
+    for entry in &table.entries {
+        cumulative += entry.chance;
+        if roll < cumulative {
+            return Some(entry.kind);
+        }
+    }
+    None
+}
+
+fn spawn_enemy_drop(
+    commands: &mut Commands,
+    item_table: &ItemTable,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<ColorMaterial>,
+    position: Vec2,
+    kind: PickupKind,
+) {
+    let data = item_table.lookup(kind);
+    commands.spawn((
+        Name::new("EnemyDrop"),
+        RoomEntity,
+        TemporaryPickup,
+        kind,
+        Label(data.label.clone()),
+        Lifetime(Timer::from_seconds(ENEMY_DROP_LIFETIME_SECS, TimerMode::Once)),
+        circle_mesh(meshes, data.radius),
+        MeshMaterial2d(materials.add(data.color)),
+        Transform::from_xyz(position.x, position.y, constants::render_layers::PICKUPS),
+    ));
 }
 
 fn aabb_overlap(a_pos: Vec2, a_half: Vec2, b_pos: Vec2, b_half: Vec2) -> bool {

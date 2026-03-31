@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::{
     rendering::WorldColor,
-    resources::{EquippedItem, Inventory, PlayerVitals},
+    resources::{DialogueState, DungeonState, EquippedItem, Inventory, PlayerVitals},
     states::AppState,
 };
 
@@ -20,11 +20,17 @@ enum HudElement {
 #[derive(Component)]
 struct PauseEquippedText;
 
+#[derive(Component)]
+struct DialogueOverlay;
+
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnEnter(AppState::Title), spawn_title_screen)
             .add_systems(OnEnter(AppState::Playing), spawn_hud)
-            .add_systems(Update, update_hud.run_if(in_state(AppState::Playing)))
+            .add_systems(
+                Update,
+                (update_hud, update_dialogue_overlay).run_if(in_state(AppState::Playing)),
+            )
             .add_systems(OnEnter(AppState::PausedInventory), spawn_pause_overlay)
             .add_systems(
                 Update,
@@ -263,7 +269,42 @@ fn equipped_string(equipped: Option<EquippedItem>) -> String {
 
 // === Pause ===
 
-fn spawn_pause_overlay(mut commands: Commands, inventory: Res<Inventory>) {
+fn spawn_pause_overlay(
+    mut commands: Commands,
+    inventory: Res<Inventory>,
+    dungeon_state: Res<DungeonState>,
+) {
+    let mut items_parts: Vec<&str> = Vec::new();
+    if inventory.has_sword {
+        items_parts.push("SWORD");
+    }
+    let items_line = if items_parts.is_empty() {
+        format!("RUPEES: {}  BOMBS: {}  KEYS: {}", inventory.rupees, inventory.bombs, inventory.keys)
+    } else {
+        format!(
+            "{}  |  RUPEES: {}  BOMBS: {}  KEYS: {}",
+            items_parts.join("  "),
+            inventory.rupees,
+            inventory.bombs,
+            inventory.keys,
+        )
+    };
+
+    let dungeon_line = if let Some(dungeon) = dungeon_state.current_dungeon {
+        let mut parts = vec![format!("DUNGEON KEYS: {}", dungeon_state.keys_for_current())];
+        if dungeon_state.has_map.contains(&dungeon) {
+            parts.push("MAP".to_string());
+        }
+        if dungeon_state.has_compass.contains(&dungeon) {
+            parts.push("COMPASS".to_string());
+        }
+        Some(parts.join("  "))
+    } else {
+        None
+    };
+
+    let triforce_count = dungeon_state.triforce_pieces.len();
+
     commands
         .spawn((
             DespawnOnExit(AppState::PausedInventory),
@@ -279,7 +320,7 @@ fn spawn_pause_overlay(mut commands: Commands, inventory: Res<Inventory>) {
         ))
         .with_children(|parent| {
             parent.spawn((
-                Text::new("PAUSED"),
+                Text::new("INVENTORY"),
                 TextFont {
                     font_size: 32.0,
                     ..default()
@@ -298,6 +339,34 @@ fn spawn_pause_overlay(mut commands: Commands, inventory: Res<Inventory>) {
                 },
                 TextColor(WorldColor::Accent.color()),
             ));
+            parent.spawn((
+                Text::new(items_line),
+                TextFont {
+                    font_size: 20.0,
+                    ..default()
+                },
+                TextColor(WorldColor::UiText.color()),
+            ));
+            if let Some(line) = dungeon_line {
+                parent.spawn((
+                    Text::new(line),
+                    TextFont {
+                        font_size: 20.0,
+                        ..default()
+                    },
+                    TextColor(WorldColor::Accent.color()),
+                ));
+            }
+            if triforce_count > 0 {
+                parent.spawn((
+                    Text::new(format!("TRIFORCE: {}", triforce_count)),
+                    TextFont {
+                        font_size: 20.0,
+                        ..default()
+                    },
+                    TextColor(WorldColor::Accent.color()),
+                ));
+            }
             parent.spawn((
                 Text::new("Z: cycle item  |  Tab/Enter/Esc: resume"),
                 TextFont {
@@ -346,4 +415,51 @@ fn spawn_game_over_overlay(mut commands: Commands) {
                 TextColor(WorldColor::UiText.color()),
             ));
         });
+}
+
+// === Dialogue Overlay ===
+
+fn update_dialogue_overlay(
+    mut commands: Commands,
+    dialogue: Res<DialogueState>,
+    existing: Query<Entity, With<DialogueOverlay>>,
+) {
+    if dialogue.is_active() {
+        let dialogue_text = dialogue.current_text().to_string();
+        if let Ok(entity) = existing.single() {
+            // Update existing overlay text
+            commands.entity(entity).despawn();
+        }
+        commands
+            .spawn((
+                DialogueOverlay,
+                DespawnOnExit(AppState::Playing),
+                Node {
+                    width: percent(100),
+                    height: px(80),
+                    position_type: PositionType::Absolute,
+                    bottom: px(0),
+                    left: px(0),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(0.02, 0.02, 0.08, 0.9)),
+            ))
+            .with_children(|parent| {
+                parent.spawn((
+                    Text::new(dialogue_text),
+                    TextFont {
+                        font_size: 22.0,
+                        ..default()
+                    },
+                    TextColor(WorldColor::UiText.color()),
+                ));
+            });
+    } else {
+        // Dialogue not active — despawn overlay if it exists
+        if let Ok(entity) = existing.single() {
+            commands.entity(entity).despawn();
+        }
+    }
 }

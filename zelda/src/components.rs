@@ -89,5 +89,24 @@ pub enum PickupKind {
     Bomb,
     Key,
     HeartContainer,
+    DungeonKey,
+    DungeonMap,
+    Compass,
+    TriforcePiece,
+    WoodenSword,
 }
 
+#[derive(Component)]
+pub struct Npc;
+
+#[derive(Component)]
+pub struct ShopItem {
+    pub kind: PickupKind,
+    pub price: u16,
+}
+
+#[derive(Component, Default)]
+pub struct PushBlock {
+    pub pushes: u8,
+    pub pushes_needed: u8,
+}

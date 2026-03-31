@@ -1,0 +1,5 @@
+[
+    (kind: Rupee,  chance: 0.35),
+    (kind: Heart,  chance: 0.25),
+    (kind: Bomb,   chance: 0.10),
+]

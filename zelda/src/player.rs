@@ -7,7 +7,7 @@ use crate::{
     },
     constants,
     input::InputActions,
-    resources::{PlayerVitals, RoomTransitionState},
+    resources::{DialogueState, PlayerVitals, RoomTransitionState},
     rendering::{circle_mesh, color_material, WorldColor},
     room::RoomLoadedMessage,
     states::AppState,
@@ -112,11 +112,17 @@ fn spawn_player_on_room_load(
 fn update_player_motion_and_facing(
     actions: Res<InputActions>,
     transition: Res<RoomTransitionState>,
+    dialogue: Res<DialogueState>,
     mut player: Query<(&mut Velocity, &MoveSpeed, &mut Facing), With<Player>>,
 ) {
     let Ok((mut velocity, move_speed, mut facing)) = player.single_mut() else {
         return;
     };
+
+    if dialogue.is_active() {
+        velocity.0 = Vec2::ZERO;
+        return;
+    }
 
     if transition.locked {
         velocity.0 = Vec2::ZERO;

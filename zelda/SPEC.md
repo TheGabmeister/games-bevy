@@ -530,16 +530,16 @@ Use this as the main backlog. Each item should produce a playable improvement an
 - [x] Implement pickups for rupees, hearts, bombs, keys, and heart containers.
 - [x] Add short text labels over entities to visually indicate what they represent.
 - [x] Define an item data table centralizing ID, label, description, color, and pickup effect for every item type.
-- [ ] Add enemy drop tables and temporary pickup behavior for common combat rewards.
-- [ ] Add a data format for overworld room definitions and spawn the overworld from data.
-- [ ] Define a shared room schema covering exits, spawn points, geometry, doors, secrets, encounters, rewards, and persistence flags.
-- [ ] Implement cave entrances, interior cave rooms, and return-to-overworld flow.
-- [ ] Implement shops and hint rooms with text UI and purchase/interaction flow.
-- [ ] Implement secret triggers: burnable bush, bombable wall, push block, and hidden staircase reveal.
-- [ ] Implement dungeon room definitions, dungeon transitions, and dungeon-specific room cleanup.
-- [ ] Add dungeon doors: normal, locked, shutter, bombable, and staircase exits.
-- [ ] Implement dungeon keys, map, compass, and Triforce reward flow.
-- [ ] Build the pause/inventory subscreen and item-selection UI.
+- [x] Add enemy drop tables and temporary pickup behavior for common combat rewards.
+- [x] Add a data format for overworld room definitions and spawn the overworld from data.
+- [x] Define a shared room schema covering exits, spawn points, geometry, doors, secrets, encounters, rewards, and persistence flags.
+- [x] Implement cave entrances, interior cave rooms, and return-to-overworld flow.
+- [x] Implement shops and hint rooms with text UI and purchase/interaction flow.
+- [x] Implement secret triggers: burnable bush, bombable wall, push block, and hidden staircase reveal.
+- [x] Implement dungeon room definitions, dungeon transitions, and dungeon-specific room cleanup.
+- [x] Add dungeon doors: normal, locked, shutter, bombable, and staircase exits.
+- [x] Implement dungeon keys, map, compass, and Triforce reward flow.
+- [x] Build the pause/inventory subscreen and item-selection UI.
 - [ ] Implement the boomerang and its stun/return behavior.
 - [ ] Implement bombs with fuse, explosion hitbox, block destruction, and secret interactions.
 - [ ] Implement the candle with room interaction rules for bush burning.

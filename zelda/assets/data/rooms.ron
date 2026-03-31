@@ -1,0 +1,334 @@
+[
+    // ── Overworld ─────────────────────────────────────────────────────
+
+    (
+        id: OverworldCenter,
+        room_type: Overworld,
+        floor_color: (0.17, 0.22, 0.17),
+        exits: [
+            (direction: North, target: OverworldNorth, door_kind: Open),
+            (direction: South, target: OverworldSouth, door_kind: Open),
+            (direction: East,  target: OverworldEast,  door_kind: Open),
+            (direction: West,  target: OverworldWest,  door_kind: Open),
+        ],
+        staircases: [
+            (position: (0.0, 30.0), target: CaveSword, target_spawn: (0.0, -40.0), label: "cave"),
+        ],
+        obstacles: [
+            (label: "rock", position: (-48.0,  10.0), size: (20.0, 20.0)),
+            (label: "rock", position: ( 36.0, -20.0), size: (20.0, 20.0)),
+        ],
+        enemies: [
+            (position: (0.0, -28.0), health: 1, damage: 1, radius: 8.0),
+        ],
+        unique_pickups: [
+            (key: "rupee", kind: Rupee, position: (-80.0, -16.0)),
+        ],
+        temporary_pickups: [
+            (key: "heart", kind: Heart, position: (72.0, -10.0)),
+        ],
+        secrets: [
+            (
+                key: "hidden_stair",
+                trigger_kind: HiddenStaircase,
+                trigger_label: "bush",
+                trigger_position: (-88.0, 44.0),
+                trigger_radius: 14.0,
+                reveal_label: "stair",
+                reveal_position: (88.0, 42.0),
+                reveal_size: (20.0, 14.0),
+                reveal_target: None,
+                reveal_spawn: None,
+            ),
+        ],
+        npcs: [],
+        shop_offers: [],
+    ),
+
+    (
+        id: OverworldNorth,
+        room_type: Overworld,
+        floor_color: (0.10, 0.15, 0.17),
+        exits: [
+            (direction: South, target: OverworldCenter, door_kind: Open),
+        ],
+        staircases: [],
+        obstacles: [
+            (label: "tree", position: (-30.0, 4.0), size: (20.0, 20.0)),
+            (label: "tree", position: ( 30.0, 4.0), size: (20.0, 20.0)),
+        ],
+        enemies: [
+            (position: (46.0, -18.0), health: 1, damage: 1, radius: 8.0),
+        ],
+        unique_pickups: [
+            (key: "bomb", kind: Bomb, position: (0.0, 18.0)),
+        ],
+        temporary_pickups: [
+            (key: "heart", kind: Heart, position: (-58.0, -4.0)),
+        ],
+        secrets: [
+            (
+                key: "cave_shop",
+                trigger_kind: BurnableBush,
+                trigger_label: "bush",
+                trigger_position: (50.0, 20.0),
+                trigger_radius: 14.0,
+                reveal_label: "stair",
+                reveal_position: (50.0, 20.0),
+                reveal_size: (16.0, 12.0),
+                reveal_target: Some(CaveShop),
+                reveal_spawn: Some((0.0, -40.0)),
+            ),
+        ],
+        npcs: [],
+        shop_offers: [],
+    ),
+
+    (
+        id: OverworldSouth,
+        room_type: Overworld,
+        floor_color: (0.17, 0.22, 0.17),
+        exits: [
+            (direction: North, target: OverworldCenter, door_kind: Open),
+        ],
+        staircases: [],
+        obstacles: [
+            (label: "pond", position: (-24.0, -6.0), size: (20.0, 20.0)),
+            (label: "pond", position: ( 24.0, -6.0), size: (20.0, 20.0)),
+        ],
+        enemies: [
+            (position: (-46.0, 18.0), health: 1, damage: 1, radius: 8.0),
+        ],
+        unique_pickups: [
+            (key: "five_rupees", kind: FiveRupees, position: (0.0, -28.0)),
+        ],
+        temporary_pickups: [
+            (key: "heart", kind: Heart, position: (58.0, 8.0)),
+        ],
+        secrets: [],
+        npcs: [],
+        shop_offers: [],
+    ),
+
+    (
+        id: OverworldEast,
+        room_type: Overworld,
+        floor_color: (0.89, 0.76, 0.35),
+        exits: [
+            (direction: West, target: OverworldCenter, door_kind: Open),
+        ],
+        staircases: [
+            (position: (0.0, 30.0), target: Dungeon1Entry, target_spawn: (0.0, -40.0), label: "dungeon"),
+        ],
+        obstacles: [
+            (label: "ridge", position: (12.0,  26.0), size: (20.0, 20.0)),
+            (label: "ridge", position: (12.0, -26.0), size: (20.0, 20.0)),
+        ],
+        enemies: [
+            (position: (-12.0, 0.0), health: 1, damage: 1, radius: 8.0),
+        ],
+        unique_pickups: [
+            (key: "key", kind: Key, position: (60.0, 0.0)),
+        ],
+        temporary_pickups: [
+            (key: "rupee", kind: Rupee, position: (-50.0, 18.0)),
+        ],
+        secrets: [],
+        npcs: [],
+        shop_offers: [],
+    ),
+
+    (
+        id: OverworldWest,
+        room_type: Overworld,
+        floor_color: (0.04, 0.07, 0.08),
+        exits: [
+            (direction: East, target: OverworldCenter, door_kind: Open),
+        ],
+        staircases: [],
+        obstacles: [
+            (label: "statue", position: (-12.0,  26.0), size: (20.0, 20.0)),
+            (label: "statue", position: (-12.0, -26.0), size: (20.0, 20.0)),
+        ],
+        enemies: [
+            (position: (12.0, 0.0), health: 1, damage: 1, radius: 8.0),
+        ],
+        unique_pickups: [
+            (key: "heart_container", kind: HeartContainer, position: (-60.0, 0.0)),
+        ],
+        temporary_pickups: [
+            (key: "heart", kind: Heart, position: (50.0, -18.0)),
+        ],
+        secrets: [
+            (
+                key: "cave_hint",
+                trigger_kind: PushBlock,
+                trigger_label: "block",
+                trigger_position: (40.0, 0.0),
+                trigger_radius: 14.0,
+                reveal_label: "stair",
+                reveal_position: (40.0, 0.0),
+                reveal_size: (16.0, 12.0),
+                reveal_target: Some(CaveHint),
+                reveal_spawn: Some((0.0, -40.0)),
+            ),
+        ],
+        npcs: [],
+        shop_offers: [],
+    ),
+
+    // ── Caves ─────────────────────────────────────────────────────────
+
+    (
+        id: CaveSword,
+        room_type: Cave,
+        floor_color: (0.08, 0.10, 0.12),
+        exits: [],
+        staircases: [
+            (position: (0.0, -50.0), target: OverworldCenter, target_spawn: (0.0, 15.0), label: "exit"),
+        ],
+        obstacles: [],
+        enemies: [],
+        unique_pickups: [
+            (key: "wooden_sword", kind: WoodenSword, position: (0.0, 10.0)),
+        ],
+        temporary_pickups: [],
+        secrets: [],
+        npcs: [
+            (position: (0.0, 40.0), dialogue: ["IT'S DANGEROUS TO GO ALONE!", "TAKE THIS."]),
+        ],
+        shop_offers: [],
+    ),
+
+    (
+        id: CaveShop,
+        room_type: Shop,
+        floor_color: (0.08, 0.10, 0.12),
+        exits: [],
+        staircases: [
+            (position: (0.0, -50.0), target: OverworldNorth, target_spawn: (50.0, 15.0), label: "exit"),
+        ],
+        obstacles: [],
+        enemies: [],
+        unique_pickups: [],
+        temporary_pickups: [],
+        secrets: [],
+        npcs: [
+            (position: (0.0, 40.0), dialogue: ["BUY SOMETHIN WILL YA!"]),
+        ],
+        shop_offers: [
+            (key: "shop_key",   position: (-40.0, 10.0), kind: Key,            price: 80),
+            (key: "shop_bomb",  position: (  0.0, 10.0), kind: Bomb,           price: 20),
+            (key: "shop_heart", position: ( 40.0, 10.0), kind: HeartContainer, price: 200),
+        ],
+    ),
+
+    (
+        id: CaveHint,
+        room_type: Hint,
+        floor_color: (0.08, 0.10, 0.12),
+        exits: [],
+        staircases: [
+            (position: (0.0, -50.0), target: OverworldWest, target_spawn: (35.0, -5.0), label: "exit"),
+        ],
+        obstacles: [],
+        enemies: [],
+        unique_pickups: [],
+        temporary_pickups: [],
+        secrets: [],
+        npcs: [
+            (position: (0.0, 40.0), dialogue: ["EASTMOST PENNINSULA", "IS THE SECRET."]),
+        ],
+        shop_offers: [],
+    ),
+
+    // ── Dungeon 1 ─────────────────────────────────────────────────────
+
+    (
+        id: Dungeon1Entry,
+        room_type: Dungeon,
+        floor_color: (0.12, 0.10, 0.08),
+        exits: [
+            (direction: North, target: Dungeon1Boss, door_kind: Open),
+            (direction: East,  target: Dungeon1East, door_kind: Locked),
+        ],
+        staircases: [
+            (position: (0.0, -50.0), target: OverworldEast, target_spawn: (0.0, 15.0), label: "exit"),
+        ],
+        obstacles: [],
+        enemies: [],
+        unique_pickups: [
+            (key: "dungeon_key", kind: DungeonKey, position: (40.0, 0.0)),
+        ],
+        temporary_pickups: [],
+        secrets: [],
+        npcs: [],
+        shop_offers: [],
+    ),
+
+    (
+        id: Dungeon1East,
+        room_type: Dungeon,
+        floor_color: (0.12, 0.10, 0.08),
+        exits: [
+            (direction: West, target: Dungeon1Entry, door_kind: Open),
+        ],
+        staircases: [],
+        obstacles: [],
+        enemies: [
+            (position: (0.0, 10.0), health: 2, damage: 1, radius: 8.0),
+        ],
+        unique_pickups: [
+            (key: "compass", kind: Compass, position: (50.0, 0.0)),
+        ],
+        temporary_pickups: [],
+        secrets: [],
+        npcs: [],
+        shop_offers: [],
+    ),
+
+    (
+        id: Dungeon1Boss,
+        room_type: Dungeon,
+        floor_color: (0.15, 0.08, 0.05),
+        exits: [
+            (direction: South, target: Dungeon1Entry,    door_kind: Open),
+            (direction: North, target: Dungeon1Triforce, door_kind: Shutter),
+        ],
+        staircases: [],
+        obstacles: [
+            (label: "rock", position: ( 40.0, 20.0), size: (20.0, 20.0)),
+            (label: "rock", position: (-40.0, 20.0), size: (20.0, 20.0)),
+        ],
+        enemies: [
+            (position: (  0.0, 20.0), health: 3, damage: 1, radius: 12.0),
+            (position: (-30.0,-10.0), health: 1, damage: 1, radius:  8.0),
+        ],
+        unique_pickups: [
+            (key: "map", kind: DungeonMap, position: (-50.0, 0.0)),
+        ],
+        temporary_pickups: [],
+        secrets: [],
+        npcs: [],
+        shop_offers: [],
+    ),
+
+    (
+        id: Dungeon1Triforce,
+        room_type: Dungeon,
+        floor_color: (0.15, 0.12, 0.08),
+        exits: [
+            (direction: South, target: Dungeon1Boss, door_kind: Open),
+        ],
+        staircases: [],
+        obstacles: [],
+        enemies: [],
+        unique_pickups: [
+            (key: "triforce", kind: TriforcePiece, position: (0.0, 20.0)),
+        ],
+        temporary_pickups: [],
+        secrets: [],
+        npcs: [],
+        shop_offers: [],
+    ),
+]
