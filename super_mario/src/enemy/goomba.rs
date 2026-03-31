@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::collision::aabb_overlap;
+use crate::collision::entities_overlap;
 use crate::components::*;
 use crate::constants::*;
 use crate::resources::ScoreEvent;
@@ -32,20 +32,12 @@ pub fn mario_goomba_collision(
         return;
     }
 
-    let px = player_tf.translation.x;
-    let py = player_tf.translation.y;
-    let pvy = player_vel.y;
-
     for (entity, mut enemy_tf, mut enemy_vel, enemy_coll) in &mut goomba_query {
-        if aabb_overlap(
-            px, py, player_coll.width / 2.0, player_coll.height / 2.0,
-            enemy_tf.translation.x, enemy_tf.translation.y,
-            enemy_coll.width / 2.0, enemy_coll.height / 2.0,
-        ).is_none() {
+        if !entities_overlap(player_tf, player_coll, &enemy_tf, &enemy_coll) {
             continue;
         }
 
-        if py > enemy_tf.translation.y && pvy <= 0.0 {
+        if player_tf.translation.y > enemy_tf.translation.y && player_vel.y <= 0.0 {
             // Stomp
             player_vel.y = STOMP_BOUNCE_IMPULSE;
             score_events.write(ScoreEvent { points: STOMP_SCORE });

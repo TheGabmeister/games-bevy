@@ -6,8 +6,10 @@ mod camera;
 mod collision;
 mod components;
 mod constants;
+mod death;
 mod enemy;
 mod level;
+mod level_complete;
 mod player;
 mod powerup;
 mod resources;
@@ -57,10 +59,12 @@ fn main() {
             enemy::EnemyPlugin,
             block::BlockPlugin,
             powerup::PowerUpPlugin,
+            death::DeathPlugin,
+            level_complete::LevelCompletePlugin,
         ))
         .init_asset::<level::LevelData>()
         .register_asset_loader(level::LevelAssetLoader)
-        .add_systems(Startup, (assets::init_game_assets, level::load_level))
+        .add_systems(Startup, (assets::init_game_assets, level::load_level, level::init_spawner_registry))
         .add_systems(OnEnter(AppState::Playing), level::spawn_level)
         .run();
 }

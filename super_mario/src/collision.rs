@@ -1,6 +1,6 @@
-use bevy::prelude::Vec3;
+use bevy::prelude::*;
 
-use crate::components::Velocity;
+use crate::components::{CollisionSize, Velocity};
 use crate::constants::TILE_SIZE;
 use crate::level::{LevelGrid, tile_to_world, world_to_col, world_to_row};
 
@@ -23,6 +23,26 @@ pub fn aabb_overlap(
     } else {
         None
     }
+}
+
+/// Convenience: returns true if two entities with Transform + CollisionSize overlap.
+pub fn entities_overlap(
+    tf_a: &Transform,
+    coll_a: &CollisionSize,
+    tf_b: &Transform,
+    coll_b: &CollisionSize,
+) -> bool {
+    aabb_overlap(
+        tf_a.translation.x,
+        tf_a.translation.y,
+        coll_a.width / 2.0,
+        coll_a.height / 2.0,
+        tf_b.translation.x,
+        tf_b.translation.y,
+        coll_b.width / 2.0,
+        coll_b.height / 2.0,
+    )
+    .is_some()
 }
 
 /// Result of resolving tile collisions for a single entity.

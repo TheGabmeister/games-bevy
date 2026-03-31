@@ -10,10 +10,51 @@ use crate::ui;
 
 // ── Level Data Asset ──
 
-/// Level data loaded from a RON file. Each row is a string of tile characters.
+/// Level data loaded from a RON file.
+///
+/// RON format:
+/// ```ron
+/// (
+///     rows: [ "..row0..", "..row1..", ... ],
+///     // All fields below are optional (defaults used if omitted):
+///     time: 400,
+///     world_name: "1-1",
+///     background_color: (0.36, 0.53, 0.95),
+///     gravity_multiplier: 1.0,
+/// )
+/// ```
 #[derive(Asset, Reflect, Deserialize)]
 pub struct LevelData {
     pub rows: Vec<String>,
+
+    /// Starting timer value. Defaults to TIMER_START (400).
+    #[serde(default = "default_time")]
+    pub time: f32,
+
+    /// Display name for HUD (e.g. "1-1", "1-2"). Defaults to "1-1".
+    #[serde(default = "default_world_name")]
+    pub world_name: String,
+
+    /// Background color as (r, g, b) in sRGB 0.0–1.0. Defaults to sky blue.
+    #[serde(default = "default_background_color")]
+    pub background_color: (f32, f32, f32),
+
+    /// Multiplier for gravity constants. 1.0 = normal, <1.0 = floaty (underwater).
+    #[serde(default = "default_gravity_multiplier")]
+    pub gravity_multiplier: f32,
+}
+
+fn default_time() -> f32 {
+    TIMER_START
+}
+fn default_world_name() -> String {
+    "1-1".to_string()
+}
+fn default_background_color() -> (f32, f32, f32) {
+    (0.36, 0.53, 0.95)
+}
+fn default_gravity_multiplier() -> f32 {
+    1.0
 }
 
 impl LevelData {
@@ -64,6 +105,58 @@ impl AssetLoader for LevelAssetLoader {
 /// Stores the handle to the currently active level asset.
 #[derive(Resource)]
 pub struct LevelHandle(pub Handle<LevelData>);
+
+// ── Spawner Registry ──
+
+/// Function signature for tile/entity spawners.
+/// Receives `(assets, commands, world_x, world_y, grid_col, grid_row)`.
+pub type TileSpawner = fn(&crate::assets::GameAssets, &mut Commands, f32, f32, usize, usize);
+
+/// Data-driven registry mapping level characters to spawn functions.
+/// Modules register their spawners at startup; `spawn_level` looks them up.
+#[derive(Resource, Default)]
+pub struct SpawnerRegistry {
+    spawners: std::collections::HashMap<char, TileSpawner>,
+}
+
+impl SpawnerRegistry {
+    pub fn register(&mut self, ch: char, spawner: TileSpawner) {
+        self.spawners.insert(ch, spawner);
+    }
+
+    pub fn get(&self, ch: char) -> Option<&TileSpawner> {
+        self.spawners.get(&ch)
+    }
+}
+
+/// Register the built-in tile and entity spawners.
+pub fn init_spawner_registry(mut commands: Commands) {
+    let mut reg = SpawnerRegistry::default();
+
+    // Tiles
+    reg.register('#', |a, c, wx, wy, _, _| { a.tile.spawn(c, TileType::Ground, wx, wy, None); });
+    reg.register('B', |a, c, wx, wy, col, row| { a.tile.spawn(c, TileType::Brick, wx, wy, Some((col as i32, row as i32))); });
+    reg.register('?', |a, c, wx, wy, col, row| { a.tile.spawn(c, TileType::QuestionBlock, wx, wy, Some((col as i32, row as i32))); });
+    reg.register('M', |a, c, wx, wy, col, row| { a.tile.spawn(c, TileType::QuestionBlock, wx, wy, Some((col as i32, row as i32))); });
+    reg.register('X', |a, c, wx, wy, _, _| { a.tile.spawn(c, TileType::Solid, wx, wy, None); });
+    reg.register('[', |a, c, wx, wy, _, _| { a.tile.spawn(c, TileType::PipeTopLeft, wx, wy, None); });
+    reg.register(']', |a, c, wx, wy, _, _| { a.tile.spawn(c, TileType::PipeTopRight, wx, wy, None); });
+    reg.register('{', |a, c, wx, wy, _, _| { a.tile.spawn(c, TileType::PipeBodyLeft, wx, wy, None); });
+    reg.register('}', |a, c, wx, wy, _, _| { a.tile.spawn(c, TileType::PipeBodyRight, wx, wy, None); });
+
+    // Entities
+    reg.register('G', |a, c, wx, wy, _, _| { a.goomba.spawn(c, wx, wy); });
+    reg.register('K', |a, c, wx, wy, _, _| { a.koopa.spawn(c, wx, wy); });
+    reg.register('C', |a, c, wx, wy, _, _| { a.floating_coin.spawn(c, wx, wy); });
+    reg.register('F', |a, c, wx, wy, _, row| {
+        a.flagpole.spawn_pole(c, wx, wy);
+        if row == FLAGPOLE_TOP_ROW {
+            a.flagpole.spawn_top(c, wx, wy);
+        }
+    });
+
+    commands.insert_resource(reg);
+}
 
 /// Pre-load the level asset at the start of gameplay.
 pub fn load_level(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -322,13 +415,33 @@ pub fn spawn_level(
     mut spawn_point: ResMut<SpawnPoint>,
     level_handle: Res<LevelHandle>,
     level_assets: Res<Assets<LevelData>>,
+    registry: Res<SpawnerRegistry>,
 ) {
-    *game_data = GameData::default();
-    *game_timer = GameTimer::default();
+    let level_data = level_assets.get(&level_handle.0);
+
+    // Apply level metadata (or defaults)
+    let (time, world_name, bg_color) = match level_data {
+        Some(data) => (
+            data.time,
+            data.world_name.clone(),
+            Color::srgb(data.background_color.0, data.background_color.1, data.background_color.2),
+        ),
+        None => (
+            TIMER_START,
+            "1-1".to_string(),
+            Color::srgb(0.36, 0.53, 0.95),
+        ),
+    };
+
+    *game_data = GameData {
+        world_name,
+        ..GameData::default()
+    };
+    *game_timer = GameTimer { time };
+    commands.insert_resource(ClearColor(bg_color));
 
     // Load grid from the RON asset, fall back to hardcoded test level
-    let grid = level_assets
-        .get(&level_handle.0)
+    let grid = level_data
         .map(|data| data.to_grid())
         .unwrap_or_else(level_test);
     commands.insert_resource(LevelGrid { grid });
@@ -338,30 +451,16 @@ pub fn spawn_level(
     for row in 0..LEVEL_HEIGHT {
         for col in 0..LEVEL_WIDTH {
             let ch = grid[row][col];
+            if ch == '.' {
+                continue;
+            }
+
             let (wx, wy) = tile_to_world(col, row);
 
-            match ch {
-                '#' => { assets.tile.spawn(&mut commands, TileType::Ground, wx, wy, None); }
-                'B' => { assets.tile.spawn(&mut commands, TileType::Brick, wx, wy, Some((col as i32, row as i32))); }
-                '?' | 'M' => { assets.tile.spawn(&mut commands, TileType::QuestionBlock, wx, wy, Some((col as i32, row as i32))); }
-                'X' => { assets.tile.spawn(&mut commands, TileType::Solid, wx, wy, None); }
-                '[' => { assets.tile.spawn(&mut commands, TileType::PipeTopLeft, wx, wy, None); }
-                ']' => { assets.tile.spawn(&mut commands, TileType::PipeTopRight, wx, wy, None); }
-                '{' => { assets.tile.spawn(&mut commands, TileType::PipeBodyLeft, wx, wy, None); }
-                '}' => { assets.tile.spawn(&mut commands, TileType::PipeBodyRight, wx, wy, None); }
-                'G' => { assets.goomba.spawn(&mut commands, wx, wy); }
-                'K' => { assets.koopa.spawn(&mut commands, wx, wy); }
-                'C' => { assets.floating_coin.spawn(&mut commands, wx, wy); }
-                'F' => {
-                    assets.flagpole.spawn_pole(&mut commands, wx, wy);
-                    if row == FLAGPOLE_TOP_ROW {
-                        assets.flagpole.spawn_top(&mut commands, wx, wy);
-                    }
-                }
-                'S' => {
-                    sp = (wx, wy);
-                }
-                _ => {}
+            if ch == 'S' {
+                sp = (wx, wy);
+            } else if let Some(spawner) = registry.get(ch) {
+                spawner(&assets, &mut commands, wx, wy, col, row);
             }
         }
     }

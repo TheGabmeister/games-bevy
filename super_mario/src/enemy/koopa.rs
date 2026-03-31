@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::assets::GameAssets;
-use crate::collision::aabb_overlap;
+use crate::collision::entities_overlap;
 use crate::components::*;
 use crate::constants::*;
 use crate::resources::ScoreEvent;
@@ -36,20 +36,12 @@ pub fn mario_koopa_collision(
         return;
     }
 
-    let px = player_tf.translation.x;
-    let py = player_tf.translation.y;
-    let pvy = player_vel.y;
-
     for (entity, enemy_tf, enemy_coll) in &koopa_query {
-        if aabb_overlap(
-            px, py, player_coll.width / 2.0, player_coll.height / 2.0,
-            enemy_tf.translation.x, enemy_tf.translation.y,
-            enemy_coll.width / 2.0, enemy_coll.height / 2.0,
-        ).is_none() {
+        if !entities_overlap(player_tf, player_coll, enemy_tf, enemy_coll) {
             continue;
         }
 
-        if py > enemy_tf.translation.y && pvy <= 0.0 {
+        if player_tf.translation.y > enemy_tf.translation.y && player_vel.y <= 0.0 {
             // Stomp Koopa → Shell
             player_vel.y = STOMP_BOUNCE_IMPULSE;
             score_events.write(ScoreEvent { points: STOMP_SCORE });
@@ -105,23 +97,15 @@ pub fn mario_shell_collision(
         return;
     }
 
-    let px = player_tf.translation.x;
-    let py = player_tf.translation.y;
-    let pvy = player_vel.y;
-
     for (_entity, shell_tf, shell_coll, mut shell, mut shell_vel, mut walker) in &mut shell_query {
-        if aabb_overlap(
-            px, py, player_coll.width / 2.0, player_coll.height / 2.0,
-            shell_tf.translation.x, shell_tf.translation.y,
-            shell_coll.width / 2.0, shell_coll.height / 2.0,
-        ).is_none() {
+        if !entities_overlap(player_tf, player_coll, &shell_tf, &shell_coll) {
             continue;
         }
 
         match shell.state {
             ShellState::Stationary => {
                 // Kick the shell
-                let kick_dir = if px < shell_tf.translation.x {
+                let kick_dir = if player_tf.translation.x < shell_tf.translation.x {
                     1.0
                 } else {
                     -1.0
@@ -133,7 +117,7 @@ pub fn mario_shell_collision(
                 return;
             }
             ShellState::Moving => {
-                if py > shell_tf.translation.y && pvy <= 0.0 {
+                if player_tf.translation.y > shell_tf.translation.y && player_vel.y <= 0.0 {
                     // Stomp moving shell → stop it
                     player_vel.y = STOMP_BOUNCE_IMPULSE;
                     shell.state = ShellState::Stationary;
@@ -181,12 +165,7 @@ pub fn shell_enemy_collision(
 
         // Kill Goombas
         for (entity, enemy_tf, enemy_coll) in &goomba_query {
-            if aabb_overlap(
-                shell_tf.translation.x, shell_tf.translation.y,
-                shell_coll.width / 2.0, shell_coll.height / 2.0,
-                enemy_tf.translation.x, enemy_tf.translation.y,
-                enemy_coll.width / 2.0, enemy_coll.height / 2.0,
-            ).is_some() {
+            if entities_overlap(&shell_tf, &shell_coll, enemy_tf, enemy_coll) {
                 commands.entity(entity).despawn();
 
                 shell.chain_kills += 1;
@@ -204,12 +183,7 @@ pub fn shell_enemy_collision(
 
         // Kill Koopas
         for (entity, enemy_tf, enemy_coll) in &koopa_query {
-            if aabb_overlap(
-                shell_tf.translation.x, shell_tf.translation.y,
-                shell_coll.width / 2.0, shell_coll.height / 2.0,
-                enemy_tf.translation.x, enemy_tf.translation.y,
-                enemy_coll.width / 2.0, enemy_coll.height / 2.0,
-            ).is_some() {
+            if entities_overlap(&shell_tf, &shell_coll, enemy_tf, enemy_coll) {
                 commands.entity(entity).despawn();
 
                 shell.chain_kills += 1;

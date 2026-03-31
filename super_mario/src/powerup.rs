@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::assets::GameAssets;
-use crate::collision::{self, aabb_overlap, WallAction};
+use crate::collision::{self, entities_overlap, WallAction};
 use crate::components::*;
 use crate::constants::*;
 use crate::level::LevelGrid;
@@ -113,12 +113,7 @@ fn mushroom_collection(
     };
 
     for (mush_entity, mush_tf, mush_coll) in &mushroom_query {
-        if aabb_overlap(
-            player_tf.translation.x, player_tf.translation.y,
-            player_coll.width / 2.0, player_coll.height / 2.0,
-            mush_tf.translation.x, mush_tf.translation.y,
-            mush_coll.width / 2.0, mush_coll.height / 2.0,
-        ).is_some() {
+        if entities_overlap(player_tf, player_coll, mush_tf, mush_coll) {
             commands.entity(mush_entity).despawn();
             score_events.write(ScoreEvent { points: MUSHROOM_SCORE });
 
@@ -167,12 +162,7 @@ fn fire_flower_collection(
     };
 
     for (flower_entity, flower_tf, flower_coll) in &flower_query {
-        if aabb_overlap(
-            player_tf.translation.x, player_tf.translation.y,
-            player_coll.width / 2.0, player_coll.height / 2.0,
-            flower_tf.translation.x, flower_tf.translation.y,
-            flower_coll.width / 2.0, flower_coll.height / 2.0,
-        ).is_some() {
+        if entities_overlap(player_tf, player_coll, flower_tf, flower_coll) {
             commands.entity(flower_entity).despawn();
             score_events.write(ScoreEvent { points: FIRE_FLOWER_SCORE });
 
@@ -291,18 +281,10 @@ fn fireball_enemy_collision(
     assets: Res<GameAssets>,
 ) {
     for (fb_entity, fb_tf, fb_coll) in &fireball_query {
-        let fb_x = fb_tf.translation.x;
-        let fb_y = fb_tf.translation.y;
-        let fb_hw = fb_coll.width / 2.0;
-        let fb_hh = fb_coll.height / 2.0;
         let mut hit = false;
 
         for (goomba_entity, goomba_tf, goomba_coll) in &goomba_query {
-            if aabb_overlap(
-                fb_x, fb_y, fb_hw, fb_hh,
-                goomba_tf.translation.x, goomba_tf.translation.y,
-                goomba_coll.width / 2.0, goomba_coll.height / 2.0,
-            ).is_some() {
+            if entities_overlap(fb_tf, fb_coll, goomba_tf, goomba_coll) {
                 commands.entity(goomba_entity).despawn();
                 commands.entity(fb_entity).despawn();
                 score_events.write(ScoreEvent { points: FIREBALL_SCORE });
@@ -323,11 +305,7 @@ fn fireball_enemy_collision(
         }
 
         for (koopa_entity, koopa_tf, koopa_coll) in &koopa_query {
-            if aabb_overlap(
-                fb_x, fb_y, fb_hw, fb_hh,
-                koopa_tf.translation.x, koopa_tf.translation.y,
-                koopa_coll.width / 2.0, koopa_coll.height / 2.0,
-            ).is_some() {
+            if entities_overlap(fb_tf, fb_coll, koopa_tf, koopa_coll) {
                 commands.entity(koopa_entity).despawn();
                 commands.entity(fb_entity).despawn();
                 score_events.write(ScoreEvent { points: FIREBALL_SCORE });
