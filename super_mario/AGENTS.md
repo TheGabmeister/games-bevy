@@ -12,9 +12,10 @@ Guidance for coding agents working in `c:\dev\games-bevy\super_mario`.
 
 - Rust edition `2024`
 - Bevy `0.18.1`
+- Level data is now loaded through `ron` + `serde` asset deserialization
 - `bevy` is enabled with the `dynamic_linking` feature
 - The package name in `Cargo.toml` is currently `bevy_template`
-- Current app state: Super Mario prototype covering `TASKS.md` Phases 1-9, with state flow, HUD, death/lives handling, block interactions, mushrooms/growth, Goomba gameplay, and Koopa shell mechanics implemented using small domain plugins
+- Current app state: Super Mario prototype covering `TASKS.md` Phases 1-10, most of Phase 11, and the start of Phase 13.1, with RON-backed level loading, block interactions, mushrooms/growth, Fire Mario + fireballs, Goomba gameplay, Koopa shell mechanics, and a scripted flagpole-to-castle sequence implemented using small domain plugins
 
 ## Build And Validation
 
@@ -44,28 +45,29 @@ Validation expectations:
 ## Current Project Layout
 
 - `src/main.rs`: top-level app setup, resource/state initialization, set ordering, and plugin registration
+- `src/assets.rs`: startup-time creation of shared mesh/material handles stored in the `GameAssets` resource
 - `src/components.rs`: shared ECS components such as `Player`, `Velocity`, `FacingDirection`, `Grounded`, `Tile`, `TileType`, enemy markers, power-up markers, shell state, and HUD markers
-- `src/constants.rs`: tunable constants for window size, camera behavior, physics, z-layers, timer values, death values, block interactions, power-ups, and enemy values
+- `src/constants.rs`: tunable constants for window size, camera behavior, physics, z-layers, timer values, death values, block interactions, power-ups, enemies, fireballs, and flagpole/castle flow
 - `src/collision.rs`: shared AABB overlap logic and tile-collision resolution used by the player and moving enemies/items
-- `src/level.rs`: level grid resource, grid/world coordinate helpers, solid-tile queries, Level 1-1 data, and the level spawn system for `AppState::Playing`
-- `src/player.rs`: player input, gravity, movement, tile collision, left-camera clamp, pit death, and death-animation/respawn flow
+- `src/level.rs`: custom `.level.ron` asset type/loader, active level handle, level grid resource, grid/world coordinate helpers, hardcoded level generators for dev/testing, and the level spawn system for `AppState::Playing`
+- `src/player.rs`: player input, gravity, movement, tile collision, left-camera clamp, pit death, flagpole collision, level-complete flow, and death-animation/respawn flow
 - `src/camera.rs`: camera setup, reset, and follow logic
 - `src/ui.rs`: start screen, HUD, countdown timer, pause overlay, and game-over UI flow
 - `src/enemy/mod.rs`: shared enemy plugin wiring, activation, shared enemy physics, score popups, and common damage helper
 - `src/enemy/goomba.rs`: Mario-Goomba stomp/damage behavior
 - `src/enemy/koopa.rs`: Mario-Koopa, Mario-shell, and shell-enemy interactions
-- `src/block.rs`: block-hit processing, block bounce, brick break particles, coin pop, and floating-coin collection
-- `src/powerup.rs`: mushroom emergence/collection, growth animation, shrink/invincibility handling, and ducking
-- `src/resources.rs`: `GameData`, `SpawnPoint`, death-animation resources, pending block-hit state, and cached player meshes
+- `src/block.rs`: block-hit processing, block bounce, brick break particles, coin pop, floating-coin collection, and question-block content selection between mushroom and Fire Flower
+- `src/powerup.rs`: mushroom/Fire Flower emergence and collection, fireball systems, growth animation, shrink/invincibility handling, and ducking
+- `src/resources.rs`: `GameData`, `SpawnPoint`, death-animation resources, pending block-hit state, and level-complete animation state
 - `src/states.rs`: `AppState`, `PlayState`, and gameplay `SystemSet` definitions
-- `assets/`: available project assets for later phases, still not wired into the current prototype
+- `assets/levels/`: current level data assets such as `test.level.ron` and `1-1.level.ron`
 - `TASKS.md`: implementation roadmap for the Mario clone
 - `SPEC.md`: gameplay and behavior spec for future expansion
 - `.cargo/config.toml`: shared cargo target-dir configuration
 
 ## Current Runtime Behavior
 
-The current app is a runnable Mario prototype covering `TASKS.md` Phases 1-9:
+The current app is a runnable Mario prototype covering `TASKS.md` Phases 1-10, most of Phase 11, and the beginning of Phase 13.1:
 
 - `DefaultPlugins` are registered with a configured primary window.
 - The window is `800x600` and titled `Super Mario Bros`.
@@ -75,13 +77,15 @@ The current app is a runnable Mario prototype covering `TASKS.md` Phases 1-9:
 - `GameplaySet` ordering is used to separate input, physics, camera, and late-frame systems while `PlayState::Running` is active, so gameplay freezes cleanly during pause, death, and growth transitions.
 - A `Camera2d` is spawned at startup with an orthographic scale derived from `CAMERA_VISIBLE_HEIGHT`.
 - The camera follows Mario horizontally with smooth lerp, uses a dead-zone offset, never scrolls left, and clamps to level bounds.
-- Entering `AppState::Playing` spawns Level 1-1 from tile data in `src/level.rs`, resets `GameData`, records the `SpawnPoint`, caches player meshes in a resource, and creates the HUD.
-- Level 1-1 data is generated in `src/level.rs` as a `211 x 15` grid and stored as a `LevelGrid` resource.
-- Level tiles currently use characters for spawn point, ground, bricks, coin question blocks, mushroom question blocks, solid stair blocks, pipe pieces, Goombas, Koopas, floating coins, and a reserved `F` marker in the grid for future flagpole work.
-- Colored primitive meshes are spawned for ground, bricks, question blocks, used blocks, solid stair blocks, pipes, Mario, Goombas, Koopas, mushrooms, floating coins, shell forms, brick particles, and score popups.
+- Startup initializes a shared `GameAssets` resource and registers a custom `LevelAssetLoader` for `.level.ron` files.
+- Startup currently loads `levels/test.level.ron` into a `LevelHandle`; `spawn_level` reads that asset and falls back to the hardcoded `level_test()` grid if the asset is not ready.
+- `assets/levels/1-1.level.ron` and `assets/levels/test.level.ron` exist, while `src/level.rs` still keeps hardcoded generators plus a small test that can regenerate those RON files.
+- Entering `AppState::Playing` builds the `LevelGrid`, resets `GameData`, records the `SpawnPoint`, spawns the world from the loaded grid, and creates the HUD.
+- Level tiles currently use characters for spawn point, ground, bricks, coin question blocks, mushroom/power-up question blocks, solid stair blocks, pipe pieces, Goombas, Koopas, floating coins, and flagpole segments.
+- Colored primitive meshes are spawned from shared asset handles for ground, bricks, question blocks, used blocks, solid stair blocks, pipes, Mario, Goombas, Koopas, mushrooms, Fire Flowers, floating coins, fireballs, shell forms, flagpole pieces, castle pieces, brick particles, and score popups.
 - Mario spawns at the `S` tile position with `Player`, `PlayerSize`, `CollisionSize`, `Velocity`, `FacingDirection`, and `Grounded`.
 - Horizontal movement includes acceleration/deceleration, air control, run speed with Shift, jumping, jump-cut behavior, and a left-edge clamp so Mario cannot move behind the camera.
-- Big Mario can duck while grounded; ducking shrinks the collision box and blocks horizontal movement until the player stands back up.
+- Big Mario and Fire Mario can duck while grounded; ducking shrinks the collision box and blocks horizontal movement until the player stands back up.
 - `src/collision.rs` owns the shared neighborhood-based AABB tile-collision resolver used by the player and moving enemies/items.
 - Gravity, velocity integration, tile collision, grounded probing, pit death, and death animation/respawn are active.
 - The start screen transitions into play on Enter, and the game-over screen returns to the start screen on Enter.
@@ -91,14 +95,18 @@ The current app is a runnable Mario prototype covering `TASKS.md` Phases 1-9:
 - Goombas spawn from `G` tiles, activate near the camera, patrol, collide with tiles, fall off ledges, can be stomped, and kill Mario on side/bottom contact.
 - Koopas spawn from `K` tiles, patrol like Goombas, turn into shells when stomped, can be kicked, bounce off walls, and support chain enemy-kill scoring while moving.
 - Moving shell contact damages Mario on side contact, while stomping a moving shell stops it.
-- Enemy contact now respects player size: Small Mario dies, Big Mario shrinks through the growth/shrink transition, and temporary invincibility frames make Mario flash and ignore enemy hits.
+- Enemy contact now respects player size: Small Mario dies, Big Mario or Fire Mario shrink through the growth/shrink transition, and temporary invincibility frames make Mario flash and ignore enemy hits.
 - Mario head hits are tracked through `PendingBlockHit`, selecting the closest hittable block when multiple blocks overlap.
-- `?` blocks release coins, `M` blocks release mushrooms, used question blocks become `E` in the level grid, bricks bump for Small Mario, and bricks break into particles for Big Mario.
+- `?` blocks release coins, `M` blocks release a mushroom for Small Mario or a Fire Flower otherwise, used question blocks become `E` in the level grid, bricks bump for Small Mario, and bricks break into particles for Big Mario or Fire Mario.
 - Bumping a brick can also kill active enemies standing on top of that block.
 - Floating `C` coins are placed in the level and collected on contact.
 - Mushrooms emerge upward from blocks, then move using shared enemy-style ground physics until collected.
 - Collecting a mushroom awards score and starts the `PlayState::Growing` animation when Mario is Small.
-- Fire Flower, fireballs, flagpole/castle rendering, `LevelComplete` gameplay flow, time-bonus tallying, decorations, asset-driven rendering, and external level-file loading are not implemented yet.
+- Fire Flowers emerge upward from blocks, can be collected when fully emerged, upgrade Big Mario to Fire Mario, and swap Mario's material to the fire palette.
+- Fire Mario can shoot up to two fireballs with `J` or `E`; fireballs travel horizontally, bounce on ground contact, despawn on wall hit or falling out of bounds, and kill Goombas or convert Koopas into shells.
+- Touching the flagpole starts `PlayState::LevelComplete`: Mario snaps to the pole, slides down while the flag descends, walks to the castle, tallies remaining time into score, then returns to the start screen after a short delay.
+- Flagpole and castle are rendered from primitive meshes when the level contains `F` tiles.
+- Automatic next-level progression, multiple live level selections, decorations/polish phases, and sprite/audio asset pipelines are still not implemented.
 
 When making changes, align your work with what actually exists in the repo rather than assuming later phases from `TASKS.md` are already present.
 
@@ -107,14 +115,16 @@ When making changes, align your work with what actually exists in the repo rathe
 As this prototype grows toward the roadmap in `TASKS.md`, prefer this structure:
 
 - `src/main.rs`: app setup, plugin registration, and high-level wiring
+- `src/assets.rs`: shared runtime-created meshes/materials and any future reusable visual asset handles
 - `src/constants.rs`: tunable values such as window size, physics, player speeds, enemy values, and UI sizing
 - `src/components.rs`: marker and data ECS components shared across domains
 - `src/collision.rs`: reusable collision math and tile-resolution helpers
-- `src/level.rs`: level data, coordinate helpers, and tile/level spawning support
+- `src/level.rs`: level asset definitions/loaders, coordinate helpers, and tile/level spawning support
 - `src/resources.rs`: shared mutable game-wide state and animation resources
 - `src/states.rs`: `AppState`, sub-state enums, and system-set definitions
 - Domain modules such as `src/player.rs`, `src/camera.rs`, `src/ui.rs`, `src/block.rs`, `src/powerup.rs`, and `src/enemy/`
 - Add new domain files such as `src/fire.rs` or `src/level_complete.rs` only when a feature clearly outgrows the existing modules
+- Prefer building future level progression on the `.level.ron` asset flow under `assets/levels/` rather than re-expanding hardcoded grids
 
 Prefer extending the existing domain plugins over growing `main.rs` indefinitely.
 
@@ -131,23 +141,25 @@ Prefer extending the existing domain plugins over growing `main.rs` indefinitely
 
 - Make the smallest coherent change that solves the task.
 - Do not rewrite working structure just to make it "cleaner".
-- Preserve the existing split between `main.rs`, `components.rs`, `constants.rs`, `collision.rs`, `level.rs`, `player.rs`, `camera.rs`, `block.rs`, `powerup.rs`, `ui.rs`, `resources.rs`, `states.rs`, and `src/enemy/`.
+- Preserve the existing split between `main.rs`, `assets.rs`, `components.rs`, `constants.rs`, `collision.rs`, `level.rs`, `player.rs`, `camera.rs`, `block.rs`, `powerup.rs`, `ui.rs`, `resources.rs`, `states.rs`, and `src/enemy/`.
 - Add new tunable values to `src/constants.rs` instead of scattering magic numbers.
 - Add shared marker/data ECS types to `src/components.rs` instead of growing `main.rs` with inline definitions.
+- Keep shared mesh/material setup in `src/assets.rs` instead of recreating identical Bevy assets across gameplay systems.
 - Keep shared collision math and tile-resolution logic in `src/collision.rs` instead of duplicating it in player/enemy/item systems.
-- Keep level layout data and grid/world conversion helpers in `src/level.rs` instead of duplicating them in gameplay systems.
+- Keep level asset definitions, level loading, and grid/world conversion helpers in `src/level.rs` instead of duplicating them in gameplay systems.
 - Keep cross-system state in `src/resources.rs` and state enums/system sets in `src/states.rs`.
 - Keep block-hit logic in `src/block.rs`, power-up and player-size transitions in `src/powerup.rs`, and enemy-specific interactions inside `src/enemy/`.
+- If you add or edit level content, prefer updating the `.level.ron` files in `assets/levels/` to match the active level-loading path.
 - Prefer extending an existing domain plugin over registering more ad hoc systems from `main.rs`.
 - When spawning entities tied to `AppState` or `PlayState`, define the matching cleanup path using `DespawnOnExit` or `OnExit` behavior if they should not persist.
 
 ## UI And Asset Notes
 
-- Current visuals use Bevy 2D primitives (`Rectangle`, `Mesh2d`, `MeshMaterial2d`) rather than sprite assets.
-- The current level is also data-driven through tile characters in `src/level.rs`; keep new level features aligned with that approach unless the task explicitly changes it.
+- Current visuals still use Bevy 2D primitives (`Rectangle`, `Mesh2d`, `MeshMaterial2d`) rather than sprite assets, but those shared handles are now centralized in `src/assets.rs`.
+- The current level flow is data-driven through `.level.ron` files under `assets/levels/`, deserialized into row strings and converted into the fixed runtime grid in `src/level.rs`.
 - UI is currently built with Bevy's component-based UI and `Text`/`Text2d`.
-- Asset loading is still not wired up; do not assume `AssetServer` is already part of the flow.
-- `assets/` exists for later phases, but the current prototype still builds visuals procedurally with meshes and materials.
+- `AssetServer` is now part of the level-loading flow; do not assume sprite/audio assets are part of the flow yet.
+- `assets/levels/` is actively used, while the rest of the prototype visuals are still built procedurally with meshes and materials.
 - When assets are introduced, keep paths as plain relative strings passed to `asset_server.load(...)`.
 - Keep asset references aligned with files under `assets/`.
 - Match new art/audio usage to the Mario project direction described in `TASKS.md` and `SPEC.md`, not the old shooter template language.
@@ -172,10 +184,11 @@ Prefer extending the existing domain plugins over growing `main.rs` indefinitely
 ## Good First Places To Look
 
 - App boot and plugin wiring: `src/main.rs`
+- Shared render assets: `src/assets.rs`
 - Shared ECS types: `src/components.rs`
 - Tunable gameplay values: `src/constants.rs`
 - Shared collision helpers: `src/collision.rs`
-- Level data and grid helpers: `src/level.rs`
+- Level asset loading, RON format, and grid helpers: `src/level.rs`
 - Player movement and death flow: `src/player.rs`
 - Camera behavior: `src/camera.rs`
 - Block and collectible interactions: `src/block.rs`
@@ -186,6 +199,7 @@ Prefer extending the existing domain plugins over growing `main.rs` indefinitely
 - UI/state transitions: `src/ui.rs`
 - Shared runtime state: `src/resources.rs`
 - App/play state definitions: `src/states.rs`
+- Current level assets: `assets/levels/`
 - Build output location: `.cargo/config.toml`
 - Dependency/runtime configuration: `Cargo.toml`
 - Planned feature order: `TASKS.md`

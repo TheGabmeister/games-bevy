@@ -13,6 +13,8 @@ cargo run          # Build and run the game
 cargo build        # Build only
 cargo check        # Fast type-check (use for most code changes)
 cargo clippy       # Lint (use when changing API patterns broadly)
+cargo test         # Run all tests
+cargo test <name>  # Run a single test by name (e.g. cargo test generate_level_ron_files)
 ```
 
 Target dir is redirected to `D:/cargo-target-dir` via `.cargo/config.toml`.
@@ -25,6 +27,7 @@ Dependencies compile at `opt-level = 3` while the main crate uses `opt-level = 1
 
 - **Bevy 0.18.1** (with `dynamic_linking` feature) — ECS game engine
 - **Rust Edition 2024**
+- **ron** / **serde** — level data serialization (RON files under `assets/levels/`)
 
 ## Architecture
 
@@ -32,22 +35,23 @@ Super Mario Bros clone. Placeholder geometry (colored rectangles/ellipses), no s
 
 ### Module Structure
 
-- **`main.rs`** — App setup, plugin registration, `GameplaySet` ordering (~60 lines)
-- **`player.rs`** — `PlayerPlugin` — input, gravity, velocity, tile collision, death animation, ducking gate
+- **`main.rs`** — App setup, plugin registration, `GameplaySet` ordering, asset loader registration
+- **`assets.rs`** — `GameAssets` resource — all shared `Handle<Mesh>` / `Handle<ColorMaterial>` for every entity type, initialized once on `Startup`
+- **`player.rs`** — `PlayerPlugin` — input, gravity, velocity, tile collision, death animation, flagpole collision, level-complete scripted sequence
 - **`camera.rs`** — `CameraPlugin` — camera setup, reset on level enter, smooth follow
 - **`enemy/`** — `EnemyPlugin` (registered from `enemy/mod.rs`)
   - **`mod.rs`** — shared physics (walk, gravity, velocity, tile collision, activation, despawn), squish timer, score popups, `mario_take_damage` helper
   - **`goomba.rs`** — `mario_goomba_collision` (stomp → squish)
   - **`koopa.rs`** — `mario_koopa_collision` (stomp → shell), `mario_shell_collision` (kick/stop), `shell_enemy_collision` (chain kills)
-- **`block.rs`** — `BlockPlugin` — head-hit processing (`PendingBlockHit` resource), `?`/`M` block content release, brick bump/break, block bounce animation, coin pop, brick particles, floating coin collection
-- **`powerup.rs`** — `PowerUpPlugin` — mushroom emerge/collection, growth/shrink animation (`PlayState::Growing`), invincibility flashing, ducking (Big Mario)
-- **`collision.rs`** — Shared collision helpers: `aabb_overlap()` for entity-vs-entity overlap, `resolve_tile_collisions()` for AABB-vs-grid (used by both player and enemy tile collision)
+- **`block.rs`** — `BlockPlugin` — head-hit processing (`PendingBlockHit` resource), `?`/`M` block content release (mushroom for Small, fire flower for Big/Fire), brick bump/break, block bounce animation, coin pop, brick particles, floating coin collection
+- **`powerup.rs`** — `PowerUpPlugin` — mushroom/fire flower emerge+collection, fireball shooting+physics+enemy collision, growth/shrink animation (`PlayState::Growing`), invincibility flashing, ducking
+- **`collision.rs`** — Shared collision helpers: `aabb_overlap()` for entity-vs-entity overlap, `resolve_tile_collisions()` for AABB-vs-grid (used by player, enemies, and fireballs)
 - **`ui.rs`** — `UiPlugin` — start screen, game over screen, HUD (score/coins/world/timer), pause overlay, countdown timer
-- **`level.rs`** — Level 1-1 grid (211×15 chars), `LevelGrid` resource, coordinate conversion, `spawn_level` system
+- **`level.rs`** — `LevelData` asset + `LevelAssetLoader` (RON files), `LevelGrid` resource, coordinate conversion, `spawn_level` system, hardcoded fallback grids (`level_test`, `level_1_1`)
 - **`states.rs`** — `AppState`, `PlayState` sub-state, `GameplaySet` enum
-- **`resources.rs`** — `GameData` (score, coins, lives, timer), `SpawnPoint`, `DeathAnimation`, `PendingBlockHit`, `PlayerMeshes`
-- **`components.rs`** — All ECS marker/data types (Player, Velocity, Grounded, Tile, Goomba, KoopaTroopa, Shell, Mushroom, CollisionSize, PlayerSize, HUD markers, etc.)
-- **`constants.rs`** — All tunable values (window, camera, player, physics, enemies, blocks, power-ups, z-layers)
+- **`resources.rs`** — `GameData` (score, coins, lives, timer), `SpawnPoint`, `DeathAnimation`, `PendingBlockHit`, `LevelCompleteAnimation`
+- **`components.rs`** — All ECS marker/data types (Player, Velocity, Grounded, Tile, Goomba, KoopaTroopa, Shell, Mushroom, FireFlower, Fireball, CollisionSize, PlayerSize, FlagpoleFlag, Castle, HUD markers, etc.)
+- **`constants.rs`** — All tunable values (window, camera, player, physics, enemies, blocks, power-ups, fireballs, flagpole, z-layers)
 
 ### Coordinate System
 
@@ -67,7 +71,15 @@ Mario hitting a block from below is detected in `player.rs` `tile_collision` and
 
 ### Power-up System
 
-Mushrooms emerge from `M` blocks with a rising `MushroomEmerging` animation, then receive `EnemyWalker` + `EnemyActive` to reuse enemy physics (gravity, tile collision, wall bounce). Collection triggers `PlayState::Growing` which freezes gameplay while flashing between sizes. `PlayerMeshes` resource holds both small/big mesh handles for swapping. `CollisionSize` component on the player is updated dynamically (small=16, big=32, ducking=16). Damage shrink grants 2s `Invincible` (visibility flashing, enemy pass-through).
+**Mushrooms** emerge from `M` blocks (when Small Mario) with a rising `MushroomEmerging` animation, then receive `EnemyWalker` + `EnemyActive` to reuse enemy physics. Collection triggers `PlayState::Growing` which freezes gameplay while flashing between sizes.
+
+**Fire Flowers** emerge from `M` blocks (when Big/Fire Mario) and stay stationary. Collection sets `PlayerSize::Fire` and swaps the player material to white via `GameAssets.player_fire_mat`.
+
+**Fireballs** (J/E key, Fire Mario only, max 2 on screen) travel at constant horizontal speed with gravity and bounce off ground via `resolve_tile_collisions`. Despawn on wall hit or off-screen. Kill Goombas on contact; turn Koopas into stationary shells.
+
+**PlayerSize** has three variants: `Small`, `Big`, `Fire`. Fire Mario takes damage → Small (skips Big). The shrink animation in `growth_animation_system` resets material to `player_normal_mat` to handle Fire → Small color change. `GameAssets` holds both mesh and material handles for the player.
+
+`CollisionSize` on the player is updated dynamically (small=16, big=32, ducking=16). Damage shrink grants 2s `Invincible` (visibility flashing, enemy pass-through).
 
 ### Koopa & Shell Mechanics
 
@@ -99,12 +111,12 @@ Input → Physics → Camera → Late   (chained, run_if PlayState::Running)
 ```
 
 Each plugin drops its systems into the appropriate set:
-- **Input**: `player_input`, `enemy_activation`
-- **Physics**: player gravity/velocity/collision chain, enemy walk/gravity/velocity/collision chain
+- **Input**: `player_input`, `enemy_activation`, `fireball_shoot`
+- **Physics**: player gravity/velocity/collision chain, enemy walk/gravity/velocity/collision chain, `fireball_physics`
 - **Camera**: `camera_follow`
-- **Late**: `check_pit_death`, `countdown_timer`, `mario_goomba_collision`, `mario_koopa_collision`, `mario_shell_collision`, `shell_enemy_collision`, `enemy_despawn_out_of_bounds`, `process_block_hits`, `floating_coin_collection`, `mushroom_collection`
+- **Late**: `check_pit_death`, `flagpole_collision`, `countdown_timer`, `mario_goomba_collision`, `mario_koopa_collision`, `mario_shell_collision`, `shell_enemy_collision`, `enemy_despawn_out_of_bounds`, `process_block_hits`, `floating_coin_collection`, `mushroom_collection`, `fire_flower_collection`, `fireball_enemy_collision`
 
-Systems outside the chain (HUD update, pause input, squish timer, score popups, block/coin/brick animations, mushroom emerge, growth animation, invincibility, ducking) use direct `run_if` conditions.
+Systems outside the chain (HUD update, pause input, squish timer, score popups, block/coin/brick animations, mushroom/fire flower emerge, growth animation, invincibility, ducking, `level_complete_system`) use direct `run_if` conditions.
 
 ### Messages and Observers
 
@@ -136,9 +148,17 @@ Use Bevy's query filters for performance and correctness:
 - `Added<T>` to detect newly added components
 - **Disjoint queries**: When a system has multiple queries that access the same component (especially `&mut`), Bevy requires proof they can never match the same entity. `With<Goomba>` vs `With<KoopaTroopa>` is **not** sufficient — add explicit `Without<KoopaTroopa>` to the Goomba query and vice versa. Always cross-exclude enemy type markers (`Goomba`, `KoopaTroopa`, `Shell`) on queries that share mutable component access.
 
+### Level Complete Sequence
+
+Flagpole collision (in `player.rs`, Late set) triggers `PlayState::LevelComplete` and creates a `LevelCompleteAnimation` resource. The `level_complete_system` (runs during `LevelComplete`) drives four phases: `SlideDown` (snap to pole X, move down), `WalkToCastle` (walk right), `TimeTally` (rapidly decrement timer, add score at 50 pts/tick), `Done` (2s pause, then transition to `StartScreen`). The flag entity (`FlagpoleFlag`) slides down in sync with Mario. Camera does not follow during LevelComplete (GameplaySet requires Running).
+
 ### Assets
 
-Asset paths are plain relative strings passed to `asset_server.load(...)` — keep them aligned with files under `assets/`. Store `Handle<T>` in a resource when an asset is used repeatedly to avoid redundant loads. 
+**GameAssets** (`assets.rs`): A single `Resource` holding every shared `Handle<Mesh>` and `Handle<ColorMaterial>` — tiles, player, enemies, shells, mushrooms, fire flowers, fireballs, flagpole, castle, particles, coins. Created once on `Startup` via `init_game_assets`. All systems that spawn entities take `Res<GameAssets>` and `.clone()` the handles — no inline `meshes.add()` / `materials.add()`.
+
+**Level data** (`assets/levels/*.level.ron`): RON files loaded via a custom `LevelAssetLoader`. Format is `( rows: ["..row0..", "..row1..", ...] )` — 15 rows of 211 chars using the tile legend. `LevelHandle` resource stores the active level's `Handle<LevelData>`. `spawn_level` reads the loaded asset, falling back to the hardcoded grid if not yet loaded. Generate RON files from existing grids with `cargo test generate_level_ron_files`.
+
+To switch which level is loaded, change the path in `load_level()` in `level.rs`.
 
 ## Bevy 0.18.1 API Notes
 
