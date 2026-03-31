@@ -8,6 +8,7 @@ mod components;
 mod constants;
 mod death;
 mod enemy;
+mod input;
 mod level;
 mod level_complete;
 mod player;
@@ -53,6 +54,7 @@ fn main() {
                 .run_if(in_state(PlayState::Running)),
         )
         .add_plugins((
+            input::InputPlugin,
             player::PlayerPlugin,
             camera::CameraPlugin,
             ui::UiPlugin,

@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use crate::collision::{self, WallAction};
 use crate::components::*;
 use crate::constants::*;
+use crate::input::ActionInput;
 use crate::level::LevelGrid;
 use crate::resources::*;
 use crate::states::*;
@@ -29,7 +30,7 @@ impl Plugin for PlayerPlugin {
 }
 
 fn player_input(
-    keyboard: Res<ButtonInput<KeyCode>>,
+    action: Res<ActionInput>,
     time: Res<Time>,
     mut query: Query<(&mut Velocity, &mut FacingDirection, &Grounded, Has<Ducking>), With<Player>>,
 ) {
@@ -48,22 +49,13 @@ fn player_input(
             vel.x -= decel * vel.x.signum();
         }
 
-        // Jump cut still works
-        if (keyboard.just_released(KeyCode::Space) || keyboard.just_released(KeyCode::ArrowUp))
-            && vel.y > 0.0
-        {
+        if action.jump_just_released && vel.y > 0.0 {
             vel.y *= JUMP_CUT_MULTIPLIER;
         }
         return;
     }
 
-    let mut dir = 0.0;
-    if keyboard.pressed(KeyCode::KeyA) || keyboard.pressed(KeyCode::ArrowLeft) {
-        dir -= 1.0;
-    }
-    if keyboard.pressed(KeyCode::KeyD) || keyboard.pressed(KeyCode::ArrowRight) {
-        dir += 1.0;
-    }
+    let dir = action.move_x;
 
     if dir != 0.0 {
         *facing = if dir < 0.0 {
@@ -73,8 +65,7 @@ fn player_input(
         };
     }
 
-    let running = keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
-    let max_speed = if running { PLAYER_RUN_SPEED } else { PLAYER_WALK_SPEED };
+    let max_speed = if action.running { PLAYER_RUN_SPEED } else { PLAYER_WALK_SPEED };
     let accel = if grounded.0 { PLAYER_ACCELERATION } else { PLAYER_AIR_ACCELERATION };
 
     if dir != 0.0 {
@@ -89,15 +80,11 @@ fn player_input(
         }
     }
 
-    if (keyboard.just_pressed(KeyCode::Space) || keyboard.just_pressed(KeyCode::ArrowUp))
-        && grounded.0
-    {
+    if action.jump_just_pressed && grounded.0 {
         vel.y = PLAYER_JUMP_IMPULSE;
     }
 
-    if (keyboard.just_released(KeyCode::Space) || keyboard.just_released(KeyCode::ArrowUp))
-        && vel.y > 0.0
-    {
+    if action.jump_just_released && vel.y > 0.0 {
         vel.y *= JUMP_CUT_MULTIPLIER;
     }
 }

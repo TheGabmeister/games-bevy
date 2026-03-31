@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 use crate::components::*;
 use crate::constants::*;
+use crate::input::ActionInput;
 use crate::resources::*;
 use crate::states::*;
 
@@ -107,10 +108,10 @@ fn spawn_start_screen(mut commands: Commands) {
 }
 
 fn start_screen_input(
-    keyboard: Res<ButtonInput<KeyCode>>,
+    action: Res<ActionInput>,
     mut next_state: ResMut<NextState<AppState>>,
 ) {
-    if keyboard.just_pressed(KeyCode::Enter) {
+    if action.confirm_just_pressed {
         next_state.set(AppState::Playing);
     }
 }
@@ -222,11 +223,11 @@ fn countdown_timer(
 // ── Pause ──
 
 fn pause_input(
-    keyboard: Res<ButtonInput<KeyCode>>,
+    action: Res<ActionInput>,
     current_state: Res<State<PlayState>>,
     mut next_state: ResMut<NextState<PlayState>>,
 ) {
-    if keyboard.just_pressed(KeyCode::Escape) {
+    if action.pause_just_pressed {
         match current_state.get() {
             PlayState::Running => next_state.set(PlayState::Paused),
             PlayState::Paused => next_state.set(PlayState::Running),
@@ -298,10 +299,10 @@ fn spawn_game_over_screen(mut commands: Commands) {
 }
 
 fn game_over_input(
-    keyboard: Res<ButtonInput<KeyCode>>,
+    action: Res<ActionInput>,
     mut next_state: ResMut<NextState<AppState>>,
 ) {
-    if keyboard.just_pressed(KeyCode::Enter) {
+    if action.confirm_just_pressed {
         next_state.set(AppState::StartScreen);
     }
 }

@@ -136,3 +136,6 @@ pub const TIME_BONUS_PER_TICK: u32 = 50;
 pub const TIME_TALLY_RATE: f32 = 60.0;
 pub const LEVEL_COMPLETE_DONE_DELAY: f32 = 2.0;
 pub const CASTLE_OFFSET_TILES: usize = 4;
+
+// Gamepad
+pub const STICK_DEADZONE: f32 = 0.2;

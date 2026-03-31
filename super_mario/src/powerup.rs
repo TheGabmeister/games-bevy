@@ -4,6 +4,7 @@ use crate::assets::GameAssets;
 use crate::collision::{self, entities_overlap, WallAction};
 use crate::components::*;
 use crate::constants::*;
+use crate::input::ActionInput;
 use crate::level::LevelGrid;
 use crate::resources::*;
 use crate::states::*;
@@ -185,13 +186,13 @@ fn fire_flower_collection(
 // ── Fireball Shooting ──
 
 fn fireball_shoot(
-    keyboard: Res<ButtonInput<KeyCode>>,
+    action: Res<ActionInput>,
     mut commands: Commands,
     player_query: Query<(&Transform, &FacingDirection, &PlayerSize), With<Player>>,
     fireball_query: Query<&Fireball>,
     assets: Res<GameAssets>,
 ) {
-    if !(keyboard.just_pressed(KeyCode::KeyJ) || keyboard.just_pressed(KeyCode::KeyE)) {
+    if !action.shoot_just_pressed {
         return;
     }
 
@@ -432,7 +433,7 @@ fn invincibility_system(
 // ── Ducking ──
 
 fn ducking_system(
-    keyboard: Res<ButtonInput<KeyCode>>,
+    action: Res<ActionInput>,
     mut commands: Commands,
     mut query: Query<
         (
@@ -454,8 +455,7 @@ fn ducking_system(
         return;
     };
 
-    let wants_duck =
-        keyboard.pressed(KeyCode::ArrowDown) || keyboard.pressed(KeyCode::KeyS);
+    let wants_duck = action.duck;
 
     if *player_size != PlayerSize::Small && grounded.0 && wants_duck && !is_ducking {
         commands.entity(entity).insert(Ducking);
