@@ -35,25 +35,27 @@ Super Mario Bros clone. Placeholder geometry (colored rectangles/ellipses), no s
 
 ### Module Structure
 
-- **`main.rs`** — App setup, plugin registration, `GameplaySet` ordering, asset loader registration
-- **`assets.rs`** — `GameAssets` resource with nested sub-structs (tiles, player, flagpole, castle, mushroom, fire flower, etc.) — each sub-struct has a `spawn()` method. Enemy assets live in their own modules (see below).
-- **`player.rs`** — `PlayerPlugin` — input, gravity, velocity, tile collision, pit death check
+- **`main.rs`** — App setup, plugin registration, `GameplaySet` ordering, asset loader registration. **Startup ordering**: `init_game_assets` runs first; `load_level` and `init_spawner_registry` run `.after(init_game_assets)` to ensure `GameAssets` exists.
+- **`input.rs`** — `InputPlugin` — unified `ActionInput` resource gathered every frame in `PreUpdate` from keyboard + gamepad. All gameplay systems read `ActionInput` instead of `ButtonInput<KeyCode>` directly.
+- **`assets.rs`** — `GameAssets` resource with nested sub-structs (tiles, player, flagpole, castle, mushroom, fire flower, starman, 1-up mushroom, etc.) — each sub-struct has a `spawn()` method. Enemy assets live in their own modules (see below).
+- **`player.rs`** — `PlayerPlugin` — input, gravity, velocity, tile collision, pit death check, skid detection, face repositioning
 - **`death.rs`** — `DeathPlugin` — death animation (pause → bounce → respawn or game over)
-- **`level_complete.rs`** — `LevelCompletePlugin` — flagpole collision, level-complete scripted sequence (slide → walk → tally → done)
+- **`level_complete.rs`** — `LevelCompletePlugin` — flagpole collision, level-complete scripted sequence (slide → walk → tally → done → advance to next level)
 - **`camera.rs`** — `CameraPlugin` — camera setup, reset on level enter, smooth follow
+- **`decoration.rs`** — `DecorationPlugin` — spawns clouds, bushes, and hills as repeating patterns across the level. Only spawns for `"overworld"` theme. Called from `spawn_level`.
 - **`enemy/`** — `EnemyPlugin` (registered from `enemy/mod.rs`)
   - **`mod.rs`** — shared physics (walk, gravity, velocity, tile collision, activation, despawn), squish timer, score popups, `mario_take_damage` helper
-  - **`goomba.rs`** — `GoombaPlugin` — self-contained: asset init, spawner registration, `mario_goomba_collision` (stomp → squish)
+  - **`goomba.rs`** — `GoombaPlugin` — self-contained: asset init, spawner registration, `mario_goomba_collision` (stomp → squish, star power → kill)
   - **`koopa.rs`** — `KoopaPlugin` — self-contained: asset init, spawner registration, `ShellAssets` resource, `mario_koopa_collision` (stomp → shell), `mario_shell_collision` (kick/stop), `shell_enemy_collision` (chain kills)
-- **`block.rs`** — `BlockPlugin` — head-hit processing (`PendingBlockHit` resource), `?`/`M` block content release (mushroom for Small, fire flower for Big/Fire), brick bump/break, block bounce animation, coin pop, brick particles, floating coin collection
-- **`powerup.rs`** — `PowerUpPlugin` — mushroom/fire flower emerge+collection, fireball shooting+physics+enemy collision, growth/shrink animation (`PlayState::Growing`), invincibility flashing, ducking
+- **`block.rs`** — `BlockPlugin` — head-hit processing (`PendingBlockHit` resource), block content release (`?` → coin, `M` → mushroom/fire flower, `T` → starman, `L` → 1-up mushroom), brick bump/break, block bounce animation, coin pop, brick particles, floating coin collection
+- **`powerup.rs`** — `PowerUpPlugin` — mushroom/fire flower/starman/1-up emerge+collection, fireball shooting+physics+enemy collision, growth/shrink animation (`PlayState::Growing`), invincibility flashing, star power (rainbow flashing + kill-on-contact), ducking
 - **`collision.rs`** — Shared collision helpers: `entities_overlap()` for entity-vs-entity overlap, `aabb_overlap()` for raw AABB test, `resolve_tile_collisions()` for AABB-vs-grid (used by player, enemies, and fireballs)
-- **`ui.rs`** — `UiPlugin` — start screen, game over screen, HUD (score/coins/world/timer), pause overlay, countdown timer, `apply_game_events` (processes `ScoreEvent`/`CoinEvent` messages), `spawn_score_popup()` / `spawn_score_popup_colored()` helpers
+- **`ui.rs`** — `UiPlugin` — start screen, game over screen, level transition screen ("WORLD X-X" + lives), HUD (score/coins/world/timer), pause overlay, countdown timer, `apply_game_events` (processes `ScoreEvent`/`CoinEvent` messages), `spawn_score_popup()` / `spawn_score_popup_colored()` helpers
 - **`level.rs`** — `LevelData` asset + `LevelAssetLoader` (RON files), `LevelGrid` resource, coordinate conversion, `SpawnerRegistry`, `spawn_level` system, hardcoded fallback grids (`level_test`, `level_1_1`)
 - **`states.rs`** — `AppState`, `PlayState` sub-state, `GameplaySet` enum
-- **`resources.rs`** — `GameData` (score, coins, lives), `GameTimer`, `ScoreEvent` / `CoinEvent` messages, `SpawnPoint`, `DeathAnimation`, `PendingBlockHit`, `LevelCompleteAnimation`
-- **`components.rs`** — All ECS marker/data types (Player, Velocity, Grounded, Tile, Goomba, KoopaTroopa, Shell, Mushroom, FireFlower, Fireball, CollisionSize, PlayerSize, FlagpoleFlag, Castle, HUD markers, etc.)
-- **`constants.rs`** — All tunable values (window, camera, player, physics, enemies, blocks, power-ups, fireballs, flagpole, z-layers)
+- **`resources.rs`** — `GameData` (score, coins, lives), `GameTimer`, `ScoreEvent` / `CoinEvent` messages, `SpawnPoint`, `DeathAnimation`, `PendingBlockHit`, `LevelCompleteAnimation`, `LevelList` (multi-level progression), `LevelTransitionTimer`
+- **`components.rs`** — All ECS marker/data types (Player, Velocity, Grounded, Tile, Goomba, KoopaTroopa, Shell, Mushroom, FireFlower, Fireball, CollisionSize, PlayerSize, FlagpoleFlag, Castle, Starman, StarPower, OneUpMushroom, PlayerFace, Skidding, Decoration, HUD markers, etc.)
+- **`constants.rs`** — All tunable values (window, camera, player, physics, enemies, blocks, power-ups, fireballs, flagpole, starman, decorations, z-layers)
 
 ### Coordinate System
 
@@ -83,7 +85,7 @@ That's it — no changes to `assets.rs`, `level.rs`, or `GameAssets`. The `Spawn
 
 ### Block Interactions
 
-Mario hitting a block from below is detected in `player.rs` `tile_collision` and stored in the `PendingBlockHit` resource (single optional hit per frame, consumed by `process_block_hits` in `block.rs`). The `LevelGrid` char is the source of truth: `?` → coin pop, `M` → mushroom spawn, `B` → bump (small) or break (big). After hit, `?`/`M` become `E` (solid but not hittable). Brick break despawns the tile entity and sets grid to `.`. `TilePos` components on `?`/`M`/`B` tiles enable entity lookup by grid position.
+Mario hitting a block from below is detected in `player.rs` `tile_collision` and stored in the `PendingBlockHit` resource (single optional hit per frame, consumed by `process_block_hits` in `block.rs`). The `LevelGrid` char is the source of truth: `?` → coin pop, `M` → mushroom/fire flower, `T` → starman, `L` → 1-up mushroom, `B` → bump (small) or break (big). After hit, `?`/`M`/`T`/`L` become `E` (solid but not hittable). Brick break despawns the tile entity and sets grid to `.`. `TilePos` components on `?`/`M`/`T`/`L`/`B` tiles enable entity lookup by grid position.
 
 ### Power-up System
 
@@ -91,11 +93,15 @@ Mario hitting a block from below is detected in `player.rs` `tile_collision` and
 
 **Fire Flowers** emerge from `M` blocks (when Big/Fire Mario) and stay stationary. Collection sets `PlayerSize::Fire` and swaps the player material to white via `GameAssets.player.fire_mat`.
 
-**Fireballs** (J/E key, Fire Mario only, max 2 on screen) travel at constant horizontal speed with gravity and bounce off ground via `resolve_tile_collisions`. Despawn on wall hit or off-screen. Kill Goombas on contact; turn Koopas into stationary shells.
+**Fireballs** (J/E key or gamepad B, Fire Mario only, max 2 on screen) travel at constant horizontal speed with gravity and bounce off ground via `resolve_tile_collisions`. Despawn on wall hit or off-screen. Kill Goombas on contact; turn Koopas into stationary shells.
 
-**PlayerSize** has three variants: `Small`, `Big`, `Fire`. Fire Mario takes damage → Small (skips Big). The shrink animation in `growth_animation_system` resets material to `player.normal_mat` to handle Fire → Small color change. `GameAssets.player` holds both mesh and material handles for the player.
+**Starman** emerges from `T` blocks, bounces continuously off ground (`STARMAN_BOUNCE_IMPULSE`), and moves horizontally using enemy physics. Collection grants `StarPower` component (10s duration) — Mario's material cycles through rainbow colors and kills all enemies on contact for bonus score.
 
-`CollisionSize` on the player is updated dynamically (small=16, big=32, ducking=16). Damage shrink grants 2s `Invincible` (visibility flashing, enemy pass-through).
+**1-Up Mushroom** emerges from `L` blocks, behaves identically to a regular mushroom (slides, bounces off walls). Collection grants +1 life with a green "+1UP" popup.
+
+**PlayerSize** has three variants: `Small`, `Big`, `Fire`. Fire Mario takes damage → Small (skips Big). The shrink animation in `growth_animation_system` resets material to `player.normal_mat` to handle Fire → Small color change. `GameAssets.player` holds mesh, material, face, and skid handles for the player.
+
+`CollisionSize` on the player is updated dynamically (small=16, big=32, ducking=16). Damage shrink grants 2s `Invincible` (visibility flashing, enemy pass-through). Star power supersedes invincibility — enemies die on contact instead of passing through.
 
 ### Koopa & Shell Mechanics
 
@@ -103,7 +109,7 @@ Koopa Troopa patrols like Goomba. Stomp despawns the Koopa and spawns a `Shell` 
 
 ### Physics Model
 
-Dual gravity: `GRAVITY_ASCENDING` (600) while rising, `GRAVITY_DESCENDING` (980) while falling — gives the classic Mario "floaty jump, fast fall" feel. Terminal velocity is capped. Horizontal movement uses acceleration/deceleration (not instant). Shift key toggles walk/run speed.
+Dual gravity: `GRAVITY_ASCENDING` (600) while rising, `GRAVITY_DESCENDING` (980) while falling — gives the classic Mario "floaty jump, fast fall" feel. Terminal velocity is capped. Horizontal movement uses acceleration/deceleration (not instant). Shift key (or gamepad X / right shoulder) toggles walk/run speed.
 
 ### Camera
 
@@ -111,8 +117,9 @@ Uses `OrthographicProjection` scaled to show ~267×200 world units (NES-like res
 
 ### State Machine
 
-- **`AppState`**: `StartScreen → Playing → GameOver` (cycles via Enter key)
+- **`AppState`**: `StartScreen → LevelTransition → Playing → GameOver` (cycles via Enter / gamepad Start)
 - **`PlayState`** (sub-state of `Playing`): `Running`, `Dying`, `Paused`, `LevelComplete`, `Growing`
+- **Level transitions**: Completing a level advances `LevelList`, enters `LevelTransition` (shows "WORLD X-X" + lives for 2.5s), then loads the next level and enters `Playing`. Game over resets to level index 0.
 - Gate gameplay systems with `.run_if(in_state(PlayState::Running))` (not just `AppState::Playing`)
 - Use `OnEnter`/`OnExit` for spawn/cleanup symmetry
 - Prefer `DespawnOnExit(AppState::Playing)` on entities that should auto-despawn when leaving a state
@@ -130,9 +137,9 @@ Each plugin drops its systems into the appropriate set:
 - **Input**: `player_input`, `enemy_activation`, `fireball_shoot`
 - **Physics**: player gravity/velocity/collision chain, enemy walk/gravity/velocity/collision chain, `fireball_physics`
 - **Camera**: `camera_follow`
-- **Late**: `check_pit_death`, `flagpole_collision`, `countdown_timer`, `mario_goomba_collision`, `mario_koopa_collision`, `mario_shell_collision`, `shell_enemy_collision`, `enemy_despawn_out_of_bounds`, `process_block_hits`, `floating_coin_collection`, `mushroom_collection`, `fire_flower_collection`, `fireball_enemy_collision`
+- **Late**: `check_pit_death`, `flagpole_collision`, `countdown_timer`, `mario_goomba_collision`, `mario_koopa_collision`, `mario_shell_collision`, `shell_enemy_collision`, `enemy_despawn_out_of_bounds`, `process_block_hits`, `floating_coin_collection`, `mushroom_collection`, `fire_flower_collection`, `fireball_enemy_collision`, `starman_bounce`, `starman_collection`, `one_up_collection`
 
-Systems outside the chain (HUD update, game event processing, pause input, squish timer, score popups, block/coin/brick animations, mushroom/fire flower emerge, growth animation, invincibility, ducking, `level_complete_system`, `death_animation_system`) use direct `run_if` conditions.
+Systems outside the chain (HUD update, game event processing, pause input, squish timer, score popups, block/coin/brick animations, mushroom/fire flower/starman emerge, growth animation, invincibility, star power, ducking, skid, face update, `level_complete_system`, `death_animation_system`, `transition_screen_update`) use direct `run_if` conditions.
 
 ### Messages and Observers
 
@@ -171,11 +178,11 @@ Use Bevy's query filters for performance and correctness:
 
 ### Level Complete Sequence
 
-Flagpole collision (in `level_complete.rs`, Late set) triggers `PlayState::LevelComplete` and creates a `LevelCompleteAnimation` resource. The `level_complete_system` (runs during `LevelComplete`) drives four phases: `SlideDown` (snap to pole X, move down), `WalkToCastle` (walk right), `TimeTally` (rapidly decrement timer, add score at 50 pts/tick), `Done` (2s pause, then transition to `StartScreen`). The flag entity (`FlagpoleFlag`) slides down in sync with Mario. Camera does not follow during LevelComplete (GameplaySet requires Running).
+Flagpole collision (in `level_complete.rs`, Late set) triggers `PlayState::LevelComplete` and creates a `LevelCompleteAnimation` resource. The `level_complete_system` (runs during `LevelComplete`) drives four phases: `SlideDown` (snap to pole X, move down), `WalkToCastle` (walk right), `TimeTally` (rapidly decrement timer, add score at 50 pts/tick), `Done` (2s pause, then advance `LevelList` and transition to `AppState::LevelTransition`). The flag entity (`FlagpoleFlag`) slides down in sync with Mario. Camera does not follow during LevelComplete (GameplaySet requires Running).
 
 ### Assets
 
-**GameAssets** (`assets.rs`): A `Resource` with nested sub-structs (`TileAssets`, `PlayerAssets`, `FlagpoleAssets`, `CastleAssets`, `MushroomAssets`, `FireFlowerAssets`, etc.). Each sub-struct bundles mesh + material handles and exposes a `spawn()` method. Enemy assets (Goomba, Koopa, Shell) live in their own modules as separate Resources or closure-captured handles — not in `GameAssets`. Created once on `Startup` via `init_game_assets`.
+**GameAssets** (`assets.rs`): A `Resource` with nested sub-structs (`TileAssets`, `PlayerAssets`, `FlagpoleAssets`, `CastleAssets`, `MushroomAssets`, `FireFlowerAssets`, `StarmanAssets`, `OneUpMushroomAssets`, etc.). Each sub-struct bundles mesh + material handles and exposes a `spawn()` method. `PlayerAssets` also holds face and skid material handles and spawns a `PlayerFace` child entity. Enemy assets (Goomba, Koopa, Shell) live in their own modules as separate Resources or closure-captured handles — not in `GameAssets`. Decoration assets live in `decoration.rs` as `DecorationAssets`. Created once on `Startup` via `init_game_assets`.
 
 **Level data** (`assets/levels/*.level.ron`): RON files loaded via a custom `LevelAssetLoader`. Format supports optional metadata with serde defaults:
 ```ron
@@ -186,15 +193,22 @@ Flagpole collision (in `level_complete.rs`, Late set) triggers `PlayState::Level
     world_name: "1-1",
     background_color: (0.36, 0.53, 0.95),
     gravity_multiplier: 1.0,
+    theme: "overworld",  // "overworld" | "underground" | "underwater"
 )
 ```
-15 rows of 211 chars using the tile legend. `LevelHandle` resource stores the active level's `Handle<LevelData>`. `spawn_level` reads the loaded asset, applies metadata (timer, background color, world name), falling back to defaults if not yet loaded. Generate RON files from existing grids with `cargo test generate_level_ron_files`.
+15 rows of 211 chars using the tile legend. `LevelHandle` resource stores the active level's `Handle<LevelData>`. `spawn_level` reads the loaded asset, applies metadata (timer, background color, world name, theme), falling back to defaults if not yet loaded. Generate RON files from existing grids with `cargo test generate_level_ron_files`.
 
-To switch which level is loaded, change the path in `load_level()` in `level.rs`.
+**Level progression**: The `LevelList` resource (in `resources.rs`) holds ordered level paths and a current index. `load_level` reads the current path at Startup. After level complete, `LevelList::advance()` cycles to the next level; the transition screen reloads the asset before entering `Playing`. To add levels, append paths to `LevelList::default()` and create the RON file.
 
 ### Spawner Registry
 
 `SpawnerRegistry` (`level.rs`) maps level characters to `Box<dyn Fn(&mut Commands, f32, f32, usize, usize)>` closures. Each closure captures its own asset handles at registration time — no dependency on `GameAssets` at spawn time. Built-in tile/entity spawners are registered in `init_spawner_registry`. Enemy spawners are registered by their own plugins (e.g., `GoombaPlugin` registers `'G'`, `KoopaPlugin` registers `'K'`). The `spawn_level` system iterates the grid and looks up spawners from the registry — `'S'` (spawn point) is handled specially.
+
+**Tile legend**: `.` empty, `#` ground, `B` brick, `?` question (coin), `M` question (mushroom/fire flower), `T` question (starman), `L` question (1-up mushroom), `X` solid (staircase), `[` `]` `{` `}` pipe parts, `S` spawn, `G` Goomba, `K` Koopa, `F` flagpole, `C` floating coin, `E` used block (set at runtime).
+
+### Input System
+
+All input flows through `ActionInput` (resource in `input.rs`), gathered every frame in `PreUpdate` from keyboard and gamepad. Fields: `move_x`, `running`, `jump_pressed/just_pressed/just_released`, `duck`, `shoot_just_pressed`, `pause_just_pressed`, `confirm_just_pressed`. Gamepad mapping: South (A) = jump, East (B) = shoot, West (X) / right shoulder = run, D-pad / left stick = move, Start = pause/confirm. No module should read `ButtonInput<KeyCode>` directly — use `Res<ActionInput>` instead.
 
 ### Game Events
 
