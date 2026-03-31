@@ -42,6 +42,12 @@ pub struct LevelData {
     /// Multiplier for gravity constants. 1.0 = normal, <1.0 = floaty (underwater).
     #[serde(default = "default_gravity_multiplier")]
     pub gravity_multiplier: f32,
+
+    /// Level theme. Controls which decorations are spawned.
+    /// "overworld" (default) = clouds, bushes, hills.
+    /// "underground" / "underwater" = no outdoor decorations.
+    #[serde(default = "default_theme")]
+    pub theme: String,
 }
 
 fn default_time() -> f32 {
@@ -55,6 +61,9 @@ fn default_background_color() -> (f32, f32, f32) {
 }
 fn default_gravity_multiplier() -> f32 {
     1.0
+}
+fn default_theme() -> String {
+    "overworld".to_string()
 }
 
 impl LevelData {
@@ -498,9 +507,14 @@ pub fn spawn_level(
     // Mario
     assets.player.spawn(&mut commands, sp.0, sp.1);
 
-    // Decorations
-    let level_grid = LevelGrid { grid };
-    crate::decoration::spawn_decorations(&mut commands, &level_grid, &deco_assets);
+    // Decorations (only for overworld theme)
+    let theme = level_data
+        .map(|d| d.theme.as_str())
+        .unwrap_or("overworld");
+    if theme == "overworld" {
+        let level_grid = LevelGrid { grid };
+        crate::decoration::spawn_decorations(&mut commands, &level_grid, &deco_assets);
+    }
 
     // HUD
     ui::spawn_hud(&mut commands, &game_data, &game_timer);
