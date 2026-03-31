@@ -162,5 +162,9 @@ pub const STAR_POWER_DURATION: f32 = 10.0;
 pub const STAR_POWER_FLASH_INTERVAL: f32 = 0.05;
 pub const STAR_KILL_SCORE: u32 = 200;
 
+// Warp pipes
+pub const WARP_SLIDE_SPEED: f32 = 60.0;
+pub const WARP_FADE_DURATION: f32 = 0.3;
+
 // Gamepad
 pub const STICK_DEADZONE: f32 = 0.2;

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use bevy::prelude::*;
 use bevy::asset::io::Reader as AssetReader;
 use bevy::asset::{AssetLoader, LoadContext};
@@ -48,6 +50,26 @@ pub struct LevelData {
     /// "underground" / "underwater" = no outdoor decorations.
     #[serde(default = "default_theme")]
     pub theme: String,
+
+    /// Warp pipe definitions. Maps (col, row) of the pipe top-left `[` tile
+    /// to a destination. Press Down on these pipes to teleport.
+    #[serde(default)]
+    pub warps: HashMap<(usize, usize), WarpDestination>,
+}
+
+/// Destination for a warp pipe.
+#[derive(Deserialize, Clone, Debug, Reflect)]
+pub struct WarpDestination {
+    /// Grid column of the exit position (pipe top-left `[`, or open ground).
+    pub target_col: usize,
+    /// Grid row of the exit position.
+    pub target_row: usize,
+}
+
+/// Resource holding warp pipe destinations for the current level.
+#[derive(Resource, Default)]
+pub struct WarpPipes {
+    pub destinations: HashMap<(i32, i32), WarpDestination>,
 }
 
 fn default_time() -> f32 {
@@ -465,6 +487,17 @@ pub fn spawn_level(
         .map(|data| data.to_grid())
         .unwrap_or_else(level_test);
     commands.insert_resource(LevelGrid { grid });
+
+    // Populate warp pipe destinations
+    let warp_destinations = level_data
+        .map(|data| {
+            data.warps
+                .iter()
+                .map(|(&(col, row), dest)| ((col as i32, row as i32), dest.clone()))
+                .collect()
+        })
+        .unwrap_or_default();
+    commands.insert_resource(WarpPipes { destinations: warp_destinations });
 
     let mut sp = (0.0_f32, 0.0_f32);
 

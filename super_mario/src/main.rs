@@ -17,6 +17,7 @@ mod powerup;
 mod resources;
 mod states;
 mod ui;
+mod warp;
 
 use constants::*;
 use resources::*;
@@ -66,6 +67,7 @@ fn main() {
             death::DeathPlugin,
             level_complete::LevelCompletePlugin,
             decoration::DecorationPlugin,
+            warp::WarpPlugin,
         ))
         .init_asset::<level::LevelData>()
         .register_asset_loader(level::LevelAssetLoader)

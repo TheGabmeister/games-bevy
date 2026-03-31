@@ -218,3 +218,7 @@ pub struct Skidding;
 // Decoration marker
 #[derive(Component)]
 pub struct Decoration;
+
+// Warp pipe fade overlay (full-screen black rect for transitions)
+#[derive(Component)]
+pub struct WarpFadeOverlay;

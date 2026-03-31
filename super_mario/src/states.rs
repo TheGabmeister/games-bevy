@@ -18,6 +18,7 @@ pub enum PlayState {
     Paused,
     LevelComplete,
     Growing,
+    Warping,
 }
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
