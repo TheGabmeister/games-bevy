@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use crate::assets::GameAssets;
 use crate::components::{Ball, Paddle, Velocity};
 use crate::constants::*;
 use crate::input::InputActions;
@@ -21,11 +22,11 @@ impl Plugin for BallPlugin {
     }
 }
 
-fn spawn_ball(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn spawn_ball(mut commands: Commands, assets: Res<GameAssets>) {
     commands.spawn((
         Ball { stuck: true },
         Velocity(Vec2::ZERO),
-        Sprite::from_image(asset_server.load("sprites/ball/ball.png")),
+        Sprite::from_image(assets.sprites.ball.clone()),
         Transform::from_xyz(0.0, ball_rest_y(PADDLE_Y), Z_BALL),
     ));
 }

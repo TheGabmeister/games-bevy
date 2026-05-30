@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
 
+mod assets;
 mod audio;
 mod ball;
 mod collision;
@@ -13,6 +14,7 @@ mod resources;
 mod states;
 mod ui;
 
+use assets::GameAssets;
 use constants::*;
 
 fn main() {
@@ -26,6 +28,7 @@ fn main() {
             }),
             ..default()
         }))
+        .init_resource::<GameAssets>()
         .add_plugins((
             input::InputPlugin,
             player::PlayerPlugin,
@@ -39,11 +42,11 @@ fn main() {
         .run();
 }
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn setup(mut commands: Commands, assets: Res<GameAssets>) {
     commands.spawn(Camera2d);
     // Playfield border frame (full-screen sprite, transparent interior).
     commands.spawn((
-        Sprite::from_image(asset_server.load("sprites/playfield/border-frame.png")),
+        Sprite::from_image(assets.sprites.border_frame.clone()),
         Transform::from_xyz(0.0, 0.0, Z_BACKGROUND),
     ));
 }

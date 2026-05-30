@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use crate::assets::GameAssets;
 use crate::components::Paddle;
 use crate::constants::*;
 use crate::input::InputActions;
@@ -13,10 +14,10 @@ impl Plugin for PlayerPlugin {
     }
 }
 
-fn spawn_paddle(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn spawn_paddle(mut commands: Commands, assets: Res<GameAssets>) {
     commands.spawn((
         Paddle,
-        Sprite::from_image(asset_server.load("sprites/vaus/vaus.png")),
+        Sprite::from_image(assets.sprites.vaus.clone()),
         Transform::from_xyz(0.0, PADDLE_Y, Z_PADDLE),
     ));
 }
