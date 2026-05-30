@@ -1,4 +1,3 @@
-use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
 
 use crate::components::Paddle;
@@ -22,11 +21,9 @@ fn spawn_paddle(mut commands: Commands, asset_server: Res<AssetServer>) {
     ));
 }
 
-/// Moves the Vaus from keyboard/gamepad (velocity-based) and the mouse
-/// (relative motion, mimicking the arcade spinner), clamped to the playfield.
+/// Moves the Vaus from keyboard/gamepad (velocity-based), clamped to the playfield.
 pub fn paddle_control(
     input: Res<InputActions>,
-    mouse_motion: Res<AccumulatedMouseMotion>,
     time: Res<Time>,
     mut paddle: Query<&mut Transform, With<Paddle>>,
 ) {
@@ -41,7 +38,6 @@ pub fn paddle_control(
     if input.move_right {
         dx += PADDLE_SPEED * time.delta_secs();
     }
-    dx += mouse_motion.delta.x * PADDLE_MOUSE_SENSITIVITY;
 
     let half = PADDLE_WIDTH / 2.0;
     transform.translation.x =

@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
-/// Snapshot of player intent for the current frame, populated from keyboard,
-/// mouse, and gamepad. Gameplay systems read this instead of raw input devices.
+/// Snapshot of player intent for the current frame, populated from keyboard and
+/// gamepad. Gameplay systems read this instead of raw input devices.
 #[derive(Resource, Default)]
 pub struct InputActions {
     pub move_left: bool,
@@ -14,19 +14,14 @@ pub struct InputPlugin;
 impl Plugin for InputPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<InputActions>()
-            .add_systems(PreUpdate, (read_keyboard_mouse, read_gamepad).chain());
+            .add_systems(PreUpdate, (read_keyboard, read_gamepad).chain());
     }
 }
 
-fn read_keyboard_mouse(
-    keys: Res<ButtonInput<KeyCode>>,
-    mouse_buttons: Res<ButtonInput<MouseButton>>,
-    mut actions: ResMut<InputActions>,
-) {
+fn read_keyboard(keys: Res<ButtonInput<KeyCode>>, mut actions: ResMut<InputActions>) {
     actions.move_left = keys.pressed(KeyCode::ArrowLeft) || keys.pressed(KeyCode::KeyA);
     actions.move_right = keys.pressed(KeyCode::ArrowRight) || keys.pressed(KeyCode::KeyD);
-    actions.launch =
-        keys.just_pressed(KeyCode::Space) || mouse_buttons.just_pressed(MouseButton::Left);
+    actions.launch = keys.just_pressed(KeyCode::Space);
 }
 
 const STICK_THRESHOLD: f32 = 0.5;

@@ -19,8 +19,6 @@ pub const PADDLE_HEIGHT: f32 = 24.0;
 pub const PADDLE_Y: f32 = PLAYFIELD_BOTTOM + 60.0;
 /// Keyboard / gamepad travel speed in pixels per second.
 pub const PADDLE_SPEED: f32 = 600.0;
-/// Relative-mouse travel, in pixels of paddle movement per pixel of mouse motion.
-pub const PADDLE_MOUSE_SENSITIVITY: f32 = 1.0;
 
 // --- Ball ---
 pub const BALL_SIZE: f32 = 16.0;
