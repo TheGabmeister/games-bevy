@@ -30,15 +30,37 @@ Dependencies compile at `opt-level = 3` while the main crate uses `opt-level = 1
 
 ## Architecture
 
-This is a template for 2D arcade-style Bevy games. It uses one-plugin-per-domain organization.
+A from-scratch recreation of the classic **Arkanoid** (Taito, 1986), built as a Bevy learning exercise. One-plugin-per-domain organization.
 
-- **`main.rs`** — App setup, plugin registration, camera + placeholder UI spawn
-- **`constants.rs`** — All tunable values as named constants (window size, speeds, radii, scoring)
-- **`components.rs`** — Marker components for entity types + data components (Velocity, etc.)
-- **`resources.rs`** — Shared game state (Score, etc.)
-- **`states.rs`** — `AppState` enum driving a state machine (StartScreen → Playing → GameOver)
-- **`input.rs`** — `InputPlugin` with keyboard/gamepad input mapped to an `InputActions` resource
-- **`player.rs`**, **`enemy.rs`**, **`collision.rs`**, **`ui.rs`**, **`audio.rs`** — Stub domain plugins (empty `build()`) ready to be filled in
+**`PLAN.md` is the source of truth for scope and sequencing** — a 7-phase roadmap (vertical slice → systems depth → content). It also carries the canonical asset manifest (file paths + pixel dimensions under `assets/`). Read the relevant phase before adding a feature; build only on systems from earlier phases.
+
+Module map (✅ = implemented, ◻ = still a stub awaiting its phase):
+
+- **`main.rs`** — App setup, 800×600 window config, plugin registration, `GameAssets` init, camera + playfield border spawn
+- **`constants.rs`** — All tunable values as named constants (playfield bounds, paddle/ball sizing, speeds, z-layers)
+- **`components.rs`** — Marker + data components (`Velocity`, `Paddle`, `Ball { stuck }`)
+- **`resources.rs`** — Shared game state (`Score` — not yet wired in)
+- **`states.rs`** — `AppState` enum (`StartScreen → Playing → GameOver` — not yet wired in; introduced in Phase 3)
+- **`assets.rs`** ✅ — `GameAssets`, the central preloaded-handle registry (see **Asset Registry** below)
+- **`input.rs`** ✅ — `InputPlugin`; keyboard/gamepad → `InputActions` resource (no mouse — keyboard + gamepad only)
+- **`player.rs`** ✅ — `PlayerPlugin`; spawns the Vaus, clamped paddle control
+- **`ball.rs`** ✅ — `BallPlugin`; spawn/serve/launch/integrate the ball
+- **`collision.rs`** ✅ — `CollisionPlugin`; ball↔wall/paddle reflection, bottom re-serve, emits `BounceSound`
+- **`audio.rs`** ✅ — `AudioPlugin`; plays SFX from `BounceSound` messages
+- **`enemy.rs`** ◻ (Phase 6), **`ui.rs`** ◻ (Phase 2/3)
+
+### Physics & System Ordering
+
+Gameplay physics runs in **`FixedUpdate`** for determinism, ordered across plugins with `.after()`:
+`paddle_control` → `ball_follow_paddle` → `ball_movement` → `ball_collision`. One-shot input reactions (e.g. `ball_launch`) run in `Update`. Systems referenced across modules are `pub`.
+
+### Input Abstraction
+
+Raw devices are read **only** in `input.rs` (`PreUpdate`) and translated into the `InputActions` resource. All gameplay systems read `InputActions`, never `ButtonInput`/`Gamepad` directly. `pressed` for held actions (move), `just_pressed` for one-shots (launch).
+
+### Asset Registry
+
+Asset handles live in the **`GameAssets`** resource (`assets.rs`), grouped into nested category structs (`assets.sprites.vaus`, `assets.sfx.wall_bounce`). Handles are preloaded once via `FromWorld` + `init_resource`; call sites `.clone()` a handle rather than calling `asset_server.load(...)`. This keeps asset references type-checked (a typo is a compile error). Add a field per phase as features land — don't preload assets nothing references yet. **Gameplay/level data** (brick layouts) goes in RON under `assets/levels/`; the asset registry itself stays in Rust.
 
 ### State Machine Pattern
 
@@ -81,7 +103,7 @@ Use Bevy's query filters for performance and correctness:
 
 ### Assets
 
-Asset paths are plain relative strings passed to `asset_server.load(...)` — keep them aligned with files under `assets/`. Store `Handle<T>` in a resource when an asset is used repeatedly to avoid redundant loads. 
+Load assets through the `GameAssets` registry (see **Asset Registry** above), not ad hoc `asset_server.load(...)` calls in gameplay systems. Asset file paths (the strings inside `assets.rs`) must stay aligned with files under `assets/` and with the manifest in `PLAN.md`.
 
 ## Bevy 0.18.1 API Notes
 
