@@ -1,2 +1,36 @@
+use std::f32::consts::FRAC_PI_3;
+
+// --- Window ---
 pub const WINDOW_WIDTH: f32 = 800.0;
 pub const WINDOW_HEIGHT: f32 = 600.0;
+
+// --- Playfield ---
+// The border frame is 20px thick on the top/left/right edges; the bottom is open.
+// World space has the camera centered at the origin, so x ∈ [-400, 400], y ∈ [-300, 300].
+pub const WALL_THICKNESS: f32 = 20.0;
+pub const PLAYFIELD_LEFT: f32 = -WINDOW_WIDTH / 2.0 + WALL_THICKNESS;
+pub const PLAYFIELD_RIGHT: f32 = WINDOW_WIDTH / 2.0 - WALL_THICKNESS;
+pub const PLAYFIELD_TOP: f32 = WINDOW_HEIGHT / 2.0 - WALL_THICKNESS;
+pub const PLAYFIELD_BOTTOM: f32 = -WINDOW_HEIGHT / 2.0;
+
+// --- Vaus paddle ---
+pub const PADDLE_WIDTH: f32 = 96.0;
+pub const PADDLE_HEIGHT: f32 = 24.0;
+pub const PADDLE_Y: f32 = PLAYFIELD_BOTTOM + 60.0;
+/// Keyboard / gamepad travel speed in pixels per second.
+pub const PADDLE_SPEED: f32 = 600.0;
+/// Relative-mouse travel, in pixels of paddle movement per pixel of mouse motion.
+pub const PADDLE_MOUSE_SENSITIVITY: f32 = 1.0;
+
+// --- Ball ---
+pub const BALL_SIZE: f32 = 16.0;
+pub const BALL_RADIUS: f32 = BALL_SIZE / 2.0;
+pub const BALL_SPEED: f32 = 340.0;
+/// Maximum rebound angle off the paddle, measured from straight up (a hit at the
+/// paddle's edge deflects this far; a centered hit goes straight up).
+pub const BALL_MAX_BOUNCE_ANGLE: f32 = FRAC_PI_3; // 60°
+
+// --- Z layers ---
+pub const Z_BACKGROUND: f32 = 0.0;
+pub const Z_PADDLE: f32 = 1.0;
+pub const Z_BALL: f32 = 2.0;
