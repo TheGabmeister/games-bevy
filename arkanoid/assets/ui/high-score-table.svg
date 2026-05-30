@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="400" viewBox="0 0 480 400" shape-rendering="crispEdges">
+
+<rect x="0" y="0" width="480" height="400" fill="#07111f"/>
+<rect x="10" y="10" width="460" height="380" fill="#1c2f4a"/>
+<text x="240" y="52" fill="#fff070" font-size="42" font-family="Impact, Consolas, monospace" font-weight="700" text-anchor="middle" dominant-baseline="middle">HIGH SCORES</text>
+<rect x="70" y="98" width="340" height="2" fill="#6aa0c8"/>
+<rect x="70" y="142" width="340" height="2" fill="#6aa0c8"/>
+<rect x="70" y="186" width="340" height="2" fill="#6aa0c8"/>
+<rect x="70" y="230" width="340" height="2" fill="#6aa0c8"/>
+<rect x="70" y="274" width="340" height="2" fill="#6aa0c8"/>
+<rect x="70" y="318" width="340" height="2" fill="#6aa0c8"/>
+<text x="142" y="122" fill="#ffffff" font-size="24" font-family="Impact, Consolas, monospace" font-weight="700" text-anchor="middle" dominant-baseline="middle">01</text>
+<text x="142" y="166" fill="#ffffff" font-size="24" font-family="Impact, Consolas, monospace" font-weight="700" text-anchor="middle" dominant-baseline="middle">02</text>
+<text x="142" y="210" fill="#ffffff" font-size="24" font-family="Impact, Consolas, monospace" font-weight="700" text-anchor="middle" dominant-baseline="middle">03</text>
+<text x="142" y="254" fill="#ffffff" font-size="24" font-family="Impact, Consolas, monospace" font-weight="700" text-anchor="middle" dominant-baseline="middle">04</text>
+<text x="142" y="298" fill="#ffffff" font-size="24" font-family="Impact, Consolas, monospace" font-weight="700" text-anchor="middle" dominant-baseline="middle">05</text>
+<text x="280" y="122" fill="#72d6ff" font-size="24" font-family="Impact, Consolas, monospace" font-weight="700" text-anchor="middle" dominant-baseline="middle">50000</text>
+<text x="280" y="166" fill="#72d6ff" font-size="24" font-family="Impact, Consolas, monospace" font-weight="700" text-anchor="middle" dominant-baseline="middle">45000</text>
+<text x="280" y="210" fill="#72d6ff" font-size="24" font-family="Impact, Consolas, monospace" font-weight="700" text-anchor="middle" dominant-baseline="middle">40000</text>
+<text x="280" y="254" fill="#72d6ff" font-size="24" font-family="Impact, Consolas, monospace" font-weight="700" text-anchor="middle" dominant-baseline="middle">35000</text>
+<text x="280" y="298" fill="#72d6ff" font-size="24" font-family="Impact, Consolas, monospace" font-weight="700" text-anchor="middle" dominant-baseline="middle">30000</text>
+</svg>

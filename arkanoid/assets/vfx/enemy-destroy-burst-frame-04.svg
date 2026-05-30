@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" shape-rendering="crispEdges">
+
+<circle cx="24" cy="24" r="19" fill="#ff65a8" opacity="0.42000000000000004"/>
+<line x1="43.0" y1="24.0" x2="57.0" y2="24.0" stroke="#ffffff" stroke-width="2" opacity="0.44000000000000006"/>
+<line x1="37.44" y1="37.44" x2="47.33" y2="47.33" stroke="#ffffff" stroke-width="2" opacity="0.44000000000000006"/>
+<line x1="24.0" y1="43.0" x2="24.0" y2="57.0" stroke="#ffffff" stroke-width="2" opacity="0.44000000000000006"/>
+<line x1="10.56" y1="37.44" x2="0.67" y2="47.33" stroke="#ffffff" stroke-width="2" opacity="0.44000000000000006"/>
+<line x1="5.0" y1="24.0" x2="-9.0" y2="24.0" stroke="#ffffff" stroke-width="2" opacity="0.44000000000000006"/>
+<line x1="10.56" y1="10.56" x2="0.67" y2="0.67" stroke="#ffffff" stroke-width="2" opacity="0.44000000000000006"/>
+<line x1="24.0" y1="5.0" x2="24.0" y2="-9.0" stroke="#ffffff" stroke-width="2" opacity="0.44000000000000006"/>
+<line x1="37.44" y1="10.56" x2="47.33" y2="0.67" stroke="#ffffff" stroke-width="2" opacity="0.44000000000000006"/>
+</svg>

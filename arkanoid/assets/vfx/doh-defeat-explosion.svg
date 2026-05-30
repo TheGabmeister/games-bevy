@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="160" viewBox="0 0 960 160" shape-rendering="crispEdges">
+
+<g transform="translate(0,0)">
+<circle cx="80" cy="80" r="4" fill="#ff8a2a" opacity="0.9"/>
+<line x1="84.0" y1="80.0" x2="92.0" y2="80.0" stroke="#ffffff" stroke-width="2" opacity="0.8"/>
+<line x1="82.83" y1="82.83" x2="88.49" y2="88.49" stroke="#ffffff" stroke-width="2" opacity="0.8"/>
+<line x1="80.0" y1="84.0" x2="80.0" y2="92.0" stroke="#ffffff" stroke-width="2" opacity="0.8"/>
+<line x1="77.17" y1="82.83" x2="71.51" y2="88.49" stroke="#ffffff" stroke-width="2" opacity="0.8"/>
+<line x1="76.0" y1="80.0" x2="68.0" y2="80.0" stroke="#ffffff" stroke-width="2" opacity="0.8"/>
+<line x1="77.17" y1="77.17" x2="71.51" y2="71.51" stroke="#ffffff" stroke-width="2" opacity="0.8"/>
+<line x1="80.0" y1="76.0" x2="80.0" y2="68.0" stroke="#ffffff" stroke-width="2" opacity="0.8"/>
+<line x1="82.83" y1="77.17" x2="88.49" y2="71.51" stroke="#ffffff" stroke-width="2" opacity="0.8"/>
+</g>
+<g transform="translate(160,0)">
+<circle cx="80" cy="80" r="9" fill="#ff8a2a" opacity="0.74"/>
+<line x1="89.0" y1="80.0" x2="99.0" y2="80.0" stroke="#ffffff" stroke-width="2" opacity="0.68"/>
+<line x1="86.36" y1="86.36" x2="93.44" y2="93.44" stroke="#ffffff" stroke-width="2" opacity="0.68"/>
+<line x1="80.0" y1="89.0" x2="80.0" y2="99.0" stroke="#ffffff" stroke-width="2" opacity="0.68"/>
+<line x1="73.64" y1="86.36" x2="66.56" y2="93.44" stroke="#ffffff" stroke-width="2" opacity="0.68"/>
+<line x1="71.0" y1="80.0" x2="61.0" y2="80.0" stroke="#ffffff" stroke-width="2" opacity="0.68"/>
+<line x1="73.64" y1="73.64" x2="66.56" y2="66.56" stroke="#ffffff" stroke-width="2" opacity="0.68"/>
+<line x1="80.0" y1="71.0" x2="80.0" y2="61.0" stroke="#ffffff" stroke-width="2" opacity="0.68"/>
+<line x1="86.36" y1="73.64" x2="93.44" y2="66.56" stroke="#ffffff" stroke-width="2" opacity="0.68"/>
+</g>
+<g transform="translate(320,0)">
+<circle cx="80" cy="80" r="14" fill="#ff8a2a" opacity="0.5800000000000001"/>
+<line x1="94.0" y1="80.0" x2="106.0" y2="80.0" stroke="#ffffff" stroke-width="2" opacity="0.56"/>
+<line x1="89.9" y1="89.9" x2="98.38" y2="98.38" stroke="#ffffff" stroke-width="2" opacity="0.56"/>
+<line x1="80.0" y1="94.0" x2="80.0" y2="106.0" stroke="#ffffff" stroke-width="2" opacity="0.56"/>
+<line x1="70.1" y1="89.9" x2="61.62" y2="98.38" stroke="#ffffff" stroke-width="2" opacity="0.56"/>
+<line x1="66.0" y1="80.0" x2="54.0" y2="80.0" stroke="#ffffff" stroke-width="2" opacity="0.56"/>
+<line x1="70.1" y1="70.1" x2="61.62" y2="61.62" stroke="#ffffff" stroke-width="2" opacity="0.56"/>
+<line x1="80.0" y1="66.0" x2="80.0" y2="54.0" stroke="#ffffff" stroke-width="2" opacity="0.56"/>
+<line x1="89.9" y1="70.1" x2="98.38" y2="61.62" stroke="#ffffff" stroke-width="2" opacity="0.56"/>
+</g>
+<g transform="translate(480,0)">
+<circle cx="80" cy="80" r="19" fill="#ff8a2a" opacity="0.42000000000000004"/>
+<line x1="99.0" y1="80.0" x2="113.0" y2="80.0" stroke="#ffffff" stroke-width="2" opacity="0.44000000000000006"/>
+<line x1="93.44" y1="93.44" x2="103.33" y2="103.33" stroke="#ffffff" stroke-width="2" opacity="0.44000000000000006"/>
+<line x1="80.0" y1="99.0" x2="80.0" y2="113.0" stroke="#ffffff" stroke-width="2" opacity="0.44000000000000006"/>
+<line x1="66.56" y1="93.44" x2="56.67" y2="103.33" stroke="#ffffff" stroke-width="2" opacity="0.44000000000000006"/>
+<line x1="61.0" y1="80.0" x2="47.0" y2="80.0" stroke="#ffffff" stroke-width="2" opacity="0.44000000000000006"/>
+<line x1="66.56" y1="66.56" x2="56.67" y2="56.67" stroke="#ffffff" stroke-width="2" opacity="0.44000000000000006"/>
+<line x1="80.0" y1="61.0" x2="80.0" y2="47.0" stroke="#ffffff" stroke-width="2" opacity="0.44000000000000006"/>
+<line x1="93.44" y1="66.56" x2="103.33" y2="56.67" stroke="#ffffff" stroke-width="2" opacity="0.44000000000000006"/>
+</g>
+<g transform="translate(640,0)">
+<circle cx="80" cy="80" r="24" fill="#ff8a2a" opacity="0.26"/>
+<line x1="104.0" y1="80.0" x2="120.0" y2="80.0" stroke="#ffffff" stroke-width="2" opacity="0.32000000000000006"/>
+<line x1="96.97" y1="96.97" x2="108.28" y2="108.28" stroke="#ffffff" stroke-width="2" opacity="0.32000000000000006"/>
+<line x1="80.0" y1="104.0" x2="80.0" y2="120.0" stroke="#ffffff" stroke-width="2" opacity="0.32000000000000006"/>
+<line x1="63.03" y1="96.97" x2="51.72" y2="108.28" stroke="#ffffff" stroke-width="2" opacity="0.32000000000000006"/>
+<line x1="56.0" y1="80.0" x2="40.0" y2="80.0" stroke="#ffffff" stroke-width="2" opacity="0.32000000000000006"/>
+<line x1="63.03" y1="63.03" x2="51.72" y2="51.72" stroke="#ffffff" stroke-width="2" opacity="0.32000000000000006"/>
+<line x1="80.0" y1="56.0" x2="80.0" y2="40.0" stroke="#ffffff" stroke-width="2" opacity="0.32000000000000006"/>
+<line x1="96.97" y1="63.03" x2="108.28" y2="51.72" stroke="#ffffff" stroke-width="2" opacity="0.32000000000000006"/>
+</g>
+<g transform="translate(800,0)">
+<circle cx="80" cy="80" r="29" fill="#ff8a2a" opacity="0.15"/>
+<line x1="109.0" y1="80.0" x2="127.0" y2="80.0" stroke="#ffffff" stroke-width="2" opacity="0.20000000000000007"/>
+<line x1="100.51" y1="100.51" x2="113.23" y2="113.23" stroke="#ffffff" stroke-width="2" opacity="0.20000000000000007"/>
+<line x1="80.0" y1="109.0" x2="80.0" y2="127.0" stroke="#ffffff" stroke-width="2" opacity="0.20000000000000007"/>
+<line x1="59.49" y1="100.51" x2="46.77" y2="113.23" stroke="#ffffff" stroke-width="2" opacity="0.20000000000000007"/>
+<line x1="51.0" y1="80.0" x2="33.0" y2="80.0" stroke="#ffffff" stroke-width="2" opacity="0.20000000000000007"/>
+<line x1="59.49" y1="59.49" x2="46.77" y2="46.77" stroke="#ffffff" stroke-width="2" opacity="0.20000000000000007"/>
+<line x1="80.0" y1="51.0" x2="80.0" y2="33.0" stroke="#ffffff" stroke-width="2" opacity="0.20000000000000007"/>
+<line x1="100.51" y1="59.49" x2="113.23" y2="46.77" stroke="#ffffff" stroke-width="2" opacity="0.20000000000000007"/>
+</g>
+</svg>

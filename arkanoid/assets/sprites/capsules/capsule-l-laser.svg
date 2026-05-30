@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="16" viewBox="0 0 32 16" shape-rendering="crispEdges">
+
+<rect x="4" y="2" width="24" height="12" fill="#ffffff"/>
+<circle cx="8" cy="8" r="6" fill="#ff4d55"/>
+<circle cx="24" cy="8" r="6" fill="#ff4d55"/>
+<rect x="8" y="2" width="16" height="12" fill="#ff4d55"/>
+<rect x="7" y="4" width="18" height="2" fill="#ffffff" opacity="0.5"/>
+<text x="16" y="8.8" fill="#07111f" font-size="11" font-family="Impact, Consolas, monospace" font-weight="700" text-anchor="middle" dominant-baseline="middle">L</text>
+</svg>

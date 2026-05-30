@@ -138,3 +138,6 @@ Asset paths are plain relative strings passed to `asset_server.load(...)` — ke
 - Register: `app.init_state::<AppState>().add_sub_state::<PlayState>();`
 - Sub-states only exist when the source state matches; they are removed automatically otherwise.
 - `ComputedStates` also exists for read-only derived states (`app.add_computed_state::<T>()`).
+## Local Python
+
+- Python is available at `C:\Users\Admin\AppData\Local\Python\pythoncore-3.14-64\python.exe`.
