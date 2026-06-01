@@ -15,10 +15,52 @@ pub struct Ball {
     pub stuck: bool,
 }
 
-/// A single-hit colored brick. Destroyed in one ball contact, awarding `points`.
+/// A brick on the playfield. `hits_remaining` reaches 0 to destroy it (1 for colored
+/// bricks, more for silver); `max_hits` is the starting durability, used to pick the
+/// silver damage frame. Indestructible (gold) bricks carry the [`Indestructible`] marker
+/// and never reach 0. Awards `points` when destroyed.
 #[derive(Component)]
 pub struct Brick {
     pub points: u32,
+    pub hits_remaining: u32,
+    pub max_hits: u32,
+}
+
+/// Marks a multi-hit silver brick, so the damage-feedback system can find it and swap in
+/// the cracked sprite frame as its `hits_remaining` drops.
+#[derive(Component)]
+pub struct Silver;
+
+/// Marks a gold brick: an indestructible obstacle that deflects the ball, scores nothing,
+/// and is excluded from the round-clear check.
+#[derive(Component)]
+pub struct Indestructible;
+
+/// What a brick is made of — governs durability, scoring, and which sprite it uses.
+/// Parsed from a layout cell via [`BrickKind::from_code`].
+#[derive(Clone, Copy)]
+pub enum BrickKind {
+    /// Single-hit colored brick.
+    Colored(BrickColor),
+    /// Multi-hit brick whose required hits and points scale with the round.
+    Silver,
+    /// Indestructible obstacle.
+    Gold,
+}
+
+impl BrickKind {
+    /// Maps a single-character layout code to a brick kind: a color code (see
+    /// [`BrickColor::from_code`]), `'S'` for silver, or `'X'` for gold.
+    pub fn from_code(code: char) -> Option<BrickKind> {
+        if let Some(color) = BrickColor::from_code(code) {
+            return Some(BrickKind::Colored(color));
+        }
+        match code {
+            'S' => Some(BrickKind::Silver),
+            'X' => Some(BrickKind::Gold),
+            _ => None,
+        }
+    }
 }
 
 /// The eight colored brick variants. Each maps to its sprite and point value.

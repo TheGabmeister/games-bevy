@@ -19,7 +19,7 @@ mod ui;
 
 use assets::GameAssets;
 use constants::*;
-use resources::{Lives, Round, Score};
+use resources::{BallSpeed, Lives, Round, Score};
 use states::{AppState, PlayState};
 
 fn main() {
@@ -37,6 +37,7 @@ fn main() {
         .init_resource::<Score>()
         .init_resource::<Round>()
         .init_resource::<Lives>()
+        .init_resource::<BallSpeed>()
         .init_state::<AppState>()
         .add_sub_state::<PlayState>()
         .add_plugins((

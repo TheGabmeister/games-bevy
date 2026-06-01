@@ -34,3 +34,28 @@ impl Default for Lives {
         Lives(crate::constants::LIVES_START)
     }
 }
+
+/// The ball's current speed and the state driving its in-round acceleration. Reset to
+/// `BALL_SPEED` on every serve; ramps up over time and at brick milestones (see `ball.rs`).
+#[derive(Resource)]
+pub struct BallSpeed {
+    /// Current speed magnitude in pixels/second.
+    pub current: f32,
+    /// Repeating timer for time-based speed bumps.
+    pub timer: Timer,
+    /// Bricks destroyed since the last serve, for milestone bumps.
+    pub bricks_destroyed: u32,
+}
+
+impl Default for BallSpeed {
+    fn default() -> Self {
+        BallSpeed {
+            current: crate::constants::BALL_SPEED,
+            timer: Timer::from_seconds(
+                crate::constants::BALL_SPEEDUP_INTERVAL,
+                TimerMode::Repeating,
+            ),
+            bricks_destroyed: 0,
+        }
+    }
+}

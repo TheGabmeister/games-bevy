@@ -29,6 +29,18 @@ pub const BALL_SPEED: f32 = 340.0;
 /// paddle's edge deflects this far; a centered hit goes straight up).
 pub const BALL_MAX_BOUNCE_ANGLE: f32 = FRAC_PI_3; // 60°
 
+// --- Ball speed progression ---
+// The ball starts each serve at `BALL_SPEED` and accelerates within the round —
+// on a fixed time cadence and at brick-count milestones — capped at `BALL_SPEED_MAX`.
+/// Upper bound the ball speed ramps toward; it never exceeds this within a round.
+pub const BALL_SPEED_MAX: f32 = 560.0;
+/// Pixels/second added to the ball speed at each acceleration step.
+pub const BALL_SPEEDUP_STEP: f32 = 28.0;
+/// Seconds of live play between time-based speed bumps.
+pub const BALL_SPEEDUP_INTERVAL: f32 = 8.0;
+/// Bricks destroyed between milestone speed bumps (every Nth brick nudges the speed).
+pub const BALL_SPEEDUP_BRICKS: u32 = 8;
+
 // --- Lives & round flow ---
 pub const LIVES_START: u32 = 3;
 /// Seconds the "ROUND n READY" intro is shown before the ball can be served.
@@ -42,6 +54,14 @@ pub const BRICK_HEIGHT: f32 = 28.0;
 pub const BRICK_COLS: usize = 9;
 /// World-space Y of the center of the top brick row; rows descend from here.
 pub const BRICK_FIELD_TOP: f32 = 300.0;
+
+// --- Silver & gold bricks ---
+/// Hits a silver brick takes in round 1; rises by one every `SILVER_HITS_ROUND_STEP` rounds.
+pub const SILVER_BASE_HITS: u32 = 2;
+/// Rounds between each +1 to a silver brick's required hit count.
+pub const SILVER_HITS_ROUND_STEP: u32 = 8;
+/// A destroyed silver brick scores this times the current round number.
+pub const SILVER_POINTS_PER_ROUND: u32 = 50;
 
 // --- Z layers ---
 pub const Z_BACKGROUND: f32 = 0.0;

@@ -34,19 +34,19 @@ A from-scratch recreation of the classic **Arkanoid** (Taito, 1986), built as a 
 
 **`PLAN.md` is the source of truth for scope and sequencing** — a 7-phase roadmap (vertical slice → systems depth → content). It also carries the canonical asset manifest (file paths + pixel dimensions under `assets/`). Read the relevant phase before adding a feature; build only on systems from earlier phases.
 
-Module map (✅ = implemented, ◻ = still a stub awaiting its phase). Phases 1–3 are done; Phase 4+ is pending.
+Module map (✅ = implemented, ◻ = still a stub awaiting its phase). Phases 1–4 are done; Phase 5+ is pending.
 
 - **`main.rs`** — App setup, 600×800 **portrait** window config, state registration (`AppState` + `PlayState` sub-state), resource init (`Score`/`Lives`/`Round`/`GameAssets`), plugin registration, camera + playfield border spawn
 - **`constants.rs`** — All tunable values as named constants (playfield bounds, paddle/ball sizing, speeds, brick grid, lives + ready-timer, z-layers)
-- **`components.rs`** — Marker + data components (`Velocity`, `Paddle`, `Ball { stuck }`, `Brick`, `BrickColor`)
-- **`resources.rs`** ✅ — Shared game state: `Score { current, high }`, `Lives`, `Round`
+- **`components.rs`** — Marker + data components (`Velocity`, `Paddle`, `Ball { stuck }`, `Brick { points, hits_remaining, max_hits }`, `BrickColor`, `BrickKind`, `Silver`/`Indestructible` markers)
+- **`resources.rs`** ✅ — Shared game state: `Score { current, high }`, `Lives`, `Round`, `BallSpeed` (per-serve speed ramp)
 - **`states.rs`** ✅ — `AppState` (`StartScreen → Playing → GameOver`) + `PlayState` sub-state (`Ready → Serving → Running`) under `Playing`
 - **`assets.rs`** ✅ — `GameAssets`, the central preloaded-handle registry (see **Asset Registry** below)
 - **`input.rs`** ✅ — `InputPlugin`; keyboard/gamepad → `InputActions` resource (no mouse — keyboard + gamepad only)
 - **`player.rs`** ✅ — `PlayerPlugin`; spawns the Vaus, clamped paddle control
-- **`ball.rs`** ✅ — `BallPlugin`; spawn/serve/launch/integrate the ball
-- **`bricks.rs`** ✅ — `BrickPlugin`; per-round brick grid spawn (hand-built `LAYOUTS`), scoring, round-clear detection
-- **`collision.rs`** ✅ — `CollisionPlugin`; ball↔wall/paddle/brick reflection, triggers `BallLost` off the bottom, emits `BounceSound`
+- **`ball.rs`** ✅ — `BallPlugin`; spawn/serve/launch/integrate the ball, plus the in-round speed ramp (`accelerate_ball`, reset on serve)
+- **`bricks.rs`** ✅ — `BrickPlugin`; per-round brick grid spawn (hand-built `LAYOUTS`; colored/silver/gold via `BrickKind`), silver damage-frame feedback, scoring, round-clear detection (excludes indestructible gold)
+- **`collision.rs`** ✅ — `CollisionPlugin`; ball↔wall/paddle/brick reflection (silver durability, indestructible gold), triggers `BallLost` off the bottom, emits `BounceSound`
 - **`flow.rs`** ✅ — `GameFlowPlugin`; run-level orchestration: lives, the ready/serve flow, start/restart, game-over, and the `BallLost` observer
 - **`ui.rs`** ✅ — `UiPlugin`; HUD (score / high / round / life icons), "ROUND n READY" banner, title + game-over screens
 - **`audio.rs`** ✅ — `AudioPlugin`; plays SFX from `BounceSound` messages
