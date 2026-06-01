@@ -1,0 +1,15 @@
+// Round 1 — a diamond framed in silver, with two gold pillars guarding the base.
+// Each string is one row of 9 cells. Codes: W/O/C/G/R/B/P/Y = colored bricks,
+// S = silver (multi-hit), X = gold (indestructible), '.' = empty. See BrickKind::from_code.
+(
+    rows: [
+        "....S....",
+        "...SPS...",
+        "..SPBPS..",
+        ".SPBRBPS.",
+        "SPBRGRBPS",
+        ".CCCCCCC.",
+        "X.GGGGG.X",
+        "...OOO...",
+    ],
+)

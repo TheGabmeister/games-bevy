@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use crate::assets::GameAssets;
 use crate::components::{Brick, BrickKind, Indestructible, Silver};
 use crate::constants::*;
+use crate::levels::Levels;
 use crate::resources::{Round, Score};
 use crate::states::{AppState, PlayState};
 
@@ -37,35 +38,6 @@ impl Plugin for BrickPlugin {
     }
 }
 
-/// Hand-built round layouts. Each string is one row of 9 cells; characters map to brick
-/// kinds via [`BrickKind::from_code`] (color codes, `S` = silver, `X` = gold) and `.` is
-/// an empty cell. Rounds beyond the list wrap around (Phase 7 replaces these with
-/// data-driven RON layouts).
-const LAYOUTS: &[&[&str]] = &[
-    // Round 1 — a diamond framed in silver, with two gold pillars guarding the base.
-    &[
-        "....S....",
-        "...SPS...",
-        "..SPBPS..",
-        ".SPBRBPS.",
-        "SPBRGRBPS",
-        ".CCCCCCC.",
-        "X.GGGGG.X",
-        "...OOO...",
-    ],
-    // Round 2 — staggered checkerboard with a gold-capped silver wall over a solid base.
-    &[
-        "XR.R.R.RX",
-        "O.O.O.O.O",
-        "Y.Y.Y.Y.Y",
-        "G.G.G.G.G",
-        "SSSSSSSSS",
-        ".C.C.C.C.",
-        ".P.P.P.P.",
-        "WWWWWWWWW",
-    ],
-];
-
 /// World position of the center of brick cell `(row, col)`.
 fn brick_position(row: usize, col: usize) -> Vec2 {
     let grid_left = -(BRICK_COLS as f32 * BRICK_WIDTH) / 2.0 + BRICK_WIDTH / 2.0;
@@ -81,9 +53,9 @@ fn silver_hits(round: u32) -> u32 {
     SILVER_BASE_HITS + (round - 1) / SILVER_HITS_ROUND_STEP
 }
 
-/// Spawns every brick of the layout for `round` (1-based), wrapping past the list end.
-fn spawn_round(commands: &mut Commands, assets: &GameAssets, round: u32) {
-    let layout = LAYOUTS[(round as usize - 1) % LAYOUTS.len()];
+/// Spawns every brick of the layout for `round` (1-based), wrapping past the last level.
+fn spawn_round(commands: &mut Commands, assets: &GameAssets, levels: &Levels, round: u32) {
+    let layout = &levels.0[(round as usize - 1) % levels.0.len()];
     let bricks = &assets.sprites.bricks;
     for (row, line) in layout.iter().enumerate() {
         for (col, code) in line.chars().enumerate() {
@@ -138,13 +110,14 @@ fn spawn_round(commands: &mut Commands, assets: &GameAssets, round: u32) {
 fn spawn_current_round(
     mut commands: Commands,
     assets: Res<GameAssets>,
+    levels: Res<Levels>,
     round: Res<Round>,
     existing: Query<Entity, With<Brick>>,
 ) {
     for entity in &existing {
         commands.entity(entity).despawn();
     }
-    spawn_round(&mut commands, &assets, round.0);
+    spawn_round(&mut commands, &assets, &levels, round.0);
 }
 
 /// Adds the points from destroyed bricks to the score and signals the HUD.

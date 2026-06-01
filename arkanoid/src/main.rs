@@ -12,6 +12,7 @@ mod debug;
 mod enemy;
 mod flow;
 mod input;
+mod levels;
 mod player;
 mod powerups;
 mod resources;
@@ -21,6 +22,7 @@ mod vfx;
 
 use assets::GameAssets;
 use constants::*;
+use levels::Levels;
 use resources::{BallSpeed, Lives, Round, Score};
 use states::{AppState, PlayState};
 
@@ -36,6 +38,7 @@ fn main() {
             ..default()
         }))
         .init_resource::<GameAssets>()
+        .init_resource::<Levels>()
         .init_resource::<Score>()
         .init_resource::<Round>()
         .init_resource::<Lives>()

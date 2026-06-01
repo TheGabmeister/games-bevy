@@ -1,0 +1,15 @@
+// Round 2 — staggered checkerboard with a gold-capped silver wall over a solid base.
+// Each string is one row of 9 cells. Codes: W/O/C/G/R/B/P/Y = colored bricks,
+// S = silver (multi-hit), X = gold (indestructible), '.' = empty. See BrickKind::from_code.
+(
+    rows: [
+        "XR.R.R.RX",
+        "O.O.O.O.O",
+        "Y.Y.Y.Y.Y",
+        "G.G.G.G.G",
+        "SSSSSSSSS",
+        ".C.C.C.C.",
+        ".P.P.P.P.",
+        "WWWWWWWWW",
+    ],
+)
