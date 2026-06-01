@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::components::{BrickColor, PowerupKind};
+use crate::components::{BrickColor, EnemyKind, PowerupKind};
 
 /// Central registry of preloaded asset handles, grouped by category so call sites
 /// read like `assets.sfx.wall_bounce`. Handles are cheap to clone and loading is
@@ -27,6 +27,27 @@ pub struct Sprites {
     pub capsules: Capsules,
     pub laser_bolt: Handle<Image>,
     pub warp_gate: Handle<Image>,
+    pub enemies: Enemies,
+    /// Spawn-gate frames: `[0]` closed, `[1]` open.
+    pub spawn_gate: [Handle<Image>; 2],
+}
+
+/// The animation frames for each enemy type (4 looping frames apiece).
+pub struct Enemies {
+    pub pyramid: [Handle<Image>; 4],
+    pub molecule: [Handle<Image>; 4],
+    pub cube: [Handle<Image>; 4],
+}
+
+impl Enemies {
+    /// The frame set for a given enemy kind.
+    pub fn frames(&self, kind: EnemyKind) -> &[Handle<Image>; 4] {
+        match kind {
+            EnemyKind::Pyramid => &self.pyramid,
+            EnemyKind::Molecule => &self.molecule,
+            EnemyKind::Cube => &self.cube,
+        }
+    }
 }
 
 /// The seven lettered power-up capsule sprites, indexable by [`PowerupKind`].
@@ -59,6 +80,7 @@ impl Capsules {
 pub struct Vfx {
     pub capsule_catch: [Handle<Image>; 5],
     pub laser_impact: [Handle<Image>; 4],
+    pub enemy_destroy: [Handle<Image>; 5],
 }
 
 /// The colored brick sprites (indexable by [`BrickColor`]) plus the silver damage frames
@@ -116,6 +138,8 @@ pub struct Sfx {
     pub slow: Handle<AudioSource>,
     pub extra_life: Handle<AudioSource>,
     pub warp_gate_open: Handle<AudioSource>,
+    pub enemy_spawn: Handle<AudioSource>,
+    pub enemy_destroyed: Handle<AudioSource>,
 }
 
 pub struct Music {
@@ -136,6 +160,30 @@ impl FromWorld for GameAssets {
                 title_screen: server.load("ui/title-screen.png"),
                 laser_bolt: server.load("sprites/weapons/laser-bolt.png"),
                 warp_gate: server.load("sprites/playfield/warp-gate.png"),
+                enemies: Enemies {
+                    pyramid: [
+                        server.load("sprites/enemies/enemy-pyramid-frame-01.png"),
+                        server.load("sprites/enemies/enemy-pyramid-frame-02.png"),
+                        server.load("sprites/enemies/enemy-pyramid-frame-03.png"),
+                        server.load("sprites/enemies/enemy-pyramid-frame-04.png"),
+                    ],
+                    molecule: [
+                        server.load("sprites/enemies/enemy-molecule-frame-01.png"),
+                        server.load("sprites/enemies/enemy-molecule-frame-02.png"),
+                        server.load("sprites/enemies/enemy-molecule-frame-03.png"),
+                        server.load("sprites/enemies/enemy-molecule-frame-04.png"),
+                    ],
+                    cube: [
+                        server.load("sprites/enemies/enemy-cube-frame-01.png"),
+                        server.load("sprites/enemies/enemy-cube-frame-02.png"),
+                        server.load("sprites/enemies/enemy-cube-frame-03.png"),
+                        server.load("sprites/enemies/enemy-cube-frame-04.png"),
+                    ],
+                },
+                spawn_gate: [
+                    server.load("sprites/playfield/spawn-gate-frame-01.png"),
+                    server.load("sprites/playfield/spawn-gate-frame-03.png"),
+                ],
                 capsules: Capsules {
                     catch: server.load("sprites/capsules/capsule-c-catch.png"),
                     laser: server.load("sprites/capsules/capsule-l-laser.png"),
@@ -177,6 +225,13 @@ impl FromWorld for GameAssets {
                     server.load("vfx/laser-impact-frame-03.png"),
                     server.load("vfx/laser-impact-frame-04.png"),
                 ],
+                enemy_destroy: [
+                    server.load("vfx/enemy-destroy-burst-frame-01.png"),
+                    server.load("vfx/enemy-destroy-burst-frame-02.png"),
+                    server.load("vfx/enemy-destroy-burst-frame-03.png"),
+                    server.load("vfx/enemy-destroy-burst-frame-04.png"),
+                    server.load("vfx/enemy-destroy-burst-frame-05.png"),
+                ],
             },
             sfx: Sfx {
                 wall_bounce: server.load("audio/sfx/wall-bounce.ogg"),
@@ -192,6 +247,8 @@ impl FromWorld for GameAssets {
                 slow: server.load("audio/sfx/slow.ogg"),
                 extra_life: server.load("audio/sfx/extra-life.ogg"),
                 warp_gate_open: server.load("audio/sfx/warp-gate-open.ogg"),
+                enemy_spawn: server.load("audio/sfx/enemy-spawn.ogg"),
+                enemy_destroyed: server.load("audio/sfx/enemy-destroyed.ogg"),
             },
             music: Music {
                 round_clear: server.load("audio/music/round-clear.ogg"),

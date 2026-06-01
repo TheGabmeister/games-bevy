@@ -81,3 +81,22 @@ pub struct CapsuleDirector {
     /// Index into the power-up sequence for the next drop.
     pub next: usize,
 }
+
+/// Cadence timer for enemy spawning while a round runs; reset at each round's start.
+#[derive(Resource)]
+pub struct EnemySpawnTimer(pub Timer);
+
+impl Default for EnemySpawnTimer {
+    fn default() -> Self {
+        EnemySpawnTimer(Timer::from_seconds(
+            crate::constants::ENEMY_SPAWN_INTERVAL,
+            TimerMode::Repeating,
+        ))
+    }
+}
+
+/// Counts enemies spawned this round to deterministically rotate enemy type and spawn gate.
+#[derive(Resource, Default)]
+pub struct EnemyDirector {
+    pub spawned: u32,
+}

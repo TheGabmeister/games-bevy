@@ -108,6 +108,46 @@ pub struct VfxAnim {
     pub timer: Timer,
 }
 
+/// The three enemy alien types, each testing a different descent/wander pattern.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum EnemyKind {
+    /// Pyramid/Cone: smooth sinusoidal weave.
+    Pyramid,
+    /// Molecule: sharp zig-zag, flipping direction on a timer.
+    Molecule,
+    /// Cube: slow, gentle drift.
+    Cube,
+}
+
+impl EnemyKind {
+    /// Points awarded for destroying this enemy.
+    pub fn points(self) -> u32 {
+        match self {
+            EnemyKind::Pyramid => 100,
+            EnemyKind::Molecule => 120,
+            EnemyKind::Cube => 150,
+        }
+    }
+}
+
+/// A descending enemy alien. `age` accumulates live-play time to drive its wander path;
+/// `anim_index`/`anim_timer` cycle its 4-frame looping animation.
+#[derive(Component)]
+pub struct Enemy {
+    pub kind: EnemyKind,
+    pub age: f32,
+    pub anim_index: usize,
+    pub anim_timer: Timer,
+}
+
+/// A top-of-playfield gate that enemies emerge from. `index` ties it to the spawner's gate
+/// rotation; `open_timer` (a `Once` timer) is reset on each launch to show the open frame.
+#[derive(Component)]
+pub struct SpawnGate {
+    pub index: usize,
+    pub open_timer: Timer,
+}
+
 /// The eight colored brick variants. Each maps to its sprite and point value.
 #[derive(Clone, Copy)]
 pub enum BrickColor {

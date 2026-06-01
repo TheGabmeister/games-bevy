@@ -89,15 +89,44 @@ pub const LASER_MUZZLE_OFFSET: f32 = 30.0;
 // --- Warp-exit gate (Break power-up) ---
 pub const WARP_GATE_WIDTH: f32 = 32.0;
 
+// --- Enemy aliens ---
+pub const ENEMY_SIZE: f32 = 32.0;
+/// Base downward drift speed, in pixels/second (scaled per enemy type).
+pub const ENEMY_SPEED: f32 = 70.0;
+/// Peak horizontal wander speed, in pixels/second.
+pub const ENEMY_DRIFT_SPEED: f32 = 60.0;
+pub const ENEMY_ANIM_FRAME_TIME: f32 = 0.16;
+/// Seconds between enemy spawns while a round is running.
+pub const ENEMY_SPAWN_INTERVAL: f32 = 5.0;
+/// Max enemies alive at once.
+pub const ENEMY_MAX_ACTIVE: usize = 3;
+/// Pyramid weave frequency (radians/second of its sine sway).
+pub const ENEMY_PYRAMID_WEAVE: f32 = 2.4;
+/// Cube weave frequency (radians/second); cubes sway gently and sink slowly.
+pub const ENEMY_CUBE_WEAVE: f32 = 1.2;
+/// Seconds between a molecule's sharp zig-zag direction flips.
+pub const ENEMY_MOLECULE_FLIP: f32 = 0.7;
+
+// --- Enemy spawn gates ---
+pub const GATE_HEIGHT: f32 = 24.0;
+/// World-space Y of the spawn gates, tucked just under the top wall.
+pub const GATE_Y: f32 = PLAYFIELD_TOP - GATE_HEIGHT / 2.0;
+/// Gate X positions are ±this offset from center (two gates).
+pub const GATE_X_OFFSET: f32 = 120.0;
+/// Seconds a gate stays open after launching an enemy.
+pub const GATE_OPEN_DURATION: f32 = 0.6;
+
 // --- VFX ---
 /// Seconds each frame of an animated VFX flipbook is shown.
 pub const VFX_FRAME_TIME: f32 = 0.05;
 
 // --- Z layers ---
 pub const Z_BACKGROUND: f32 = 0.0;
+pub const Z_GATE: f32 = 0.5;
 pub const Z_BRICK: f32 = 1.0;
 pub const Z_WARP_GATE: f32 = 1.5;
 pub const Z_PADDLE: f32 = 2.0;
+pub const Z_ENEMY: f32 = 2.5;
 pub const Z_BALL: f32 = 3.0;
 pub const Z_CAPSULE: f32 = 4.0;
 pub const Z_LASER: f32 = 4.0;
