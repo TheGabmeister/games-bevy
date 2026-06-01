@@ -17,6 +17,8 @@ cargo clippy       # Lint (use when changing API patterns broadly)
 
 Run `cargo check` for most code changes and `cargo clippy` when changing API patterns broadly. If you cannot run validation, say so explicitly.
 
+Launch the game with `cargo run`, **not** the built `.exe` directly: the `dynamic_linking` feature needs the Bevy dylib on PATH (which Cargo sets up), and `cargo run` sets the working directory to the crate root so `assets/` resolves. The window is interactive — a headless/CI run can only confirm it starts up and builds the schedule without panicking, not that gameplay behaves.
+
 Target dir is redirected to `D:/cargo-target-dir` via `.cargo/config.toml`.
 
 ## Dev Profile
@@ -27,6 +29,9 @@ Dependencies compile at `opt-level = 3` while the main crate uses `opt-level = 1
 
 - **Bevy 0.18.1** (with `dynamic_linking` feature) — ECS game engine
 - **Rust Edition 2024**
+- **`ron` + `serde`** — only for loading hand-authored level layouts from `assets/levels/*.ron`. Their versions in `Cargo.toml` are pinned to match the ones Bevy already pulls in (so no extra builds); bump them together if Bevy's change.
+
+There is no automated test suite (it's a game). Validate with `cargo check`/`cargo clippy` and by running it — see below.
 
 ## Architecture
 
@@ -110,6 +115,7 @@ Use `Timer` with `Res<Time>` for cooldowns, spawn intervals, and delays — do n
 - New ECS marker/data types go in `components.rs`
 - Prefer extending an existing domain plugin over registering ad hoc systems in `main.rs`
 - Use marker components for entity classification (e.g., `#[derive(Component)] struct Player;`)
+- Keep `cargo clippy` clean. Idiomatic Bevy queries/systems sometimes trip `clippy::type_complexity` (multi-filter queries like `Query<.., (With<A>, Changed<B>)>`) or `clippy::too_many_arguments` (8+ system params). When the system genuinely needs that shape, put `#[allow(clippy::type_complexity)]` / `#[allow(clippy::too_many_arguments)]` on the function rather than contorting it — this is the existing convention (see `bricks.rs`, `powerups.rs`).
 
 ### Query Filters
 
@@ -124,7 +130,7 @@ Load assets through the `GameAssets` registry (see **Asset Registry** above), no
 
 ### Asset Generation Pipeline
 
-Everything under `assets/` is **generated**, not hand-authored — `tools/generate_assets.py` is the source of truth. It emits SVGs and rasterizes them to PNG via **Inkscape** (sprites, sprite sheets, VFX, UI art), and synthesizes audio via **ffmpeg** (SFX as `aevalsrc` tone expressions; music as Python-rendered WAV → OGG, kept short). Run `python tools/generate_assets.py` to regenerate (Inkscape + ffmpeg must be on PATH); PNG export is skipped when the SVG is unchanged, but SFX/music always re-render.
+All **art and audio** under `assets/` is **generated**, not hand-authored — `tools/generate_assets.py` is the source of truth. (The exception is `assets/levels/*.ron`, which are hand-authored level data — see **Asset Registry**.) The generator emits SVGs and rasterizes them to PNG via **Inkscape** (sprites, sprite sheets, VFX, UI art), and synthesizes audio via **ffmpeg** (SFX as `aevalsrc` tone expressions; music as Python-rendered WAV → OGG, kept short). Run `python tools/generate_assets.py` to regenerate (Inkscape + ffmpeg must be on PATH); PNG export is skipped when the SVG is unchanged, but SFX/music always re-render.
 
 - **To change an asset, edit the generator** — not the `.png`/`.svg`/`.ogg`. A regen overwrites hand-edited files. (You can hand-edit an SVG + re-rasterize for a one-off, but mirror it back into the generator or it will be lost.)
 - The playfield is **portrait 600×800**: the border frame and full-screen UI art are authored at 600×800 and the brick grid is 9 columns. Keep `generate_assets.py`, the `assets/` files, `constants.rs`, and the `PLAN.md` manifest consistent when changing dimensions.
