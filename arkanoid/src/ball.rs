@@ -4,20 +4,25 @@ use crate::assets::GameAssets;
 use crate::components::{Ball, Paddle, Velocity};
 use crate::constants::*;
 use crate::input::InputActions;
+use crate::states::AppState;
 
 pub struct BallPlugin;
 
 impl Plugin for BallPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_ball)
-            .add_systems(Update, ball_launch)
+        app.add_systems(OnEnter(AppState::Playing), spawn_ball)
+            .add_systems(
+                Update,
+                ball_launch.run_if(in_state(AppState::Playing)),
+            )
             .add_systems(
                 FixedUpdate,
                 (
                     // Keep a stuck ball glued to the paddle after it has moved.
                     ball_follow_paddle.after(crate::player::paddle_control),
                     ball_movement,
-                ),
+                )
+                    .run_if(in_state(AppState::Playing)),
             );
     }
 }
@@ -28,6 +33,7 @@ fn spawn_ball(mut commands: Commands, assets: Res<GameAssets>) {
         Velocity(Vec2::ZERO),
         Sprite::from_image(assets.sprites.ball.clone()),
         Transform::from_xyz(0.0, ball_rest_y(PADDLE_Y), Z_BALL),
+        DespawnOnExit(AppState::Playing),
     ));
 }
 

@@ -7,6 +7,7 @@ use crate::assets::GameAssets;
 pub enum BounceSound {
     Wall,
     Paddle,
+    Brick,
 }
 
 pub struct AudioPlugin;
@@ -27,6 +28,7 @@ fn play_bounce_sounds(
         let source = match event {
             BounceSound::Wall => assets.sfx.wall_bounce.clone(),
             BounceSound::Paddle => assets.sfx.paddle_bounce.clone(),
+            BounceSound::Brick => assets.sfx.brick_break.clone(),
         };
         commands.spawn((AudioPlayer(source), PlaybackSettings::DESPAWN));
     }

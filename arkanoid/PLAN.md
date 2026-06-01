@@ -11,10 +11,10 @@ A phased plan to recreate the classic **Arkanoid** (Taito, 1986) in Bevy as a le
 The tree below is a hand-off manifest for the asset creator. Every named asset from the phases maps to a concrete file path. The `(Pn)` tag on each entry is the phase it's needed in — lower numbers are higher priority. The `W×H` figure is the target pixel size. Paths live under the project's `assets/` directory (Bevy loads everything from there by relative path).
 
 **Canvas & layout — the dimensions below are derived from this:**
-- **Window:** 800 × 600 px (landscape).
+- **Window:** 600 × 800 px (portrait, matching the classic vertical arcade cabinet).
 - **Wall frame:** 20 px thick on the top, left, and right edges; the bottom is open.
-- **Playfield interior:** 760 px wide (x 20 → 780), top wall at y 20, open at the bottom.
-- **Brick grid:** 13 columns of 56 × 28 px bricks (728 px wide), centered with ~16 px clearance to each side wall. All brick variants (colored, silver, gold) share the 56 × 28 cell.
+- **Playfield interior:** 560 px wide (x 20 → 580), top wall at y 20, open at the bottom.
+- **Brick grid:** 9 columns of 56 × 28 px bricks (504 px wide), centered with ~28 px clearance to each side wall. All brick variants (colored, silver, gold) share the 56 × 28 cell.
 - **Vaus:** default paddle ≈ 1.7 bricks wide; rests near the bottom of the playfield.
 
 **Conventions for the asset maker:**
@@ -34,7 +34,7 @@ assets/
 │   ├── ball/
 │   │   └── ball.png                  (P1)  16×16   energy ball
 │   ├── playfield/
-│   │   ├── border-frame.png          (P1) 800×600  left/right/top wall frame (20px thick, transparent center)
+│   │   ├── border-frame.png          (P1) 600×800  left/right/top wall frame (20px thick, transparent center)
 │   │   ├── warp-gate.png             (P5)  32×80   Break power-up right-edge exit
 │   │   └── spawn-gate.png   [sheet]  (P6)  48×24   top enemy gate (closed→open), per frame
 │   ├── bricks/
@@ -94,10 +94,10 @@ assets/
 │       ├── intro-story.ogg           (P7) story-screen cue
 │       └── ending-theme.ogg          (P7) victory theme
 ├── ui/
-│   ├── title-screen.png              (P3) 800×600  title / attract art (full screen)
+│   ├── title-screen.png              (P3) 600×800  title / attract art (full screen)
 │   ├── round-ready-banner.png        (P3) 320×64   "ROUND n READY"
-│   ├── intro-story-screen.png        (P7) 800×600  opening story art (full screen)
-│   ├── victory-screen.png            (P7) 800×600  ending / victory art (full screen)
+│   ├── intro-story-screen.png        (P7) 600×800  opening story art (full screen)
+│   ├── victory-screen.png            (P7) 600×800  ending / victory art (full screen)
 │   ├── high-score-table.png          (P7) 480×400  score-table frame
 │   └── fonts/
 │       └── arcade.ttf                (P2)          HUD / score font (vector, no fixed size)

@@ -1,8 +1,10 @@
 use bevy::prelude::*;
 
 use crate::audio::BounceSound;
-use crate::components::{Ball, Paddle, Velocity};
+use crate::bricks::BrickDestroyed;
+use crate::components::{Ball, Brick, Paddle, Velocity};
 use crate::constants::*;
+use crate::states::AppState;
 
 pub struct CollisionPlugin;
 
@@ -10,9 +12,13 @@ impl Plugin for CollisionPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             FixedUpdate,
-            ball_collision
-                .after(crate::ball::ball_movement)
-                .after(crate::player::paddle_control),
+            (
+                ball_collision
+                    .after(crate::ball::ball_movement)
+                    .after(crate::player::paddle_control),
+                ball_brick_collision.after(ball_collision),
+            )
+                .run_if(in_state(AppState::Playing)),
         );
     }
 }
@@ -78,6 +84,49 @@ fn ball_collision(
         if pos.y + BALL_RADIUS < PLAYFIELD_BOTTOM {
             ball.stuck = true;
             velocity.0 = Vec2::ZERO;
+        }
+    }
+}
+
+/// Destroys bricks the ball overlaps, deflecting it off the struck face and emitting
+/// a [`BrickDestroyed`] message (scored elsewhere) plus a brick-break sound. Only the
+/// first brick hit per ball per tick is resolved, to keep the deflection clean.
+fn ball_brick_collision(
+    mut commands: Commands,
+    mut balls: Query<(&Ball, &mut Transform, &mut Velocity), Without<Brick>>,
+    bricks: Query<(Entity, &Transform, &Brick), Without<Ball>>,
+    mut destroyed: MessageWriter<BrickDestroyed>,
+    mut bounce: MessageWriter<BounceSound>,
+) {
+    let half = Vec2::new(BRICK_WIDTH / 2.0, BRICK_HEIGHT / 2.0);
+    for (ball, mut transform, mut velocity) in &mut balls {
+        if ball.stuck {
+            continue;
+        }
+        for (entity, brick_t, brick) in &bricks {
+            let delta = transform.translation.truncate() - brick_t.translation.truncate();
+            // Overlap of the ball (treated as an AABB of side 2*BALL_RADIUS) and brick.
+            let overlap_x = (half.x + BALL_RADIUS) - delta.x.abs();
+            let overlap_y = (half.y + BALL_RADIUS) - delta.y.abs();
+            if overlap_x <= 0.0 || overlap_y <= 0.0 {
+                continue;
+            }
+
+            // Reflect off whichever face is least penetrated, and nudge the ball out.
+            if overlap_x < overlap_y {
+                velocity.0.x = velocity.0.x.abs().copysign(delta.x);
+                transform.translation.x += overlap_x.copysign(delta.x);
+            } else {
+                velocity.0.y = velocity.0.y.abs().copysign(delta.y);
+                transform.translation.y += overlap_y.copysign(delta.y);
+            }
+
+            commands.entity(entity).despawn();
+            destroyed.write(BrickDestroyed {
+                points: brick.points,
+            });
+            bounce.write(BounceSound::Brick);
+            break;
         }
     }
 }

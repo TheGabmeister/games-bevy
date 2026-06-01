@@ -1,5 +1,7 @@
 use bevy::prelude::*;
 
+use crate::components::BrickColor;
+
 /// Central registry of preloaded asset handles, grouped by category so call sites
 /// read like `assets.sfx.wall_bounce`. Handles are cheap to clone and loading is
 /// shared, so cloning from here avoids redundant `asset_server.load(...)` calls.
@@ -16,11 +18,41 @@ pub struct Sprites {
     pub vaus: Handle<Image>,
     pub ball: Handle<Image>,
     pub border_frame: Handle<Image>,
+    pub bricks: Bricks,
+}
+
+/// The eight colored brick sprites, indexable by [`BrickColor`].
+pub struct Bricks {
+    pub white: Handle<Image>,
+    pub orange: Handle<Image>,
+    pub cyan: Handle<Image>,
+    pub green: Handle<Image>,
+    pub red: Handle<Image>,
+    pub blue: Handle<Image>,
+    pub pink: Handle<Image>,
+    pub yellow: Handle<Image>,
+}
+
+impl Bricks {
+    /// Returns the sprite handle for a given brick color.
+    pub fn handle(&self, color: BrickColor) -> Handle<Image> {
+        match color {
+            BrickColor::White => self.white.clone(),
+            BrickColor::Orange => self.orange.clone(),
+            BrickColor::Cyan => self.cyan.clone(),
+            BrickColor::Green => self.green.clone(),
+            BrickColor::Red => self.red.clone(),
+            BrickColor::Blue => self.blue.clone(),
+            BrickColor::Pink => self.pink.clone(),
+            BrickColor::Yellow => self.yellow.clone(),
+        }
+    }
 }
 
 pub struct Sfx {
     pub wall_bounce: Handle<AudioSource>,
     pub paddle_bounce: Handle<AudioSource>,
+    pub brick_break: Handle<AudioSource>,
 }
 
 impl FromWorld for GameAssets {
@@ -31,10 +63,21 @@ impl FromWorld for GameAssets {
                 vaus: server.load("sprites/vaus/vaus.png"),
                 ball: server.load("sprites/ball/ball.png"),
                 border_frame: server.load("sprites/playfield/border-frame.png"),
+                bricks: Bricks {
+                    white: server.load("sprites/bricks/brick-white.png"),
+                    orange: server.load("sprites/bricks/brick-orange.png"),
+                    cyan: server.load("sprites/bricks/brick-cyan.png"),
+                    green: server.load("sprites/bricks/brick-green.png"),
+                    red: server.load("sprites/bricks/brick-red.png"),
+                    blue: server.load("sprites/bricks/brick-blue.png"),
+                    pink: server.load("sprites/bricks/brick-pink.png"),
+                    yellow: server.load("sprites/bricks/brick-yellow.png"),
+                },
             },
             sfx: Sfx {
                 wall_bounce: server.load("audio/sfx/wall-bounce.ogg"),
                 paddle_bounce: server.load("audio/sfx/paddle-bounce.ogg"),
+                brick_break: server.load("audio/sfx/brick-break.ogg"),
             },
         }
     }

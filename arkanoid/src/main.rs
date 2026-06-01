@@ -4,6 +4,7 @@ use bevy::window::WindowResolution;
 mod assets;
 mod audio;
 mod ball;
+mod bricks;
 mod collision;
 mod components;
 mod constants;
@@ -16,6 +17,8 @@ mod ui;
 
 use assets::GameAssets;
 use constants::*;
+use resources::{Round, Score};
+use states::AppState;
 
 fn main() {
     App::new()
@@ -29,10 +32,16 @@ fn main() {
             ..default()
         }))
         .init_resource::<GameAssets>()
+        .init_resource::<Score>()
+        .init_resource::<Round>()
+        // Start directly in Playing for now; Phase 3 adds the title screen and the
+        // StartScreen → Playing transition.
+        .insert_state(AppState::Playing)
         .add_plugins((
             input::InputPlugin,
             player::PlayerPlugin,
             ball::BallPlugin,
+            bricks::BrickPlugin,
             enemy::EnemyPlugin,
             collision::CollisionPlugin,
             ui::UiPlugin,
