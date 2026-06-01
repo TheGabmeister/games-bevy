@@ -106,21 +106,28 @@ fn apply_score(
 }
 
 /// When the playfield is cleared of bricks, advance to the next round's layout and
-/// re-serve the ball onto the paddle. Driven off [`BrickDestroyed`] (rather than a bare
-/// empty-query check) so it can only trigger after a brick is actually broken — this
-/// avoids any startup race before the first round's bricks are spawned.
+/// re-serve the ball onto the paddle.
+///
+/// `had_bricks` latches once a round has spawned, so an empty query only counts as a
+/// clear *after* bricks have existed — this avoids a startup race before the first
+/// round spawns, and works no matter how the bricks were removed (gameplay or the
+/// debug "destroy all" key).
 fn check_round_clear(
-    mut destroyed: MessageReader<BrickDestroyed>,
+    mut had_bricks: Local<bool>,
     bricks: Query<(), With<Brick>>,
     mut round: ResMut<Round>,
     mut commands: Commands,
     assets: Res<GameAssets>,
     mut balls: Query<(&mut Ball, &mut Velocity)>,
 ) {
-    // Only consider clearing on the frame a brick was destroyed.
-    if destroyed.read().count() == 0 || !bricks.is_empty() {
+    if !bricks.is_empty() {
+        *had_bricks = true;
         return;
     }
+    if !*had_bricks {
+        return;
+    }
+    *had_bricks = false;
     round.0 += 1;
     spawn_round(&mut commands, &assets, round.0);
     for (mut ball, mut velocity) in &mut balls {

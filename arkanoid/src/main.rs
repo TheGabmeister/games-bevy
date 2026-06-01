@@ -8,6 +8,7 @@ mod bricks;
 mod collision;
 mod components;
 mod constants;
+mod debug;
 mod enemy;
 mod input;
 mod player;
@@ -46,6 +47,7 @@ fn main() {
             collision::CollisionPlugin,
             ui::UiPlugin,
             audio::AudioPlugin,
+            debug::DebugPlugin,
         ))
         .add_systems(Startup, setup)
         .run();
