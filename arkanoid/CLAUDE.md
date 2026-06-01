@@ -34,20 +34,34 @@ A from-scratch recreation of the classic **Arkanoid** (Taito, 1986), built as a 
 
 **`PLAN.md` is the source of truth for scope and sequencing** — a 7-phase roadmap (vertical slice → systems depth → content). It also carries the canonical asset manifest (file paths + pixel dimensions under `assets/`). Read the relevant phase before adding a feature; build only on systems from earlier phases.
 
-Module map (✅ = implemented, ◻ = still a stub awaiting its phase):
+Module map (✅ = implemented, ◻ = still a stub awaiting its phase). Phases 1–3 are done; Phase 4+ is pending.
 
-- **`main.rs`** — App setup, 800×600 window config, plugin registration, `GameAssets` init, camera + playfield border spawn
-- **`constants.rs`** — All tunable values as named constants (playfield bounds, paddle/ball sizing, speeds, z-layers)
-- **`components.rs`** — Marker + data components (`Velocity`, `Paddle`, `Ball { stuck }`)
-- **`resources.rs`** — Shared game state (`Score` — not yet wired in)
-- **`states.rs`** — `AppState` enum (`StartScreen → Playing → GameOver` — not yet wired in; introduced in Phase 3)
+- **`main.rs`** — App setup, 600×800 **portrait** window config, state registration (`AppState` + `PlayState` sub-state), resource init (`Score`/`Lives`/`Round`/`GameAssets`), plugin registration, camera + playfield border spawn
+- **`constants.rs`** — All tunable values as named constants (playfield bounds, paddle/ball sizing, speeds, brick grid, lives + ready-timer, z-layers)
+- **`components.rs`** — Marker + data components (`Velocity`, `Paddle`, `Ball { stuck }`, `Brick`, `BrickColor`)
+- **`resources.rs`** ✅ — Shared game state: `Score { current, high }`, `Lives`, `Round`
+- **`states.rs`** ✅ — `AppState` (`StartScreen → Playing → GameOver`) + `PlayState` sub-state (`Ready → Serving → Running`) under `Playing`
 - **`assets.rs`** ✅ — `GameAssets`, the central preloaded-handle registry (see **Asset Registry** below)
 - **`input.rs`** ✅ — `InputPlugin`; keyboard/gamepad → `InputActions` resource (no mouse — keyboard + gamepad only)
 - **`player.rs`** ✅ — `PlayerPlugin`; spawns the Vaus, clamped paddle control
 - **`ball.rs`** ✅ — `BallPlugin`; spawn/serve/launch/integrate the ball
-- **`collision.rs`** ✅ — `CollisionPlugin`; ball↔wall/paddle reflection, bottom re-serve, emits `BounceSound`
+- **`bricks.rs`** ✅ — `BrickPlugin`; per-round brick grid spawn (hand-built `LAYOUTS`), scoring, round-clear detection
+- **`collision.rs`** ✅ — `CollisionPlugin`; ball↔wall/paddle/brick reflection, triggers `BallLost` off the bottom, emits `BounceSound`
+- **`flow.rs`** ✅ — `GameFlowPlugin`; run-level orchestration: lives, the ready/serve flow, start/restart, game-over, and the `BallLost` observer
+- **`ui.rs`** ✅ — `UiPlugin`; HUD (score / high / round / life icons), "ROUND n READY" banner, title + game-over screens
 - **`audio.rs`** ✅ — `AudioPlugin`; plays SFX from `BounceSound` messages
-- **`enemy.rs`** ◻ (Phase 6), **`ui.rs`** ◻ (Phase 2/3)
+- **`debug.rs`** ✅ — `DebugPlugin`; dev keys (reads the keyboard directly, bypassing `InputActions` by design): **F1** toggles a collider overlay, **F2** destroys all bricks
+- **`enemy.rs`** ◻ (Phase 6)
+
+### Game State Flow
+
+`flow.rs` (`GameFlowPlugin`) owns run-level orchestration, but the flow as a whole is spread across the systems that cause each transition — find a transition by grepping for the `NextState` it sets or the resource/event it touches, not by following a call stack.
+
+- **`AppState`**: `StartScreen` —(launch)→ `Playing` —(lives exhausted)→ `GameOver` —(launch)→ `StartScreen`.
+- **`PlayState`** (exists only inside `Playing`): `Ready` (intro banner + `ReadyTimer`) → `Serving` (ball parked on paddle) —(launch)→ `Running` (live play). Round cleared → back to `Ready`; ball lost with lives remaining → back to `Serving`.
+- Per-round bricks spawn `OnEnter(PlayState::Ready)` keyed to `Round`. `start_run` (`OnEnter(Playing)`) resets `Lives`/`Score`/`Round` — this relies on Bevy running a parent state's `OnEnter` **before** its sub-state's.
+- Ball-off-bottom: `collision.rs` calls `commands.trigger(BallLost)`; the observer in `flow.rs` spends a life and routes to `Serving` or `GameOver`.
+- Gating: movement and collision run on `in_state(PlayState::Running)`; the paddle and `ball_follow_paddle` run through all of `Playing`.
 
 ### Physics & System Ordering
 
@@ -60,7 +74,7 @@ Raw devices are read **only** in `input.rs` (`PreUpdate`) and translated into th
 
 ### Asset Registry
 
-Asset handles live in the **`GameAssets`** resource (`assets.rs`), grouped into nested category structs (`assets.sprites.vaus`, `assets.sfx.wall_bounce`). Handles are preloaded once via `FromWorld` + `init_resource`; call sites `.clone()` a handle rather than calling `asset_server.load(...)`. This keeps asset references type-checked (a typo is a compile error). Add a field per phase as features land — don't preload assets nothing references yet. **Gameplay/level data** (brick layouts) goes in RON under `assets/levels/`; the asset registry itself stays in Rust.
+Asset handles live in the **`GameAssets`** resource (`assets.rs`), grouped into nested category structs (`assets.sprites.vaus`, `assets.sfx.wall_bounce`). Handles are preloaded once via `FromWorld` + `init_resource`; call sites `.clone()` a handle rather than calling `asset_server.load(...)`. This keeps asset references type-checked (a typo is a compile error). Add a field per phase as features land — don't preload assets nothing references yet. **Level data** currently lives in Rust as hand-built `LAYOUTS` in `bricks.rs` (RON loading from `assets/levels/` is deferred to Phase 7); the asset registry itself stays in Rust.
 
 ### State Machine Pattern
 
@@ -104,6 +118,13 @@ Use Bevy's query filters for performance and correctness:
 ### Assets
 
 Load assets through the `GameAssets` registry (see **Asset Registry** above), not ad hoc `asset_server.load(...)` calls in gameplay systems. Asset file paths (the strings inside `assets.rs`) must stay aligned with files under `assets/` and with the manifest in `PLAN.md`.
+
+### Asset Generation Pipeline
+
+Everything under `assets/` is **generated**, not hand-authored — `tools/generate_assets.py` is the source of truth. It emits SVGs and rasterizes them to PNG via **Inkscape** (sprites, sprite sheets, VFX, UI art), and synthesizes audio via **ffmpeg** (SFX as `aevalsrc` tone expressions; music as Python-rendered WAV → OGG, kept short). Run `python tools/generate_assets.py` to regenerate (Inkscape + ffmpeg must be on PATH); PNG export is skipped when the SVG is unchanged, but SFX/music always re-render.
+
+- **To change an asset, edit the generator** — not the `.png`/`.svg`/`.ogg`. A regen overwrites hand-edited files. (You can hand-edit an SVG + re-rasterize for a one-off, but mirror it back into the generator or it will be lost.)
+- The playfield is **portrait 600×800**: the border frame and full-screen UI art are authored at 600×800 and the brick grid is 9 columns. Keep `generate_assets.py`, the `assets/` files, `constants.rs`, and the `PLAN.md` manifest consistent when changing dimensions.
 
 ## Bevy 0.18.1 API Notes
 
@@ -149,12 +170,14 @@ Load assets through the `GameAssets` registry (see **Asset Registry** above), no
 
 - Define with `#[derive(SubStates)]` and a `#[source(ParentState = ParentState::Variant)]` attribute:
   ```rust
+  // This is the project's actual sub-state (see Game State Flow above).
   #[derive(SubStates, Clone, PartialEq, Eq, Hash, Debug, Default)]
   #[source(AppState = AppState::Playing)]
   enum PlayState {
       #[default]
+      Ready,
+      Serving,
       Running,
-      Paused,
   }
   ```
 - Register: `app.init_state::<AppState>().add_sub_state::<PlayState>();`
