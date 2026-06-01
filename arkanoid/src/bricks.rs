@@ -105,15 +105,10 @@ fn apply_score(
     }
 }
 
-/// When the playfield is cleared of bricks, advance to the next round's layout and
-/// re-serve the ball onto the paddle.
-///
-/// `had_bricks` latches once a round has spawned, so an empty query only counts as a
-/// clear *after* bricks have existed — this avoids a startup race before the first
-/// round spawns, and works no matter how the bricks were removed (gameplay or the
-/// debug "destroy all" key).
+/// When the board is empty, advance to the next round's layout and re-serve the ball.
+/// Works for any removal — gameplay or the debug "destroy all" key — since it just
+/// checks whether bricks remain.
 fn check_round_clear(
-    mut had_bricks: Local<bool>,
     bricks: Query<(), With<Brick>>,
     mut round: ResMut<Round>,
     mut commands: Commands,
@@ -121,13 +116,8 @@ fn check_round_clear(
     mut balls: Query<(&mut Ball, &mut Velocity)>,
 ) {
     if !bricks.is_empty() {
-        *had_bricks = true;
         return;
     }
-    if !*had_bricks {
-        return;
-    }
-    *had_bricks = false;
     round.0 += 1;
     spawn_round(&mut commands, &assets, round.0);
     for (mut ball, mut velocity) in &mut balls {
