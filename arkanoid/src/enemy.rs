@@ -2,9 +2,11 @@ use bevy::prelude::*;
 
 use crate::assets::GameAssets;
 use crate::bricks::ScoreChanged;
+use crate::collision::ball_box_bounce;
 use crate::components::{Ball, Enemy, EnemyKind, Laser, SpawnGate, Velocity};
 use crate::constants::*;
 use crate::resources::{EnemyDirector, EnemySpawnTimer, Score};
+use crate::schedule::Physics;
 use crate::states::{AppState, PlayState};
 use crate::vfx::spawn_vfx;
 
@@ -46,9 +48,9 @@ impl Plugin for EnemyPlugin {
             .add_systems(
                 FixedUpdate,
                 (
-                    move_enemies,
-                    ball_enemy_collision.after(crate::ball::ball_movement),
-                    laser_enemy_collision,
+                    move_enemies.in_set(Physics::Movement),
+                    ball_enemy_collision.in_set(Physics::Collision),
+                    laser_enemy_collision.in_set(Physics::Collision),
                 )
                     .run_if(in_state(PlayState::Running)),
             );
@@ -148,12 +150,15 @@ fn move_enemies(
         let (vx, speed_factor) = match enemy.kind {
             EnemyKind::Pyramid => (
                 (enemy.age * ENEMY_PYRAMID_WEAVE).sin() * ENEMY_DRIFT_SPEED,
-                1.0,
+                ENEMY_PYRAMID_SPEED_FACTOR,
             ),
-            EnemyKind::Molecule => (molecule_dir(enemy.age) * ENEMY_DRIFT_SPEED, 1.1),
+            EnemyKind::Molecule => (
+                molecule_dir(enemy.age) * ENEMY_DRIFT_SPEED,
+                ENEMY_MOLECULE_SPEED_FACTOR,
+            ),
             EnemyKind::Cube => (
-                (enemy.age * ENEMY_CUBE_WEAVE).sin() * ENEMY_DRIFT_SPEED * 0.4,
-                0.75,
+                (enemy.age * ENEMY_CUBE_WEAVE).sin() * ENEMY_DRIFT_SPEED * ENEMY_CUBE_DRIFT_FACTOR,
+                ENEMY_CUBE_SPEED_FACTOR,
             ),
         };
         transform.translation.x = (transform.translation.x + vx * dt)
@@ -211,18 +216,13 @@ fn ball_enemy_collision(
             if killed.contains(&entity) {
                 continue;
             }
-            let delta = transform.translation.truncate() - enemy_t.translation.truncate();
-            let overlap_x = (half + BALL_RADIUS) - delta.x.abs();
-            let overlap_y = (half + BALL_RADIUS) - delta.y.abs();
-            if overlap_x <= 0.0 || overlap_y <= 0.0 {
+            if !ball_box_bounce(
+                &mut transform.translation,
+                &mut velocity.0,
+                enemy_t.translation.truncate(),
+                Vec2::splat(half),
+            ) {
                 continue;
-            }
-            if overlap_x < overlap_y {
-                velocity.0.x = velocity.0.x.abs().copysign(delta.x);
-                transform.translation.x += overlap_x.copysign(delta.x);
-            } else {
-                velocity.0.y = velocity.0.y.abs().copysign(delta.y);
-                transform.translation.y += overlap_y.copysign(delta.y);
             }
             commands.entity(entity).despawn();
             killed.push(entity);

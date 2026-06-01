@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use crate::assets::GameAssets;
 use crate::audio::BounceSound;
 use crate::bricks::BrickDestroyed;
+use crate::collision::damage_brick;
 use crate::components::{
     Ball, Brick, Capsule, Indestructible, Laser, Paddle, PowerupKind, Velocity, WarpGate,
 };
@@ -10,6 +11,7 @@ use crate::constants::*;
 use crate::flow::BallLost;
 use crate::input::InputActions;
 use crate::resources::{BallSpeed, CapsuleDirector, Lives, PaddleMode, Round};
+use crate::schedule::Physics;
 use crate::states::{AppState, PlayState};
 use crate::vfx::spawn_vfx;
 
@@ -53,10 +55,10 @@ impl Plugin for PowerupPlugin {
             .add_systems(
                 FixedUpdate,
                 (
-                    move_capsules,
-                    catch_capsules.after(move_capsules),
-                    move_lasers,
-                    laser_brick_collision.after(move_lasers),
+                    move_capsules.in_set(Physics::Movement),
+                    catch_capsules.in_set(Physics::Collision),
+                    move_lasers.in_set(Physics::Movement),
+                    laser_brick_collision.in_set(Physics::Collision),
                 )
                     .run_if(in_state(PlayState::Running)),
             );
@@ -194,7 +196,7 @@ fn on_capsule_caught(
                 .iter()
                 .filter(|(ball, _, _)| !ball.stuck)
                 .flat_map(|(_, transform, velocity)| {
-                    [0.4_f32, -0.4].map(|angle| {
+                    [DISRUPTION_FAN_ANGLE, -DISRUPTION_FAN_ANGLE].map(|angle| {
                         (transform.translation, Vec2::from_angle(angle).rotate(velocity.0))
                     })
                 })
@@ -327,22 +329,15 @@ fn laser_brick_collision(
 
             spawn_vfx(&mut commands, &assets.vfx.laser_impact, bolt_t.translation.truncate());
             commands.entity(bolt).despawn();
-
-            if indestructible {
-                bounce.write(BounceSound::HardBrick);
-            } else {
-                brick.hits_remaining -= 1;
-                if brick.hits_remaining == 0 {
-                    commands.entity(brick_entity).despawn();
-                    destroyed.write(BrickDestroyed {
-                        points: brick.points,
-                        position: brick_t.translation.truncate(),
-                    });
-                    bounce.write(BounceSound::Brick);
-                } else {
-                    bounce.write(BounceSound::HardBrick);
-                }
-            }
+            let cue = damage_brick(
+                &mut commands,
+                brick_entity,
+                &mut brick,
+                brick_t.translation.truncate(),
+                indestructible,
+                &mut destroyed,
+            );
+            bounce.write(cue);
             break;
         }
     }

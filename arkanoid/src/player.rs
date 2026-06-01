@@ -4,6 +4,7 @@ use crate::assets::GameAssets;
 use crate::components::Paddle;
 use crate::constants::*;
 use crate::input::InputActions;
+use crate::schedule::Physics;
 use crate::states::AppState;
 
 pub struct PlayerPlugin;
@@ -13,7 +14,9 @@ impl Plugin for PlayerPlugin {
         app.add_systems(OnEnter(AppState::Playing), spawn_paddle)
             .add_systems(
                 FixedUpdate,
-                paddle_control.run_if(in_state(AppState::Playing)),
+                paddle_control
+                    .in_set(Physics::PaddleInput)
+                    .run_if(in_state(AppState::Playing)),
             );
     }
 }
@@ -31,7 +34,7 @@ fn spawn_paddle(mut commands: Commands, assets: Res<GameAssets>) {
 
 /// Moves the Vaus from keyboard/gamepad (velocity-based), clamped to the playfield. The
 /// clamp uses the paddle's current `half_width` so an expanded Vaus still stays in bounds.
-pub fn paddle_control(
+fn paddle_control(
     input: Res<InputActions>,
     time: Res<Time>,
     mut paddle: Query<(&mut Transform, &Paddle)>,

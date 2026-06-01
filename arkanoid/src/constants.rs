@@ -1,3 +1,4 @@
+use bevy::math::Vec2;
 use std::f32::consts::FRAC_PI_3;
 
 // --- Window ---
@@ -30,6 +31,9 @@ pub const BALL_SPEED: f32 = 340.0;
 /// Maximum rebound angle off the paddle, measured from straight up (a hit at the
 /// paddle's edge deflects this far; a centered hit goes straight up).
 pub const BALL_MAX_BOUNCE_ANGLE: f32 = FRAC_PI_3; // 60°
+/// Direction a served or released ball launches in — a slight rightward tilt off straight up.
+/// Normalized at the call site and scaled by the current ball speed.
+pub const BALL_LAUNCH_DIR: Vec2 = Vec2::new(0.3, 1.0);
 
 // --- Ball speed progression ---
 // The ball starts each serve at `BALL_SPEED` and accelerates within the round —
@@ -76,6 +80,9 @@ pub const CAPSULE_HEIGHT: f32 = 16.0;
 pub const CAPSULE_FALL_SPEED: f32 = 150.0;
 /// Bricks destroyed between capsule drops. Only one capsule falls at a time.
 pub const CAPSULE_DROP_INTERVAL: u32 = 5;
+/// Radians each of the two extra balls is rotated off the original when Disruption splits a
+/// ball into three (one fans left, one right).
+pub const DISRUPTION_FAN_ANGLE: f32 = 0.4;
 
 // --- Laser (Laser power-up) ---
 pub const LASER_WIDTH: f32 = 8.0;
@@ -106,6 +113,12 @@ pub const ENEMY_PYRAMID_WEAVE: f32 = 2.4;
 pub const ENEMY_CUBE_WEAVE: f32 = 1.2;
 /// Seconds between a molecule's sharp zig-zag direction flips.
 pub const ENEMY_MOLECULE_FLIP: f32 = 0.7;
+/// Per-type descent-speed multipliers applied to `ENEMY_SPEED`.
+pub const ENEMY_PYRAMID_SPEED_FACTOR: f32 = 1.0;
+pub const ENEMY_MOLECULE_SPEED_FACTOR: f32 = 1.1;
+pub const ENEMY_CUBE_SPEED_FACTOR: f32 = 0.75;
+/// Fraction of `ENEMY_DRIFT_SPEED` a cube uses for its gentle horizontal sway.
+pub const ENEMY_CUBE_DRIFT_FACTOR: f32 = 0.4;
 
 // --- Enemy spawn gates ---
 pub const GATE_HEIGHT: f32 = 24.0;

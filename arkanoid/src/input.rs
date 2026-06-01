@@ -34,8 +34,8 @@ fn read_gamepad(gamepads: Query<&Gamepad>, mut actions: ResMut<InputActions>) {
     let dpad = gamepad.dpad();
     let stick = gamepad.left_stick();
 
-    // Merge with keyboard/mouse (OR) so either device can drive the Vaus.
-    actions.move_left = actions.move_left || dpad.x < -0.5 || stick.x < -STICK_THRESHOLD;
-    actions.move_right = actions.move_right || dpad.x > 0.5 || stick.x > STICK_THRESHOLD;
+    // Merge with the keyboard (OR) so either device can drive the Vaus.
+    actions.move_left = actions.move_left || dpad.x < -STICK_THRESHOLD || stick.x < -STICK_THRESHOLD;
+    actions.move_right = actions.move_right || dpad.x > STICK_THRESHOLD || stick.x > STICK_THRESHOLD;
     actions.launch = actions.launch || gamepad.just_pressed(GamepadButton::South);
 }

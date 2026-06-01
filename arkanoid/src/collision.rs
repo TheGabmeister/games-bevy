@@ -6,6 +6,7 @@ use crate::components::{Ball, Brick, Indestructible, Paddle, Velocity};
 use crate::constants::*;
 use crate::flow::BallLost;
 use crate::resources::{BallSpeed, PaddleMode};
+use crate::schedule::Physics;
 use crate::states::PlayState;
 
 pub struct CollisionPlugin;
@@ -15,10 +16,10 @@ impl Plugin for CollisionPlugin {
         app.add_systems(
             FixedUpdate,
             (
-                ball_collision
-                    .after(crate::ball::ball_movement)
-                    .after(crate::player::paddle_control),
-                ball_brick_collision.after(ball_collision),
+                ball_collision.in_set(Physics::Collision),
+                ball_brick_collision
+                    .in_set(Physics::Collision)
+                    .after(ball_collision),
             )
                 .run_if(in_state(PlayState::Running)),
         );
@@ -131,47 +132,87 @@ fn ball_brick_collision(
             continue;
         }
         for (entity, brick_t, mut brick, indestructible) in &mut bricks {
-            let delta = transform.translation.truncate() - brick_t.translation.truncate();
-            // Overlap of the ball (treated as an AABB of side 2*BALL_RADIUS) and brick.
-            let overlap_x = (half.x + BALL_RADIUS) - delta.x.abs();
-            let overlap_y = (half.y + BALL_RADIUS) - delta.y.abs();
-            if overlap_x <= 0.0 || overlap_y <= 0.0 {
-                continue;
-            }
             // A destructible brick already broken this tick (by another ball) is gone —
             // skip it so we don't underflow its hit count or score it twice.
             if !indestructible && brick.hits_remaining == 0 {
                 continue;
             }
-
-            // Reflect off whichever face is least penetrated, and nudge the ball out.
-            if overlap_x < overlap_y {
-                velocity.0.x = velocity.0.x.abs().copysign(delta.x);
-                transform.translation.x += overlap_x.copysign(delta.x);
-            } else {
-                velocity.0.y = velocity.0.y.abs().copysign(delta.y);
-                transform.translation.y += overlap_y.copysign(delta.y);
+            // Reflect off the brick (least-penetrated face); skip when there's no overlap.
+            if !ball_box_bounce(
+                &mut transform.translation,
+                &mut velocity.0,
+                brick_t.translation.truncate(),
+                half,
+            ) {
+                continue;
             }
-
-            if indestructible {
-                // Gold: deflect only, never damaged.
-                bounce.write(BounceSound::HardBrick);
-            } else {
-                brick.hits_remaining -= 1;
-                if brick.hits_remaining == 0 {
-                    commands.entity(entity).despawn();
-                    destroyed.write(BrickDestroyed {
-                        points: brick.points,
-                        position: brick_t.translation.truncate(),
-                    });
-                    bounce.write(BounceSound::Brick);
-                } else {
-                    // Silver took damage but survived — clink, and the mutation above lets
-                    // `update_silver_damage` swap in the cracked frame.
-                    bounce.write(BounceSound::HardBrick);
-                }
-            }
+            let cue = damage_brick(
+                &mut commands,
+                entity,
+                &mut brick,
+                brick_t.translation.truncate(),
+                indestructible,
+                &mut destroyed,
+            );
+            bounce.write(cue);
             break;
         }
+    }
+}
+
+/// AABB collision of a ball against a box centered at `box_pos` with half-extents `box_half`
+/// (the ball treated as an AABB of side `2 * BALL_RADIUS`). On overlap, reflects `velocity`
+/// off whichever face is least penetrated, nudges `ball_pos` clear of the box, and returns
+/// `true`; with no overlap it leaves both untouched and returns `false`. Shared by ball↔brick
+/// and ball↔enemy collision.
+pub fn ball_box_bounce(
+    ball_pos: &mut Vec3,
+    velocity: &mut Vec2,
+    box_pos: Vec2,
+    box_half: Vec2,
+) -> bool {
+    let delta = ball_pos.truncate() - box_pos;
+    let overlap_x = (box_half.x + BALL_RADIUS) - delta.x.abs();
+    let overlap_y = (box_half.y + BALL_RADIUS) - delta.y.abs();
+    if overlap_x <= 0.0 || overlap_y <= 0.0 {
+        return false;
+    }
+    if overlap_x < overlap_y {
+        velocity.x = velocity.x.abs().copysign(delta.x);
+        ball_pos.x += overlap_x.copysign(delta.x);
+    } else {
+        velocity.y = velocity.y.abs().copysign(delta.y);
+        ball_pos.y += overlap_y.copysign(delta.y);
+    }
+    true
+}
+
+/// Applies one hit to a brick and returns the sound cue to play. Indestructible (gold) bricks
+/// only clink; a destructible brick loses one `hits_remaining`, and on reaching zero it
+/// despawns and reports a [`BrickDestroyed`] at `brick_pos` (scored elsewhere). Callers must
+/// already have skipped bricks broken earlier this tick (`hits_remaining == 0`). Shared by the
+/// ball and the laser. (A surviving silver brick's `hits_remaining` mutation lets
+/// `update_silver_damage` swap in the cracked frame.)
+pub fn damage_brick(
+    commands: &mut Commands,
+    entity: Entity,
+    brick: &mut Brick,
+    brick_pos: Vec2,
+    indestructible: bool,
+    destroyed: &mut MessageWriter<BrickDestroyed>,
+) -> BounceSound {
+    if indestructible {
+        return BounceSound::HardBrick;
+    }
+    brick.hits_remaining -= 1;
+    if brick.hits_remaining == 0 {
+        commands.entity(entity).despawn();
+        destroyed.write(BrickDestroyed {
+            points: brick.points,
+            position: brick_pos,
+        });
+        BounceSound::Brick
+    } else {
+        BounceSound::HardBrick
     }
 }

@@ -16,6 +16,7 @@ mod levels;
 mod player;
 mod powerups;
 mod resources;
+mod schedule;
 mod states;
 mod ui;
 mod vfx;
@@ -46,6 +47,7 @@ fn main() {
         .init_state::<AppState>()
         .add_sub_state::<PlayState>()
         .add_plugins((
+            schedule::SchedulePlugin,
             input::InputPlugin,
             player::PlayerPlugin,
             ball::BallPlugin,

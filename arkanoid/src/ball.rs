@@ -7,6 +7,7 @@ use crate::components::{Ball, Paddle, Velocity};
 use crate::constants::*;
 use crate::input::InputActions;
 use crate::resources::{BallSpeed, PaddleMode};
+use crate::schedule::Physics;
 use crate::states::{AppState, PlayState};
 
 pub struct BallPlugin;
@@ -26,11 +27,14 @@ impl Plugin for BallPlugin {
                 (
                     // A stuck ball tracks the paddle through Ready/Serving.
                     ball_follow_paddle
-                        .after(crate::player::paddle_control)
+                        .in_set(Physics::BallFollow)
                         .run_if(in_state(AppState::Playing)),
                     // The launched ball only integrates while actually running.
-                    ball_movement.run_if(in_state(PlayState::Running)),
+                    ball_movement
+                        .in_set(Physics::Movement)
+                        .run_if(in_state(PlayState::Running)),
                     accelerate_ball
+                        .in_set(Physics::Movement)
                         .after(ball_movement)
                         .run_if(in_state(PlayState::Running)),
                 ),
@@ -61,7 +65,7 @@ fn ball_rest_y(paddle_y: f32) -> f32 {
 
 /// While stuck, the ball tracks the paddle's position so it launches from wherever
 /// the Vaus currently sits.
-pub fn ball_follow_paddle(
+fn ball_follow_paddle(
     paddle: Query<&Transform, (With<Paddle>, Without<Ball>)>,
     mut balls: Query<(&Ball, &mut Transform), Without<Paddle>>,
 ) {
@@ -90,7 +94,7 @@ pub fn ball_launch(
     for (mut ball, mut velocity) in &mut balls {
         if ball.stuck {
             ball.stuck = false;
-            velocity.0 = Vec2::new(0.3, 1.0).normalize() * speed.current;
+            velocity.0 = BALL_LAUNCH_DIR.normalize() * speed.current;
         }
     }
     next.set(PlayState::Running);
@@ -115,13 +119,13 @@ pub fn release_caught_balls(
     for (mut ball, mut velocity) in &mut balls {
         if ball.stuck {
             ball.stuck = false;
-            velocity.0 = Vec2::new(0.3, 1.0).normalize() * speed.current;
+            velocity.0 = BALL_LAUNCH_DIR.normalize() * speed.current;
         }
     }
 }
 
 /// Integrates the ball's position from its velocity (launched balls only).
-pub fn ball_movement(time: Res<Time>, mut balls: Query<(&Ball, &mut Transform, &Velocity)>) {
+fn ball_movement(time: Res<Time>, mut balls: Query<(&Ball, &mut Transform, &Velocity)>) {
     let dt = time.delta_secs();
     for (ball, mut transform, velocity) in &mut balls {
         if !ball.stuck {
@@ -134,7 +138,7 @@ pub fn ball_movement(time: Res<Time>, mut balls: Query<(&Ball, &mut Transform, &
 /// Ramps the ball's speed up within a round — on a fixed time cadence and at brick-count
 /// milestones — up to [`BALL_SPEED_MAX`]. Each bump rescales the live balls' velocity
 /// (preserving direction) and plays a speed-up cue.
-pub fn accelerate_ball(
+fn accelerate_ball(
     time: Res<Time>,
     mut speed: ResMut<BallSpeed>,
     mut destroyed: MessageReader<BrickDestroyed>,
