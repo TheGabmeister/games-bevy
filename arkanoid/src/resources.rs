@@ -24,3 +24,13 @@ impl Default for Round {
         Round(1)
     }
 }
+
+/// Remaining Vaus lives. Reaching zero ends the run.
+#[derive(Resource)]
+pub struct Lives(pub u32);
+
+impl Default for Lives {
+    fn default() -> Self {
+        Lives(crate::constants::LIVES_START)
+    }
+}

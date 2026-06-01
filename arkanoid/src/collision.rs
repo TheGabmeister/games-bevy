@@ -4,7 +4,8 @@ use crate::audio::BounceSound;
 use crate::bricks::BrickDestroyed;
 use crate::components::{Ball, Brick, Paddle, Velocity};
 use crate::constants::*;
-use crate::states::AppState;
+use crate::flow::BallLost;
+use crate::states::PlayState;
 
 pub struct CollisionPlugin;
 
@@ -18,7 +19,7 @@ impl Plugin for CollisionPlugin {
                     .after(crate::player::paddle_control),
                 ball_brick_collision.after(ball_collision),
             )
-                .run_if(in_state(AppState::Playing)),
+                .run_if(in_state(PlayState::Running)),
         );
     }
 }
@@ -26,6 +27,7 @@ impl Plugin for CollisionPlugin {
 /// Reflects launched balls off the side/top walls and the paddle, and re-serves a
 /// ball that falls past the open bottom. Emits [`BounceSound`] on each contact.
 fn ball_collision(
+    mut commands: Commands,
     paddle: Query<&Transform, (With<Paddle>, Without<Ball>)>,
     mut balls: Query<(&mut Ball, &mut Transform, &mut Velocity), Without<Paddle>>,
     mut bounce: MessageWriter<BounceSound>,
@@ -80,10 +82,12 @@ fn ball_collision(
             bounce.write(BounceSound::Paddle);
         }
 
-        // Fell past the open bottom — re-serve on the paddle.
+        // Fell past the open bottom — the ball is lost. Park it (so this branch can't
+        // re-fire) and let the observer spend a life and decide what happens next.
         if pos.y + BALL_RADIUS < PLAYFIELD_BOTTOM {
             ball.stuck = true;
             velocity.0 = Vec2::ZERO;
+            commands.trigger(BallLost);
         }
     }
 }

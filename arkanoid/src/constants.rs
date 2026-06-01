@@ -29,6 +29,11 @@ pub const BALL_SPEED: f32 = 340.0;
 /// paddle's edge deflects this far; a centered hit goes straight up).
 pub const BALL_MAX_BOUNCE_ANGLE: f32 = FRAC_PI_3; // 60°
 
+// --- Lives & round flow ---
+pub const LIVES_START: u32 = 3;
+/// Seconds the "ROUND n READY" intro is shown before the ball can be served.
+pub const READY_DURATION: f32 = 1.6;
+
 // --- Bricks ---
 pub const BRICK_WIDTH: f32 = 56.0;
 pub const BRICK_HEIGHT: f32 = 28.0;
@@ -43,3 +48,5 @@ pub const Z_BACKGROUND: f32 = 0.0;
 pub const Z_BRICK: f32 = 1.0;
 pub const Z_PADDLE: f32 = 2.0;
 pub const Z_BALL: f32 = 3.0;
+/// Full-screen overlay art (e.g. the title screen) drawn above the playfield.
+pub const Z_OVERLAY: f32 = 100.0;

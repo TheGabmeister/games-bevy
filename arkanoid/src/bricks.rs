@@ -1,10 +1,10 @@
 use bevy::prelude::*;
 
 use crate::assets::GameAssets;
-use crate::components::{Ball, Brick, BrickColor, Velocity};
+use crate::components::{Brick, BrickColor};
 use crate::constants::*;
 use crate::resources::{Round, Score};
-use crate::states::AppState;
+use crate::states::{AppState, PlayState};
 
 /// A brick was destroyed, worth `points`. Consumed by scoring (and later VFX/audio).
 #[derive(Message)]
@@ -22,10 +22,14 @@ impl Plugin for BrickPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<BrickDestroyed>()
             .add_message::<ScoreChanged>()
-            .add_systems(OnEnter(AppState::Playing), spawn_current_round)
+            // Each round's bricks spawn as its "ROUND n READY" intro begins.
+            .add_systems(OnEnter(PlayState::Ready), spawn_current_round)
             .add_systems(
                 Update,
-                (apply_score, check_round_clear).run_if(in_state(AppState::Playing)),
+                (
+                    apply_score.run_if(in_state(AppState::Playing)),
+                    check_round_clear.run_if(in_state(PlayState::Running)),
+                ),
             );
     }
 }
@@ -34,16 +38,16 @@ impl Plugin for BrickPlugin {
 /// brick colors via [`BrickColor::from_code`] and `.` is an empty cell. Rounds beyond
 /// the list wrap around (Phase 7 replaces these with data-driven RON layouts).
 const LAYOUTS: &[&[&str]] = &[
-    // Round 1 — full rainbow wall.
+    // Round 1 — a designed diamond-and-pyramid stage.
     &[
-        "YYYYYYYYY",
-        "PPPPPPPPP",
-        "BBBBBBBBB",
-        "RRRRRRRRR",
-        "GGGGGGGGG",
-        "CCCCCCCCC",
-        "OOOOOOOOO",
-        "WWWWWWWWW",
+        "....Y....",
+        "...YPY...",
+        "..YPBPY..",
+        ".YPBRBPY.",
+        "YPBRGRBPY",
+        ".CCCCCCC.",
+        "..GGGGG..",
+        "...OOO...",
     ],
     // Round 2 — staggered checkerboard with a solid base row.
     &[
@@ -105,23 +109,24 @@ fn apply_score(
     }
 }
 
-/// When the board is empty, advance to the next round's layout and re-serve the ball.
+/// When the board is empty, advance the round counter and drop back into `Ready`, which
+/// shows the next "ROUND n READY" intro, spawns the new layout, and re-serves the ball.
 /// Works for any removal — gameplay or the debug "destroy all" key — since it just
 /// checks whether bricks remain.
 fn check_round_clear(
     bricks: Query<(), With<Brick>>,
     mut round: ResMut<Round>,
+    mut next: ResMut<NextState<PlayState>>,
     mut commands: Commands,
     assets: Res<GameAssets>,
-    mut balls: Query<(&mut Ball, &mut Velocity)>,
 ) {
     if !bricks.is_empty() {
         return;
     }
     round.0 += 1;
-    spawn_round(&mut commands, &assets, round.0);
-    for (mut ball, mut velocity) in &mut balls {
-        ball.stuck = true;
-        velocity.0 = Vec2::ZERO;
-    }
+    commands.spawn((
+        AudioPlayer(assets.music.round_clear.clone()),
+        PlaybackSettings::DESPAWN,
+    ));
+    next.set(PlayState::Ready);
 }

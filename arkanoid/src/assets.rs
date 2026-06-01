@@ -12,12 +12,15 @@ use crate::components::BrickColor;
 pub struct GameAssets {
     pub sprites: Sprites,
     pub sfx: Sfx,
+    pub music: Music,
 }
 
 pub struct Sprites {
     pub vaus: Handle<Image>,
+    pub vaus_life_icon: Handle<Image>,
     pub ball: Handle<Image>,
     pub border_frame: Handle<Image>,
+    pub title_screen: Handle<Image>,
     pub bricks: Bricks,
 }
 
@@ -53,6 +56,12 @@ pub struct Sfx {
     pub wall_bounce: Handle<AudioSource>,
     pub paddle_bounce: Handle<AudioSource>,
     pub brick_break: Handle<AudioSource>,
+    pub ball_lost: Handle<AudioSource>,
+}
+
+pub struct Music {
+    pub round_clear: Handle<AudioSource>,
+    pub game_over: Handle<AudioSource>,
 }
 
 impl FromWorld for GameAssets {
@@ -61,8 +70,10 @@ impl FromWorld for GameAssets {
         Self {
             sprites: Sprites {
                 vaus: server.load("sprites/vaus/vaus.png"),
+                vaus_life_icon: server.load("sprites/vaus/vaus-life-icon.png"),
                 ball: server.load("sprites/ball/ball.png"),
                 border_frame: server.load("sprites/playfield/border-frame.png"),
+                title_screen: server.load("ui/title-screen.png"),
                 bricks: Bricks {
                     white: server.load("sprites/bricks/brick-white.png"),
                     orange: server.load("sprites/bricks/brick-orange.png"),
@@ -78,6 +89,11 @@ impl FromWorld for GameAssets {
                 wall_bounce: server.load("audio/sfx/wall-bounce.ogg"),
                 paddle_bounce: server.load("audio/sfx/paddle-bounce.ogg"),
                 brick_break: server.load("audio/sfx/brick-break.ogg"),
+                ball_lost: server.load("audio/sfx/ball-lost.ogg"),
+            },
+            music: Music {
+                round_clear: server.load("audio/music/round-clear.ogg"),
+                game_over: server.load("audio/music/game-over.ogg"),
             },
         }
     }

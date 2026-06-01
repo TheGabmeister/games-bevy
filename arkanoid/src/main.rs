@@ -10,6 +10,7 @@ mod components;
 mod constants;
 mod debug;
 mod enemy;
+mod flow;
 mod input;
 mod player;
 mod resources;
@@ -18,8 +19,8 @@ mod ui;
 
 use assets::GameAssets;
 use constants::*;
-use resources::{Round, Score};
-use states::AppState;
+use resources::{Lives, Round, Score};
+use states::{AppState, PlayState};
 
 fn main() {
     App::new()
@@ -35,9 +36,9 @@ fn main() {
         .init_resource::<GameAssets>()
         .init_resource::<Score>()
         .init_resource::<Round>()
-        // Start directly in Playing for now; Phase 3 adds the title screen and the
-        // StartScreen → Playing transition.
-        .insert_state(AppState::Playing)
+        .init_resource::<Lives>()
+        .init_state::<AppState>()
+        .add_sub_state::<PlayState>()
         .add_plugins((
             input::InputPlugin,
             player::PlayerPlugin,
@@ -48,6 +49,7 @@ fn main() {
             ui::UiPlugin,
             audio::AudioPlugin,
             debug::DebugPlugin,
+            flow::GameFlowPlugin,
         ))
         .add_systems(Startup, setup)
         .run();

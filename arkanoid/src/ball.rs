@@ -4,25 +4,24 @@ use crate::assets::GameAssets;
 use crate::components::{Ball, Paddle, Velocity};
 use crate::constants::*;
 use crate::input::InputActions;
-use crate::states::AppState;
+use crate::states::{AppState, PlayState};
 
 pub struct BallPlugin;
 
 impl Plugin for BallPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnEnter(AppState::Playing), spawn_ball)
-            .add_systems(
-                Update,
-                ball_launch.run_if(in_state(AppState::Playing)),
-            )
+            .add_systems(Update, ball_launch.run_if(in_state(PlayState::Serving)))
             .add_systems(
                 FixedUpdate,
                 (
-                    // Keep a stuck ball glued to the paddle after it has moved.
-                    ball_follow_paddle.after(crate::player::paddle_control),
-                    ball_movement,
-                )
-                    .run_if(in_state(AppState::Playing)),
+                    // A stuck ball tracks the paddle through Ready/Serving.
+                    ball_follow_paddle
+                        .after(crate::player::paddle_control)
+                        .run_if(in_state(AppState::Playing)),
+                    // The launched ball only integrates while actually running.
+                    ball_movement.run_if(in_state(PlayState::Running)),
+                ),
             );
     }
 }
@@ -59,8 +58,13 @@ pub fn ball_follow_paddle(
     }
 }
 
-/// Releases a stuck ball upward (slightly angled) when the launch action fires.
-pub fn ball_launch(input: Res<InputActions>, mut balls: Query<(&mut Ball, &mut Velocity)>) {
+/// Releases a stuck ball upward (slightly angled) when the launch action fires, and
+/// moves play into the `Running` state.
+pub fn ball_launch(
+    input: Res<InputActions>,
+    mut balls: Query<(&mut Ball, &mut Velocity)>,
+    mut next: ResMut<NextState<PlayState>>,
+) {
     if !input.launch {
         return;
     }
@@ -70,6 +74,7 @@ pub fn ball_launch(input: Res<InputActions>, mut balls: Query<(&mut Ball, &mut V
             velocity.0 = Vec2::new(0.3, 1.0).normalize() * BALL_SPEED;
         }
     }
+    next.set(PlayState::Running);
 }
 
 /// Integrates the ball's position from its velocity (launched balls only).

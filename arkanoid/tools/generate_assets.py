@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import array
 import json
 import math
 import shutil
 import subprocess
+import wave
 from pathlib import Path
 
 
@@ -176,22 +178,24 @@ def ball() -> list[str]:
 
 
 def border_frame() -> list[str]:
+    # Portrait playfield frame: walls on top/left/right, open bottom.
+    w, h, t = 600, 800, 20
     body = [
-        rect(0, 0, 800, 20, "#23374f"),
-        rect(0, 0, 20, 600, "#23374f"),
-        rect(780, 0, 20, 600, "#23374f"),
-        rect(4, 4, 792, 5, "#6aa0c8"),
-        rect(4, 11, 792, 5, "#102238"),
-        rect(4, 22, 5, 574, "#6aa0c8"),
-        rect(11, 22, 5, 574, "#102238"),
-        rect(784, 22, 5, 574, "#6aa0c8"),
-        rect(791, 22, 5, 574, "#102238"),
+        rect(0, 0, w, t, "#23374f"),
+        rect(0, 0, t, h, "#23374f"),
+        rect(w - t, 0, t, h, "#23374f"),
+        rect(4, 4, w - 8, 5, "#6aa0c8"),
+        rect(4, 11, w - 8, 5, "#102238"),
+        rect(4, 22, 5, h - 26, "#6aa0c8"),
+        rect(11, 22, 5, h - 26, "#102238"),
+        rect(w - 16, 22, 5, h - 26, "#6aa0c8"),
+        rect(w - 9, 22, 5, h - 26, "#102238"),
     ]
-    for x in range(40, 780, 40):
+    for x in range(40, w - 20, 40):
         body.append(rect(x, 6, 8, 8, "#c4d8f3"))
-    for y in range(40, 580, 40):
+    for y in range(40, h - 20, 40):
         body.append(rect(6, y, 8, 8, "#c4d8f3"))
-        body.append(rect(786, y, 8, 8, "#c4d8f3"))
+        body.append(rect(w - 14, y, 8, 8, "#c4d8f3"))
     return body
 
 
@@ -331,20 +335,23 @@ def burst(w: int, h: int, frame: int, color: str) -> list[str]:
 
 
 def ui_screen(title: str, subtitle: str, accent: str) -> list[str]:
+    # Portrait full-screen art; smaller heading so long titles fit the 600px width.
+    w, h = 600, 800
+    cx = w // 2
     body = [
-        rect(0, 0, 800, 600, "#08101d"),
-        rect(24, 24, 752, 552, "#111d31"),
-        rect(40, 40, 720, 520, "#07111f"),
+        rect(0, 0, w, h, "#08101d"),
+        rect(24, 24, w - 48, h - 48, "#111d31"),
+        rect(40, 40, w - 80, h - 80, "#07111f"),
     ]
-    for y in range(72, 540, 46):
-        body.append(rect(72, y, 656, 3, "#243b5a"))
+    for y in range(96, h - 60, 46):
+        body.append(rect(72, y, w - 144, 3, "#243b5a"))
     body.extend(
         [
-            text(400, 170, title, accent, 82),
-            text(400, 252, subtitle, "#f7fbff", 30),
-            rect(210, 330, 380, 18, accent),
-            rect(250, 360, 300, 12, "#ffffff"),
-            rect(300, 390, 200, 8, "#6aa0c8"),
+            text(cx, 300, title, accent, 64),
+            text(cx, 380, subtitle, "#f7fbff", 26),
+            rect(cx - 190, 470, 380, 18, accent),
+            rect(cx - 150, 505, 300, 12, "#ffffff"),
+            rect(cx - 100, 535, 200, 8, "#6aa0c8"),
         ]
     )
     return body
@@ -355,7 +362,7 @@ def generate_visuals() -> None:
     save_art("sprites/vaus/vaus-expanded.png", 160, 24, paddle(160, 24, expanded=True))
     save_art("sprites/vaus/vaus-life-icon.png", 48, 12, paddle(48, 12))
     save_art("sprites/ball/ball.png", 16, 16, ball())
-    save_art("sprites/playfield/border-frame.png", 800, 600, border_frame())
+    save_art("sprites/playfield/border-frame.png", 600, 800, border_frame())
     save_art("sprites/playfield/warp-gate.png", 32, 80, warp_gate())
     save_sheet("sprites/playfield/spawn-gate.png", 48, 24, [spawn_gate(v) for v in [0, 8, 18]])
 
@@ -393,10 +400,10 @@ def generate_visuals() -> None:
     save_art("vfx/ball-trail.png", 16, 16, [circle(8, 8, 7, "#4aa3ff", opacity="0.25"), circle(8, 8, 4, "#ffffff", opacity="0.35")])
     save_sheet("vfx/doh-defeat-explosion.png", 160, 160, [burst(160, 160, i, "#ff8a2a") for i in range(6)])
 
-    save_art("ui/title-screen.png", 800, 600, ui_screen("ARKANOID", "PRESS START", "#ff5f70"))
+    save_art("ui/title-screen.png", 600, 800, ui_screen("ARKANOID", "PRESS START", "#ff5f70"))
     save_art("ui/round-ready-banner.png", 320, 64, [rect(0, 0, 320, 64, "#101827"), rect(4, 4, 312, 56, "#24405f"), text(160, 32, "ROUND 01 READY", "#ffffff", 33)])
-    save_art("ui/intro-story-screen.png", 800, 600, ui_screen("VAUS ESCAPES", "A DIMENSIONAL FORTRESS", "#72d6ff"))
-    save_art("ui/victory-screen.png", 800, 600, ui_screen("VICTORY", "DOH IS DEFEATED", "#fff070"))
+    save_art("ui/intro-story-screen.png", 600, 800, ui_screen("VAUS ESCAPES", "A DIMENSIONAL FORTRESS", "#72d6ff"))
+    save_art("ui/victory-screen.png", 600, 800, ui_screen("VICTORY", "DOH IS DEFEATED", "#fff070"))
     save_art(
         "ui/high-score-table.png",
         480,
@@ -445,11 +452,80 @@ def generate_sfx() -> None:
     (sfx_dir / "sfx_sources.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
 
+SAMPLE_RATE = 44100
+
+# Short jingles as note lists: (frequency_hz, start_s, duration_s, amplitude).
+# Each is kept well under the 15s music cap.
+MUSIC = {
+    # Ascending fanfare on a round clear.
+    "round-clear": (
+        [
+            (523.25, 0.00, 0.16, 0.85),
+            (659.25, 0.16, 0.16, 0.85),
+            (783.99, 0.32, 0.16, 0.85),
+            (1046.50, 0.48, 0.16, 0.85),
+            (1318.51, 0.64, 0.16, 0.85),
+            (1567.98, 0.80, 0.16, 0.85),
+            (1046.50, 0.96, 0.60, 0.50),
+            (1318.51, 0.96, 0.60, 0.50),
+            (1567.98, 0.96, 0.60, 0.50),
+        ],
+        1.7,
+    ),
+    # Descending, minor-key sting on game over, settling on a low chord.
+    "game-over": (
+        [
+            (440.00, 0.00, 0.30, 0.85),
+            (349.23, 0.35, 0.30, 0.85),
+            (293.66, 0.70, 0.30, 0.85),
+            (220.00, 1.05, 0.50, 0.85),
+            (220.00, 1.65, 1.40, 0.50),
+            (164.81, 1.65, 1.40, 0.45),
+            (130.81, 1.65, 1.40, 0.45),
+        ],
+        3.2,
+    ),
+}
+
+
+def synth(notes: list[tuple[float, float, float, float]], total: float) -> array.array:
+    """Renders a note list to mono 16-bit PCM with a soft attack and exponential decay."""
+    n = int(total * SAMPLE_RATE)
+    buf = array.array("h", [0] * n)
+    for freq, start, dur, amp in notes:
+        s = int(start * SAMPLE_RATE)
+        e = min(n, int((start + dur) * SAMPLE_RATE))
+        for i in range(s, e):
+            t = (i - s) / SAMPLE_RATE
+            env = min(1.0, t / 0.008) * math.exp(-3.2 * t)
+            val = amp * env * math.sin(2 * math.pi * freq * t)
+            mixed = buf[i] + int(val * 32767 * 0.5)
+            buf[i] = max(-32768, min(32767, mixed))
+    return buf
+
+
+def generate_music() -> None:
+    music_dir = ASSETS / "audio" / "music"
+    wav_dir = music_dir / "source_wav"
+    wav_dir.mkdir(parents=True, exist_ok=True)
+    for name, (notes, total) in MUSIC.items():
+        assert total <= 15, f"{name} exceeds the 15s music cap"
+        wav_path = wav_dir / f"{name}.wav"
+        ogg_path = music_dir / f"{name}.ogg"
+        with wave.open(str(wav_path), "w") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(SAMPLE_RATE)
+            w.writeframes(synth(notes, total).tobytes())
+        run([FFMPEG, "-y", "-i", str(wav_path), "-c:a", "libvorbis", "-q:a", "4", str(ogg_path)])
+
+
 def main() -> None:
     print(f"Using Python: {PYTHON}", flush=True)
     generate_visuals()
     generate_sfx()
-    print("Generated sprites, VFX, UI PNG art, and SFX. Music was not generated.", flush=True)
+    generate_music()
+    print("Generated sprites, VFX, UI PNG art, SFX, and music.", flush=True)
 
 
 if __name__ == "__main__":
