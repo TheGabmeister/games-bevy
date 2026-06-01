@@ -6,10 +6,12 @@ use crate::constants::*;
 use crate::resources::{Round, Score};
 use crate::states::{AppState, PlayState};
 
-/// A brick was destroyed, worth `points`. Consumed by scoring (and later VFX/audio).
+/// A brick was destroyed, worth `points`, at world `position`. Consumed by scoring, the
+/// ball-speed ramp, and the capsule-drop director.
 #[derive(Message)]
 pub struct BrickDestroyed {
     pub points: u32,
+    pub position: Vec2,
 }
 
 /// The score changed; the HUD listens for this to refresh its readout.

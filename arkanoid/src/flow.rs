@@ -54,10 +54,17 @@ fn reset_ready_timer(mut timer: ResMut<ReadyTimer>) {
     timer.0.reset();
 }
 
-/// Parks every ball back on the paddle, stationary. `ball_follow_paddle` then keeps it
-/// glued to the Vaus until launch.
-fn stick_ball(mut balls: Query<(&mut Ball, &mut Velocity)>) {
-    for (mut ball, mut velocity) in &mut balls {
+/// Parks a single ball back on the paddle, stationary, and despawns any multi-ball extras
+/// so each round/serve begins with exactly one ball. `ball_follow_paddle` then keeps the
+/// survivor glued to the Vaus until launch.
+fn stick_ball(mut commands: Commands, mut balls: Query<(Entity, &mut Ball, &mut Velocity)>) {
+    let mut kept = false;
+    for (entity, mut ball, mut velocity) in &mut balls {
+        if kept {
+            commands.entity(entity).despawn();
+            continue;
+        }
+        kept = true;
         ball.stuck = true;
         velocity.0 = Vec2::ZERO;
     }

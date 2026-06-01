@@ -13,9 +13,11 @@ mod enemy;
 mod flow;
 mod input;
 mod player;
+mod powerups;
 mod resources;
 mod states;
 mod ui;
+mod vfx;
 
 use assets::GameAssets;
 use constants::*;
@@ -47,6 +49,8 @@ fn main() {
             bricks::BrickPlugin,
             enemy::EnemyPlugin,
             collision::CollisionPlugin,
+            powerups::PowerupPlugin,
+            vfx::VfxPlugin,
             ui::UiPlugin,
             audio::AudioPlugin,
             debug::DebugPlugin,

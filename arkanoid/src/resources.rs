@@ -59,3 +59,25 @@ impl Default for BallSpeed {
         }
     }
 }
+
+/// The exclusive paddle power-up currently active. Catching a new paddle power-up replaces
+/// the previous one; a lost life resets it to `Normal`. (Slow, Disruption, Break, and
+/// Player are not paddle modes — they apply instantly or coexist.)
+#[derive(Resource, Default, Clone, Copy, PartialEq, Eq, Debug)]
+pub enum PaddleMode {
+    #[default]
+    Normal,
+    Catch,
+    Laser,
+    Expand,
+}
+
+/// Drives the deterministic capsule-drop schedule: a capsule is released every
+/// `CAPSULE_DROP_INTERVAL` bricks (when none is already falling), cycling through `SEQUENCE`.
+#[derive(Resource, Default)]
+pub struct CapsuleDirector {
+    /// Bricks destroyed since the last capsule was released.
+    pub bricks_destroyed: u32,
+    /// Index into the power-up sequence for the next drop.
+    pub next: usize,
+}

@@ -34,23 +34,25 @@ A from-scratch recreation of the classic **Arkanoid** (Taito, 1986), built as a 
 
 **`PLAN.md` is the source of truth for scope and sequencing** — a 7-phase roadmap (vertical slice → systems depth → content). It also carries the canonical asset manifest (file paths + pixel dimensions under `assets/`). Read the relevant phase before adding a feature; build only on systems from earlier phases.
 
-Module map (✅ = implemented, ◻ = still a stub awaiting its phase). Phases 1–4 are done; Phase 5+ is pending.
+Module map (✅ = implemented, ◻ = still a stub awaiting its phase). Phases 1–5 are done; Phase 6+ is pending.
 
-- **`main.rs`** — App setup, 600×800 **portrait** window config, state registration (`AppState` + `PlayState` sub-state), resource init (`Score`/`Lives`/`Round`/`GameAssets`), plugin registration, camera + playfield border spawn
+- **`main.rs`** — App setup, 600×800 **portrait** window config, state registration (`AppState` + `PlayState` sub-state), resource init (`Score`/`Lives`/`Round`/`BallSpeed`/`GameAssets`; `PaddleMode`/`CapsuleDirector` are init'd by `PowerupPlugin`), plugin registration, camera + playfield border spawn
 - **`constants.rs`** — All tunable values as named constants (playfield bounds, paddle/ball sizing, speeds, brick grid, lives + ready-timer, z-layers)
-- **`components.rs`** — Marker + data components (`Velocity`, `Paddle`, `Ball { stuck }`, `Brick { points, hits_remaining, max_hits }`, `BrickColor`, `BrickKind`, `Silver`/`Indestructible` markers)
-- **`resources.rs`** ✅ — Shared game state: `Score { current, high }`, `Lives`, `Round`, `BallSpeed` (per-serve speed ramp)
+- **`components.rs`** — Marker + data components (`Velocity`, `Paddle { half_width }`, `Ball { stuck }`, `Brick { points, hits_remaining, max_hits }`, `BrickColor`, `BrickKind`, `Silver`/`Indestructible` markers, `PowerupKind`, `Capsule`, `Laser`, `WarpGate`, `VfxAnim`)
+- **`resources.rs`** ✅ — Shared game state: `Score { current, high }`, `Lives`, `Round`, `BallSpeed` (per-serve speed ramp), `PaddleMode` (active paddle power-up), `CapsuleDirector` (capsule-drop schedule)
 - **`states.rs`** ✅ — `AppState` (`StartScreen → Playing → GameOver`) + `PlayState` sub-state (`Ready → Serving → Running`) under `Playing`
 - **`assets.rs`** ✅ — `GameAssets`, the central preloaded-handle registry (see **Asset Registry** below)
 - **`input.rs`** ✅ — `InputPlugin`; keyboard/gamepad → `InputActions` resource (no mouse — keyboard + gamepad only)
-- **`player.rs`** ✅ — `PlayerPlugin`; spawns the Vaus, clamped paddle control
-- **`ball.rs`** ✅ — `BallPlugin`; spawn/serve/launch/integrate the ball, plus the in-round speed ramp (`accelerate_ball`, reset on serve)
+- **`player.rs`** ✅ — `PlayerPlugin`; spawns the Vaus, clamped paddle control (clamp uses the paddle's dynamic `half_width`)
+- **`ball.rs`** ✅ — `BallPlugin`; spawn/serve/launch/integrate the ball, the in-round speed ramp (`accelerate_ball`, reset on serve), and Catch-power-up release (`release_caught_balls`)
 - **`bricks.rs`** ✅ — `BrickPlugin`; per-round brick grid spawn (hand-built `LAYOUTS`; colored/silver/gold via `BrickKind`), silver damage-frame feedback, scoring, round-clear detection (excludes indestructible gold)
-- **`collision.rs`** ✅ — `CollisionPlugin`; ball↔wall/paddle/brick reflection (silver durability, indestructible gold), triggers `BallLost` off the bottom, emits `BounceSound`
-- **`flow.rs`** ✅ — `GameFlowPlugin`; run-level orchestration: lives, the ready/serve flow, start/restart, game-over, and the `BallLost` observer
+- **`collision.rs`** ✅ — `CollisionPlugin`; ball↔wall/paddle/brick reflection (silver durability, indestructible gold, Catch sticks instead of bouncing), multi-ball-aware bottom loss, triggers `BallLost`, emits `BounceSound`
+- **`powerups.rs`** ✅ — `PowerupPlugin`; capsule drop schedule (`CapsuleDirector`) + fall + paddle-catch, the `CapsuleCaught` observer applying the seven effects (Catch/Laser/Expand/Disruption/Slow/Break/Player), laser fire + bolt flight + bolt↔brick collision, the Break warp gate, and power-up reset on life loss
+- **`vfx.rs`** ✅ — `VfxPlugin`; reusable one-shot animated VFX flipbook (`spawn_vfx` + `VfxAnim`), self-despawning after the last frame
+- **`flow.rs`** ✅ — `GameFlowPlugin`; run-level orchestration: lives, the ready/serve flow, start/restart, game-over, and the `BallLost` observer (`stick_ball` keeps one ball, despawning multi-ball extras)
 - **`ui.rs`** ✅ — `UiPlugin`; HUD (score / high / round / life icons), "ROUND n READY" banner, title + game-over screens
 - **`audio.rs`** ✅ — `AudioPlugin`; plays SFX from `BounceSound` messages
-- **`debug.rs`** ✅ — `DebugPlugin`; dev keys (reads the keyboard directly, bypassing `InputActions` by design): **F1** toggles a collider overlay, **F2** destroys all bricks
+- **`debug.rs`** ✅ — `DebugPlugin`; dev keys (reads the keyboard directly, bypassing `InputActions` by design): **F1** toggles a collider overlay, **F2** destroys all bricks, **F3** drops a capsule (cycling through power-ups)
 - **`enemy.rs`** ◻ (Phase 6)
 
 ### Game State Flow

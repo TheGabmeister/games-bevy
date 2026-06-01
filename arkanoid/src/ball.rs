@@ -6,7 +6,7 @@ use crate::bricks::BrickDestroyed;
 use crate::components::{Ball, Paddle, Velocity};
 use crate::constants::*;
 use crate::input::InputActions;
-use crate::resources::BallSpeed;
+use crate::resources::{BallSpeed, PaddleMode};
 use crate::states::{AppState, PlayState};
 
 pub struct BallPlugin;
@@ -17,6 +17,10 @@ impl Plugin for BallPlugin {
             // Each serve starts the ball at the base speed; it ramps up while running.
             .add_systems(OnEnter(PlayState::Serving), reset_ball_speed)
             .add_systems(Update, ball_launch.run_if(in_state(PlayState::Serving)))
+            .add_systems(
+                Update,
+                release_caught_balls.run_if(in_state(PlayState::Running)),
+            )
             .add_systems(
                 FixedUpdate,
                 (
@@ -90,6 +94,30 @@ pub fn ball_launch(
         }
     }
     next.set(PlayState::Running);
+}
+
+/// Releases balls held by the Catch power-up. While Catch is active a caught ball waits on
+/// the paddle and re-launches on the launch input; if Catch is swapped out for another
+/// paddle power-up, any held ball is freed the moment the mode changes so it can't be
+/// stranded. Deliberately does *not* fire on every Normal-mode frame, so it never disturbs a
+/// ball parked by the ball-lost flow (which is re-served via `stick_ball`).
+pub fn release_caught_balls(
+    input: Res<InputActions>,
+    mode: Res<PaddleMode>,
+    speed: Res<BallSpeed>,
+    mut balls: Query<(&mut Ball, &mut Velocity)>,
+) {
+    let manual = *mode == PaddleMode::Catch && input.launch;
+    let switched_off_catch = mode.is_changed() && *mode != PaddleMode::Catch;
+    if !manual && !switched_off_catch {
+        return;
+    }
+    for (mut ball, mut velocity) in &mut balls {
+        if ball.stuck {
+            ball.stuck = false;
+            velocity.0 = Vec2::new(0.3, 1.0).normalize() * speed.current;
+        }
+    }
 }
 
 /// Integrates the ball's position from its velocity (launched balls only).

@@ -4,9 +4,12 @@ use bevy::prelude::*;
 #[derive(Component)]
 pub struct Velocity(pub Vec2);
 
-/// The player-controlled Vaus paddle.
+/// The player-controlled Vaus paddle. `half_width` is dynamic — the Expand power-up
+/// widens it — and is read by movement clamping and ball/capsule collision.
 #[derive(Component)]
-pub struct Paddle;
+pub struct Paddle {
+    pub half_width: f32,
+}
 
 /// The energy ball. While `stuck`, it rides on top of the paddle and waits to be
 /// launched; once launched it moves under its own `Velocity`.
@@ -61,6 +64,48 @@ impl BrickKind {
             _ => None,
         }
     }
+}
+
+/// The seven Arkanoid power-ups, each released by a falling [`Capsule`].
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum PowerupKind {
+    /// Catch: the ball sticks to the paddle and re-launches on input.
+    Catch,
+    /// Laser: the Vaus fires laser bolts that destroy bricks.
+    Laser,
+    /// Expand: the paddle grows wider.
+    Expand,
+    /// Disruption: splits each live ball into three.
+    Disruption,
+    /// Slow: reduces the ball speed.
+    Slow,
+    /// Break: opens a warp exit on the right edge to skip to the next round.
+    Break,
+    /// Player: awards an extra life.
+    Player,
+}
+
+/// A power-up capsule falling from a destroyed brick. Caught by paddle touch.
+#[derive(Component)]
+pub struct Capsule {
+    pub kind: PowerupKind,
+}
+
+/// A laser bolt fired by the Vaus while the Laser power-up is active; travels straight up.
+#[derive(Component)]
+pub struct Laser;
+
+/// The warp-exit gate opened by the Break power-up on the right edge; the Vaus escapes
+/// through it to skip to the next round.
+#[derive(Component)]
+pub struct WarpGate;
+
+/// A short-lived animated VFX sprite (frame flipbook) that despawns after its last frame.
+#[derive(Component)]
+pub struct VfxAnim {
+    pub frames: Vec<Handle<Image>>,
+    pub index: usize,
+    pub timer: Timer,
 }
 
 /// The eight colored brick variants. Each maps to its sprite and point value.

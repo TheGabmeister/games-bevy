@@ -5,7 +5,7 @@ use crate::bricks::BrickDestroyed;
 use crate::components::{Ball, Brick, Indestructible, Paddle, Velocity};
 use crate::constants::*;
 use crate::flow::BallLost;
-use crate::resources::BallSpeed;
+use crate::resources::{BallSpeed, PaddleMode};
 use crate::states::PlayState;
 
 pub struct CollisionPlugin;
@@ -29,18 +29,23 @@ impl Plugin for CollisionPlugin {
 /// ball that falls past the open bottom. Emits [`BounceSound`] on each contact.
 fn ball_collision(
     mut commands: Commands,
-    paddle: Query<&Transform, (With<Paddle>, Without<Ball>)>,
-    mut balls: Query<(&mut Ball, &mut Transform, &mut Velocity), Without<Paddle>>,
+    paddle: Query<(&Transform, &Paddle), Without<Ball>>,
+    mut balls: Query<(Entity, &mut Ball, &mut Transform, &mut Velocity), Without<Paddle>>,
     mut bounce: MessageWriter<BounceSound>,
     ball_speed: Res<BallSpeed>,
+    paddle_mode: Res<PaddleMode>,
 ) {
-    let Ok(paddle_t) = paddle.single() else {
+    let Ok((paddle_t, paddle)) = paddle.single() else {
         return;
     };
-    let paddle_half_w = PADDLE_WIDTH / 2.0;
+    let paddle_half_w = paddle.half_width;
     let paddle_top = paddle_t.translation.y + PADDLE_HEIGHT / 2.0;
 
-    for (mut ball, mut transform, mut velocity) in &mut balls {
+    // Tracks how many balls are still in play this tick, so losing one of several balls
+    // (multi-ball) just removes it, and only draining the last ball costs a life.
+    let mut alive = balls.iter().count();
+
+    for (entity, mut ball, mut transform, mut velocity) in &mut balls {
         if ball.stuck {
             continue;
         }
@@ -75,21 +80,35 @@ fn ball_collision(
             && pos.y - BALL_RADIUS <= paddle_top
             && pos.y > paddle_t.translation.y
         {
-            // Reflection angle depends on where the ball struck the paddle:
-            // center → straight up, edges → BALL_MAX_BOUNCE_ANGLE off vertical.
-            let offset = ((pos.x - paddle_t.translation.x) / paddle_half_w).clamp(-1.0, 1.0);
-            let angle = offset * BALL_MAX_BOUNCE_ANGLE;
-            velocity.0 = Vec2::new(angle.sin(), angle.cos()) * ball_speed.current;
             pos.y = paddle_top + BALL_RADIUS;
+            if *paddle_mode == PaddleMode::Catch {
+                // Catch power-up: the ball sticks to the paddle until re-launched
+                // (see `release_caught_balls`). `ball_follow_paddle` keeps it glued.
+                ball.stuck = true;
+                velocity.0 = Vec2::ZERO;
+            } else {
+                // Reflection angle depends on where the ball struck the paddle:
+                // center → straight up, edges → BALL_MAX_BOUNCE_ANGLE off vertical.
+                let offset = ((pos.x - paddle_t.translation.x) / paddle_half_w).clamp(-1.0, 1.0);
+                let angle = offset * BALL_MAX_BOUNCE_ANGLE;
+                velocity.0 = Vec2::new(angle.sin(), angle.cos()) * ball_speed.current;
+            }
             bounce.write(BounceSound::Paddle);
         }
 
-        // Fell past the open bottom — the ball is lost. Park it (so this branch can't
-        // re-fire) and let the observer spend a life and decide what happens next.
+        // Fell past the open bottom — the ball is lost.
         if pos.y + BALL_RADIUS < PLAYFIELD_BOTTOM {
-            ball.stuck = true;
-            velocity.0 = Vec2::ZERO;
-            commands.trigger(BallLost);
+            if alive > 1 {
+                // One of several balls (multi-ball): drop it without costing a life.
+                alive -= 1;
+                commands.entity(entity).despawn();
+            } else {
+                // The last ball drained. Park it (so this branch can't re-fire) and let
+                // the observer spend a life and decide what happens next.
+                ball.stuck = true;
+                velocity.0 = Vec2::ZERO;
+                commands.trigger(BallLost);
+            }
         }
     }
 }
@@ -119,6 +138,11 @@ fn ball_brick_collision(
             if overlap_x <= 0.0 || overlap_y <= 0.0 {
                 continue;
             }
+            // A destructible brick already broken this tick (by another ball) is gone —
+            // skip it so we don't underflow its hit count or score it twice.
+            if !indestructible && brick.hits_remaining == 0 {
+                continue;
+            }
 
             // Reflect off whichever face is least penetrated, and nudge the ball out.
             if overlap_x < overlap_y {
@@ -138,6 +162,7 @@ fn ball_brick_collision(
                     commands.entity(entity).despawn();
                     destroyed.write(BrickDestroyed {
                         points: brick.points,
+                        position: brick_t.translation.truncate(),
                     });
                     bounce.write(BounceSound::Brick);
                 } else {

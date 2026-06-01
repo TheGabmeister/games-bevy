@@ -20,20 +20,23 @@ impl Plugin for PlayerPlugin {
 
 fn spawn_paddle(mut commands: Commands, assets: Res<GameAssets>) {
     commands.spawn((
-        Paddle,
+        Paddle {
+            half_width: PADDLE_WIDTH / 2.0,
+        },
         Sprite::from_image(assets.sprites.vaus.clone()),
         Transform::from_xyz(0.0, PADDLE_Y, Z_PADDLE),
         DespawnOnExit(AppState::Playing),
     ));
 }
 
-/// Moves the Vaus from keyboard/gamepad (velocity-based), clamped to the playfield.
+/// Moves the Vaus from keyboard/gamepad (velocity-based), clamped to the playfield. The
+/// clamp uses the paddle's current `half_width` so an expanded Vaus still stays in bounds.
 pub fn paddle_control(
     input: Res<InputActions>,
     time: Res<Time>,
-    mut paddle: Query<&mut Transform, With<Paddle>>,
+    mut paddle: Query<(&mut Transform, &Paddle)>,
 ) {
-    let Ok(mut transform) = paddle.single_mut() else {
+    let Ok((mut transform, paddle)) = paddle.single_mut() else {
         return;
     };
 
@@ -45,7 +48,7 @@ pub fn paddle_control(
         dx += PADDLE_SPEED * time.delta_secs();
     }
 
-    let half = PADDLE_WIDTH / 2.0;
-    transform.translation.x =
-        (transform.translation.x + dx).clamp(PLAYFIELD_LEFT + half, PLAYFIELD_RIGHT - half);
+    let half = paddle.half_width;
+    transform.translation.x = (transform.translation.x + dx)
+        .clamp(PLAYFIELD_LEFT + half, PLAYFIELD_RIGHT - half);
 }

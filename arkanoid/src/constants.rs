@@ -16,6 +16,8 @@ pub const PLAYFIELD_BOTTOM: f32 = -WINDOW_HEIGHT / 2.0;
 
 // --- Vaus paddle ---
 pub const PADDLE_WIDTH: f32 = 96.0;
+/// Width of the Vaus while the Expand power-up is active (matches `vaus-expanded.png`).
+pub const PADDLE_EXPANDED_WIDTH: f32 = 160.0;
 pub const PADDLE_HEIGHT: f32 = 24.0;
 pub const PADDLE_Y: f32 = PLAYFIELD_BOTTOM + 60.0;
 /// Keyboard / gamepad travel speed in pixels per second.
@@ -40,6 +42,10 @@ pub const BALL_SPEEDUP_STEP: f32 = 28.0;
 pub const BALL_SPEEDUP_INTERVAL: f32 = 8.0;
 /// Bricks destroyed between milestone speed bumps (every Nth brick nudges the speed).
 pub const BALL_SPEEDUP_BRICKS: u32 = 8;
+/// Floor the ball speed can be slowed to by the Slow power-up.
+pub const BALL_SPEED_MIN: f32 = 220.0;
+/// Multiplier the Slow power-up applies to the current ball speed.
+pub const SLOW_FACTOR: f32 = 0.6;
 
 // --- Lives & round flow ---
 pub const LIVES_START: u32 = 3;
@@ -63,10 +69,38 @@ pub const SILVER_HITS_ROUND_STEP: u32 = 8;
 /// A destroyed silver brick scores this times the current round number.
 pub const SILVER_POINTS_PER_ROUND: u32 = 50;
 
+// --- Power-up capsules ---
+pub const CAPSULE_WIDTH: f32 = 32.0;
+pub const CAPSULE_HEIGHT: f32 = 16.0;
+/// Fall speed of a released capsule, in pixels/second.
+pub const CAPSULE_FALL_SPEED: f32 = 150.0;
+/// Bricks destroyed between capsule drops. Only one capsule falls at a time.
+pub const CAPSULE_DROP_INTERVAL: u32 = 5;
+
+// --- Laser (Laser power-up) ---
+pub const LASER_WIDTH: f32 = 8.0;
+pub const LASER_HEIGHT: f32 = 24.0;
+pub const LASER_SPEED: f32 = 620.0;
+/// Max laser bolts in flight at once. Bolts fire in pairs, so this caps the volleys.
+pub const LASER_MAX_BOLTS: usize = 4;
+/// Horizontal offset of each laser muzzle from the paddle center.
+pub const LASER_MUZZLE_OFFSET: f32 = 30.0;
+
+// --- Warp-exit gate (Break power-up) ---
+pub const WARP_GATE_WIDTH: f32 = 32.0;
+
+// --- VFX ---
+/// Seconds each frame of an animated VFX flipbook is shown.
+pub const VFX_FRAME_TIME: f32 = 0.05;
+
 // --- Z layers ---
 pub const Z_BACKGROUND: f32 = 0.0;
 pub const Z_BRICK: f32 = 1.0;
+pub const Z_WARP_GATE: f32 = 1.5;
 pub const Z_PADDLE: f32 = 2.0;
 pub const Z_BALL: f32 = 3.0;
+pub const Z_CAPSULE: f32 = 4.0;
+pub const Z_LASER: f32 = 4.0;
+pub const Z_VFX: f32 = 5.0;
 /// Full-screen overlay art (e.g. the title screen) drawn above the playfield.
 pub const Z_OVERLAY: f32 = 100.0;
